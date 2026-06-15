@@ -2,6 +2,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
 
+/* 전역 폰트와 색상 변수: 사이트 전체의 검정/붉은 테마 기준값입니다. */
 @font-face {
   font-family: "KbizHanmaumMyungjo";
   src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/KBIZHanmaumMyungjo.woff") format("woff");
@@ -47,6 +48,7 @@ button {
   background: rgba(255, 0, 24, 0.72);
 }
 
+/* 공통 카드 스타일: 메인/관리자 화면의 네모난 붉은 테두리 박스입니다. */
 .glass-card {
   border: 1px solid rgba(255, 0, 24, 0.48);
   border-radius: 2px;
@@ -193,6 +195,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   cursor: pointer;
 }
 
+/* 왼쪽 사이드 메뉴: 햄버거 버튼으로 내용만 접고, 본문 레이아웃에는 영향을 주지 않습니다. */
 .side-menu {
   overflow: hidden;
   width: 18rem;
@@ -286,6 +289,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   pointer-events: none;
 }
 
+/* 오른쪽 BGM 플레이어: LP 판, 접힘 상태, 볼륨/진행바 스타일입니다. */
 .bgm-player {
   overflow: hidden;
   background: rgba(0, 0, 0, 0.88);
@@ -398,6 +402,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   animation: bgm-lp-spin 4.8s linear infinite;
 }
 
+/* 로그인/회원가입 패널: 왼쪽 메뉴 안에서 접히고 펼쳐지는 작은 인증 박스입니다. */
 .auth-panel {
   position: relative;
   overflow: hidden;
@@ -510,6 +515,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   display: none;
 }
 
+/* 테마 호환 보정: 둥근 요소와 Tailwind 기본 폰트를 네모난 한글 UI에 맞춥니다. */
 [class*="rounded-"] {
   border-radius: 2px !important;
 }
@@ -572,6 +578,7 @@ select {
   line-height: 1.35;
 }
 
+/* 쯔꾸르 게임풍 버튼: 캘린더 이동 버튼에 쓰는 픽셀 UI입니다. */
 .game-menu-button {
   position: relative;
   border: 1px solid rgba(210, 210, 210, 0.72);
@@ -600,6 +607,7 @@ select {
     inset 0 0 0 1px rgba(255, 0, 24, 0.18);
 }
 
+/* 관리자 페이지 전용 가독성 보정: 본 페이지보다 입력 폼과 설명문을 선명하게 보여줍니다. */
 .admin-page {
   font-family: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
 }
@@ -626,6 +634,7 @@ select {
   line-height: 1.7;
 }
 
+/* 자캐 카드와 갤러리 타일: 대표 이미지, 일러스트, 스탠딩 미리보기 박스입니다. */
 .character-card {
   position: relative;
   display: block;
@@ -702,6 +711,7 @@ label {
   bottom: 4vh;
 }
 
+/* Tailwind emerald 유틸을 사이트의 붉은 테마로 덮어쓰는 색상 호환 레이어입니다. */
 [class*="text-emerald-50"] {
   color: rgba(255, 245, 245, var(--tw-text-opacity, 1)) !important;
 }
@@ -743,6 +753,7 @@ label {
   color: rgba(244, 241, 234, 0.38) !important;
 }
 
+/* 남아 있는 글리치/노이즈 키프레임: 현재 화면 효과와 충돌하지 않게 보수적으로 유지합니다. */
 @keyframes rain-fall {
   0% {
     transform: translate3d(0, -20vh, 0);

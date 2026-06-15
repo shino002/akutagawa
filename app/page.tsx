@@ -12,61 +12,14 @@ import {
 } from "firebase/auth";
 import { addDoc, collection, doc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import BgmPlayer from "./components/BgmPlayer";
+import { ADMIN_AUTH_EMAIL, ADMIN_LOGIN_ID, displayLoginId, friendlyAuthError, resolveLoginEmail, validateLoginId } from "@/lib/auth-helpers";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import { clamp, thumbnailStyle } from "@/lib/image-helpers";
+import type { Character, CharacterWorldEntry, DiaryEntry, GuestbookEntry, HomeContent, UploadedImage, Work, World } from "@/lib/types";
 
 dayjs.locale("ko");
 
-type Character = {
-  id: string;
-  name: string;
-  subtitle: string;
-  quote: string;
-  palette: string;
-  profile: {
-    age: string;
-    height: string;
-    role: string;
-    keyword: string;
-  };
-  settings: string[];
-  relationships: string[];
-  images?: UploadedImage[];
-  works: {
-    title: string;
-    kind: string;
-    date: string;
-    body: string;
-  }[];
-  worldEntries?: CharacterWorldEntry[];
-};
-
-type Work = Character["works"][number];
-
-type World = {
-  id: string;
-  title: string;
-  subtitle: string;
-  description: string;
-};
-
-type CharacterWorldEntry = {
-  worldId: string;
-  settings: string[];
-  images: UploadedImage[];
-  works: Work[];
-};
-
-type UploadedImage = {
-  id: string;
-  category?: "illustration" | "standing";
-  name: string;
-  url: string;
-  size: number;
-  thumbX?: number;
-  thumbY?: number;
-  thumbScale?: number;
-};
-
+// 공개 페이지에서만 사용하는 모달 상태 타입입니다.
 type GalleryModalItem = {
   image: UploadedImage;
   character: Character;
@@ -82,141 +35,31 @@ type ReaderModalItem = {
   work: Work;
 };
 
-type HomeContent = {
-  eyebrow: string;
-  title: string;
-  body: string;
-};
-
-type DiaryEntry = {
-  id: string;
-  title: string;
-  date: string;
-  body: string;
-};
-
-type GuestbookEntry = {
-  id: string;
-  name: string;
-  body: string;
-  reply: string;
-  createdAtMillis: number;
-};
-
-const ADMIN_LOGIN_ID = "0zsogi";
-const ADMIN_AUTH_EMAIL = "0zsogi@oc-home.local";
-const AUTH_ID_EMAIL_DOMAIN = "oc-home.local";
-
-function resolveLoginEmail(loginId: string) {
-  const trimmedLoginId = loginId.trim();
-  const normalizedLoginId = trimmedLoginId.toLowerCase();
-
-  if (normalizedLoginId === ADMIN_LOGIN_ID) {
-    return ADMIN_AUTH_EMAIL;
-  }
-
-  const safeLoginId = normalizedLoginId.replace(/[^a-z0-9._-]/g, "");
-  return `${safeLoginId}@${AUTH_ID_EMAIL_DOMAIN}`;
-}
-
-function displayLoginId(email?: string | null) {
-  if (!email) return "";
-  return email.endsWith(`@${AUTH_ID_EMAIL_DOMAIN}`) ? email.split("@")[0] : email;
-}
-
-function validateLoginId(loginId: string) {
-  const trimmedLoginId = loginId.trim();
-
-  if (!trimmedLoginId) {
-    return "아이디를 입력해주세요.";
-  }
-
-  if (trimmedLoginId.includes("@")) {
-    return "이메일 형식은 사용할 수 없어요. @ 없이 아이디만 입력해주세요.";
-  }
-
-  if (!/^[a-zA-Z0-9._-]+$/.test(trimmedLoginId)) {
-    return "아이디는 영어, 숫자, 점(.), 밑줄(_), 하이픈(-)만 사용할 수 있어요.";
-  }
-
-  return "";
-}
-
-function friendlyAuthError(error: unknown) {
-  const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : "";
-
-  if (code.includes("auth/invalid-credential") || code.includes("auth/wrong-password")) {
-    return "아이디 또는 비밀번호가 맞지 않아요. 다시 확인해주세요.";
-  }
-
-  if (code.includes("auth/user-not-found")) {
-    return "등록된 계정을 찾지 못했어요.";
-  }
-
-  if (code.includes("auth/email-already-in-use")) {
-    return "이미 가입된 계정이에요. 로그인으로 들어와주세요.";
-  }
-
-  if (code.includes("auth/weak-password")) {
-    return "비밀번호는 6자 이상으로 입력해주세요.";
-  }
-
-  if (code.includes("auth/too-many-requests")) {
-    return "로그인 시도가 너무 많아요. 잠시 뒤에 다시 시도해주세요.";
-  }
-
-  if (code.includes("auth/network-request-failed")) {
-    return "네트워크 연결을 확인한 뒤 다시 시도해주세요.";
-  }
-
-  return "로그인 처리 중 문제가 생겼어요. 입력값을 확인하고 다시 시도해주세요.";
-}
-
-function thumbnailStyle(image: UploadedImage) {
-  const x = image.thumbX ?? 50;
-  const y = image.thumbY ?? 50;
-  const scale = image.thumbScale ?? 1;
-
-  return {
-    objectPosition: `${x}% ${y}%`,
-    transform: `scale(${scale})`,
-    transformOrigin: `${x}% ${y}%`,
-  };
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-const extracts = [
-  "이름은 존재를 붙드는 가장 작은 주문이다.",
-  "비밀은 숨겨진 진실이 아니라, 아직 말할 사람을 고르지 못한 문장이다.",
-  "돌아갈 곳이 없다는 말은 때때로 어디든 갈 수 있다는 뜻이었다.",
-];
-
+// Firestore 문서가 없을 때 표시할 기본 문구와 왼쪽 메뉴 구성을 정의합니다.
 const defaultHomeContent: HomeContent = {
-  eyebrow: "Original Character Home",
-  title: "Akutagawa Archive",
-  body: "우리가 쉬고 있는 바위틈에서는 시냇물이 흐르고 있었습니다.\n각자의 이야기와 그림, 로그를 씻어 보관하는 작은 자캐 홈입니다.",
+  eyebrow: "",
+  title: "",
+  body: "",
 };
 
 const defaultArchiveContent: HomeContent = {
-  eyebrow: "Archive",
-  title: "자캐 보관소",
-  body: "설정, 사진, 로그, 연성을 캐릭터별로 정리하는 개인 홈",
+  eyebrow: "",
+  title: "",
+  body: "",
 };
 
 const sections = [
   { id: "home", label: "Home" },
   { id: "characters", label: "Character" },
-  { id: "worlds", label: "TRPG" },
+  { id: "worlds", label: "World" },
   { id: "diary", label: "Diary" },
   { id: "guest", label: "Guest" },
-  { id: "extract", label: "Extract" },
+  { id: "extract", label: "@/1_R#0?/@..." },
 ] as const;
 
 type SectionId = (typeof sections)[number]["id"];
 
+// 자캐 데이터가 아직 없을 때 화면을 비우지 않기 위한 기본 표시값입니다.
 const emptyCharacter: Character = {
   id: "",
   name: "자캐 없음",
@@ -236,18 +79,28 @@ const emptyCharacter: Character = {
   worldEntries: [],
 };
 
-function normalizeWorldEntries(entries: CharacterWorldEntry[] | undefined) {
+function normalizeWorldEntries(entries: CharacterWorldEntry[] | undefined): CharacterWorldEntry[] {
   return Array.isArray(entries)
     ? entries.map((entry) => ({
         worldId: entry.worldId,
         settings: Array.isArray(entry.settings) ? entry.settings : [],
         images: Array.isArray(entry.images) ? entry.images : [],
-        works: Array.isArray(entry.works) ? entry.works : [],
+        works: normalizeWorks(entry.works),
+      }))
+    : [];
+}
+
+function normalizeWorks(works: Work[] | undefined): Work[] {
+  return Array.isArray(works)
+    ? works.map((work) => ({
+        ...work,
+        images: Array.isArray(work.images) ? work.images : [],
       }))
     : [];
 }
 
 export default function Home() {
+  // 현재 보고 있는 섹션, 선택된 자료, 모달, 로그인 폼 상태를 관리합니다.
   const [activeSection, setActiveSection] = useState<SectionId>("home");
   const [activeCharacterId, setActiveCharacterId] = useState("");
   const [activeWorldId, setActiveWorldId] = useState("");
@@ -273,7 +126,10 @@ export default function Home() {
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [worlds, setWorlds] = useState<World[]>([]);
+  const [worldPasswordDrafts, setWorldPasswordDrafts] = useState<Record<string, string>>({});
+  const [unlockedWorldIds, setUnlockedWorldIds] = useState<Record<string, boolean>>({});
 
+  // Firestore 원본 데이터를 화면에서 바로 쓰기 좋은 대표 자캐/그림/세계관 목록으로 계산합니다.
   const characters = useMemo(() => {
     return firestoreCharacters;
   }, [firestoreCharacters]);
@@ -317,6 +173,10 @@ export default function Home() {
     [activeCharacterWorldEntry],
   );
   const activeWorldMainIllustration = activeWorldIllustrationImages[0] ?? activeCharacterWorldEntry?.images[0];
+  const activeCharacterWorld = useMemo(
+    () => (activeCharacterWorldEntry ? worlds.find((world) => world.id === activeCharacterWorldEntry.worldId) : undefined),
+    [activeCharacterWorldEntry, worlds],
+  );
   const activeWorld = useMemo(
     () => worlds.find((world) => world.id === activeWorldId) ?? worlds[0],
     [activeWorldId, worlds],
@@ -379,7 +239,14 @@ export default function Home() {
 
   const isAdmin = authUser?.email === ADMIN_AUTH_EMAIL;
   const visibleSections = sections;
+  const activeWorldPassword = activeWorld?.password?.trim() ?? "";
+  const isActiveWorldUnlocked = Boolean(activeWorld && (!activeWorldPassword || unlockedWorldIds[activeWorld.id]));
+  const activeCharacterWorldPassword = activeCharacterWorld?.password?.trim() ?? "";
+  const isActiveCharacterWorldUnlocked = Boolean(
+    activeCharacterWorldEntry && (!activeCharacterWorldPassword || unlockedWorldIds[activeCharacterWorldEntry.worldId]),
+  );
 
+  // 이미지 모달 열기와 휠 확대/축소 동작을 담당합니다.
   function openGalleryModal(item: GalleryModalItem) {
     setGalleryZoom(1);
     setGalleryModalItem(item);
@@ -389,6 +256,7 @@ export default function Home() {
     setGalleryZoom(clamp(nextZoom, 0.5, 3));
   }
 
+  // Firebase Auth 로그인 상태를 구독합니다.
   useEffect(() => {
     const auth = getFirebaseAuth();
     return onAuthStateChanged(auth, (user) => {
@@ -396,6 +264,7 @@ export default function Home() {
     });
   }, []);
 
+  // 이미지 모달이 열려 있는 동안 배경 페이지 스크롤을 잠급니다.
   useEffect(() => {
     if (!galleryModalItem) return;
 
@@ -407,6 +276,7 @@ export default function Home() {
     };
   }, [galleryModalItem]);
 
+  // 공개 페이지에 필요한 Firestore 컬렉션과 사이트 문구를 실시간으로 구독합니다.
   useEffect(() => {
     const db = getFirebaseDb();
     return onSnapshot(
@@ -419,7 +289,7 @@ export default function Home() {
               return {
                 ...data,
                 id: data.id || characterDoc.id,
-                works: Array.isArray(data.works) ? data.works : [],
+                works: normalizeWorks(data.works),
                 settings: Array.isArray(data.settings) ? data.settings : [],
                 relationships: Array.isArray(data.relationships) ? data.relationships : [],
                 images: Array.isArray(data.images) ? data.images : [],
@@ -447,6 +317,7 @@ export default function Home() {
               title: data.title || "",
               subtitle: data.subtitle || "",
               description: data.description || "",
+              password: data.password || "",
             };
           })
           .sort((a, b) => a.title.localeCompare(b.title));
@@ -548,8 +419,31 @@ export default function Home() {
     );
   }, []);
 
+  // 메뉴 이동, 로그인/회원가입, 방명록 작성처럼 사용자가 직접 누르는 동작을 처리합니다.
   function moveSection(section: SectionId) {
     setActiveSection(section);
+  }
+
+  function unlockWorldById(event: FormEvent<HTMLFormElement>, worldId: string) {
+    event.preventDefault();
+    const targetWorld = worlds.find((world) => world.id === worldId);
+    const targetPassword = targetWorld?.password?.trim() ?? "";
+
+    if (!targetWorld) return;
+
+    if (!targetPassword || worldPasswordDrafts[worldId]?.trim() === targetPassword) {
+      setUnlockedWorldIds((current) => ({ ...current, [worldId]: true }));
+      setWorldPasswordDrafts((current) => ({ ...current, [worldId]: "" }));
+      return;
+    }
+
+    setAuthNotice("세계관 비밀번호가 맞지 않아요.");
+  }
+
+  function unlockWorld(event: FormEvent<HTMLFormElement>) {
+    if (!activeWorld) return;
+
+    unlockWorldById(event, activeWorld.id);
   }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
@@ -623,6 +517,7 @@ export default function Home() {
     }
   }
 
+  // 실제 공개 페이지 레이아웃입니다: 왼쪽 메뉴, 본문 섹션, 오른쪽 캘린더/BGM을 배치합니다.
   return (
     <main className="min-h-screen overflow-x-hidden bg-black text-emerald-50">
       <style jsx global>{`
@@ -1016,7 +911,7 @@ export default function Home() {
                                 {activeStandingImages.slice(0, 4).map((image) => (
                                   <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
                                     {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                    <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                    <img src={image.url} alt="스탠딩 이미지" className="h-full w-full object-cover" style={thumbnailStyle(image)} />
                                   </div>
                                 ))}
                               </div>
@@ -1067,9 +962,6 @@ export default function Home() {
                                   style={thumbnailStyle(image)}
                                 />
                               </button>
-                              <div className="p-4 text-sm text-emerald-100/70">
-                                <p className="truncate text-xs text-emerald-50">{image.name}</p>
-                              </div>
                             </article>
                           ))}
                         </div>
@@ -1102,6 +994,16 @@ export default function Home() {
                               </div>
                               <span className="bg-emerald-200 px-4 py-2 text-xs font-semibold text-emerald-950">이북 리더로 보기</span>
                             </div>
+                            {(work.images?.length ?? 0) > 0 && (
+                              <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                                {work.images?.slice(0, 5).map((image) => (
+                                  <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                    <img src={image.url} alt="첨부 이미지" className="h-full w-full object-cover opacity-90" style={thumbnailStyle(image)} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <p className="mt-3 line-clamp-3 text-sm leading-7 text-emerald-50/75">{work.body}</p>
                           </button>
                         ))}
@@ -1132,7 +1034,33 @@ export default function Home() {
                                 );
                               })}
                             </div>
-                            {activeCharacterWorldEntry && (
+                            {activeCharacterWorldEntry && (!isActiveCharacterWorldUnlocked ? (
+                              <article className="grid gap-4 border border-red-600/30 bg-black/30 p-5">
+                                <div>
+                                  <p className="text-xs uppercase tracking-[0.25em] text-red-100/55">World Data Locked</p>
+                                  <h4 className="mt-2 text-2xl font-semibold">
+                                    {activeCharacterWorld?.title ?? activeCharacterWorldEntry.worldId}
+                                  </h4>
+                                </div>
+                                <form onSubmit={(event) => unlockWorldById(event, activeCharacterWorldEntry.worldId)} className="grid gap-3 border border-red-600/25 bg-red-950/10 p-4">
+                                  <p className="text-sm leading-7 text-emerald-100/70">
+                                    이 세계관의 설정, 그림, 연성/로그를 보려면 비밀번호를 입력해주세요.
+                                  </p>
+                                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+                                    <input
+                                      type="password"
+                                      value={worldPasswordDrafts[activeCharacterWorldEntry.worldId] ?? ""}
+                                      onChange={(event) => setWorldPasswordDrafts((current) => ({ ...current, [activeCharacterWorldEntry.worldId]: event.target.value }))}
+                                      placeholder="World password"
+                                      className="auth-input auth-input-compact"
+                                    />
+                                    <button className="border border-red-600/50 bg-red-950/40 px-5 py-2 text-sm text-red-50">
+                                      기록 열기
+                                    </button>
+                                  </div>
+                                </form>
+                              </article>
+                            ) : (
                               <article className="grid gap-5 border border-emerald-100/10 bg-black/20 p-5">
                                 <div>
                                   <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/45">World Data</p>
@@ -1170,7 +1098,7 @@ export default function Home() {
                                           <div className={`h-full w-full bg-gradient-to-r ${activeCharacter.palette}`} />
                                         )}
                                       </div>
-                                      <p className="truncate p-3 text-xs text-emerald-50">{activeWorldMainIllustration?.name ?? "세계관 일러스트"}</p>
+                                      <p className="truncate p-3 text-xs text-emerald-50">세계관 일러스트</p>
                                     </button>
 
                                     {activeWorldStandingImages.length > 0 && (
@@ -1184,7 +1112,7 @@ export default function Home() {
                                           {activeWorldStandingImages.slice(0, 4).map((image) => (
                                             <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
                                               {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                              <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                              <img src={image.url} alt="스탠딩 이미지" className="h-full w-full object-cover" style={thumbnailStyle(image)} />
                                             </div>
                                           ))}
                                         </div>
@@ -1203,12 +1131,22 @@ export default function Home() {
                                     >
                                       <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
                                       <h4 className="mt-2 text-lg font-semibold">{work.title}</h4>
+                                      {(work.images?.length ?? 0) > 0 && (
+                                        <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                                          {work.images?.slice(0, 5).map((image) => (
+                                            <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                              {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                              <img src={image.url} alt="첨부 이미지" className="h-full w-full object-cover opacity-90" style={thumbnailStyle(image)} />
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
                                       <p className="mt-2 line-clamp-2 text-sm leading-7 text-emerald-50/70">{work.body}</p>
                                     </button>
                                   ))}
                                 </div>
                               </article>
-                            )}
+                            ))}
                           </>
                         ) : (
                           <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">참가한 세계관 자료가 없어요.</p>
@@ -1225,9 +1163,9 @@ export default function Home() {
           {activeSection === "worlds" && (
             <section className="space-y-6">
               <section className="glass-card p-6 md:p-8">
-                <p className="text-xs uppercase tracking-[0.3em] text-emerald-100/50">TRPG / World</p>
-                <h3 className="mt-2 font-serif text-4xl font-bold">세계관 기록</h3>
-                <p className="mt-3 text-sm text-emerald-100/65">세계관을 선택하면 참가한 자캐와 해당 세계관 전용 설정, 그림, 로그를 모아 볼 수 있어요.</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-emerald-100/50">World Archive</p>
+                <h3 className="mt-2 font-serif text-4xl font-bold">World</h3>
+                <p className="mt-3 text-sm text-emerald-100/65">어떤 세계가 있는지는 볼 수 있지만, 세계관 기록은 비밀번호를 입력해야 열립니다.</p>
                 <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {worlds.map((world) => (
                     <button
@@ -1241,6 +1179,11 @@ export default function Home() {
                       <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/40">{world.id}</p>
                       <h4 className="mt-2 text-2xl font-semibold">{world.title}</h4>
                       <p className="mt-2 text-sm text-emerald-100/60">{world.subtitle}</p>
+                      {world.password?.trim() && (
+                        <p className="mt-3 inline-block border border-red-600/35 bg-black/35 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-red-100/70">
+                          Locked
+                        </p>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -1258,9 +1201,30 @@ export default function Home() {
                       <p className="mt-2 text-emerald-100/65">{activeWorld.subtitle}</p>
                       {activeWorld.description && <p className="mt-4 whitespace-pre-line text-sm leading-8 text-emerald-50/75">{activeWorld.description}</p>}
                     </div>
-                    <p className="border border-red-600/30 bg-red-950/10 p-4 text-center text-sm text-emerald-100/75">참가 자캐 {activeWorldParticipants.length}명</p>
+                    <p className="border border-red-600/30 bg-red-950/10 p-4 text-center text-sm text-emerald-100/75">
+                      {isActiveWorldUnlocked ? `참가 자캐 ${activeWorldParticipants.length}명` : "기록 잠김"}
+                    </p>
                   </div>
 
+                  {!isActiveWorldUnlocked ? (
+                    <form onSubmit={unlockWorld} className="mt-6 grid gap-3 border border-red-600/25 bg-black/35 p-5">
+                      <p className="text-sm leading-7 text-emerald-100/70">
+                        이 세계관의 참가 자캐 기록, 그림, 로그를 보려면 관리자 페이지에서 설정한 비밀번호를 입력해주세요.
+                      </p>
+                      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+                        <input
+                          type="password"
+                          value={worldPasswordDrafts[activeWorld.id] ?? ""}
+                          onChange={(event) => setWorldPasswordDrafts((current) => ({ ...current, [activeWorld.id]: event.target.value }))}
+                          placeholder="World password"
+                          className="auth-input auth-input-compact"
+                        />
+                        <button className="border border-red-600/50 bg-red-950/40 px-5 py-2 text-sm text-red-50">
+                          기록 열기
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
                   <div className="mt-6 grid gap-5">
                     {activeWorldParticipants.map(({ character, entry }) => {
                       const worldIllustrations = entry.images.filter((image) => image.category !== "standing");
@@ -1319,7 +1283,7 @@ export default function Home() {
                                   <div className={`h-full w-full bg-gradient-to-r ${character.palette}`} />
                                 )}
                               </div>
-                              <p className="truncate p-3 text-xs text-emerald-50">{worldMainIllustration?.name ?? "세계관 일러스트"}</p>
+                              <p className="truncate p-3 text-xs text-emerald-50">세계관 일러스트</p>
                             </button>
 
                             {worldStandings.length > 0 && (
@@ -1333,7 +1297,7 @@ export default function Home() {
                                   {worldStandings.slice(0, 4).map((image) => (
                                     <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
                                       {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                      <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                      <img src={image.url} alt="스탠딩 이미지" className="h-full w-full object-cover" style={thumbnailStyle(image)} />
                                     </div>
                                   ))}
                                 </div>
@@ -1350,6 +1314,16 @@ export default function Home() {
                                 >
                                   <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
                                   <h5 className="mt-2 text-lg font-semibold">{work.title}</h5>
+                                  {(work.images?.length ?? 0) > 0 && (
+                                    <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                                      {work.images?.slice(0, 5).map((image) => (
+                                        <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                          {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                          <img src={image.url} alt="첨부 이미지" className="h-full w-full object-cover opacity-90" style={thumbnailStyle(image)} />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                   <p className="mt-2 line-clamp-2 text-sm leading-7 text-emerald-50/70">{work.body}</p>
                                 </button>
                               ))}
@@ -1363,6 +1337,7 @@ export default function Home() {
                       <p className="border border-emerald-100/10 bg-black/30 p-5 text-sm text-emerald-100/60">이 세계관에 연결된 자캐 자료가 아직 없어요.</p>
                     )}
                   </div>
+                  )}
                 </section>
               )}
             </section>
@@ -1433,15 +1408,11 @@ export default function Home() {
 
           {activeSection === "extract" && (
             <section className="glass-card p-6 md:p-8">
-              <h3 className="board-title">발췌</h3>
-              <div className="mt-5 grid gap-4">
-                {extracts.map((extract, index) => (
-                  <blockquote key={extract} className="rounded-3xl border border-emerald-100/10 bg-emerald-950/30 p-5 text-sm leading-8 text-emerald-50/80">
-                    <span className="mb-3 block text-xs text-emerald-100/45">Extract {String(index + 1).padStart(2, "0")}</span>
-                    “{extract}”
-                  </blockquote>
-                ))}
-              </div>
+              <p className="text-xs uppercase tracking-[0.35em] text-red-100/60">@/1_R#0?/@...</p>
+              <h3 className="board-title mt-3">아직 공사중</h3>
+              <p className="mt-5 border border-emerald-100/10 bg-black/25 p-5 text-sm leading-7 text-emerald-50/70">
+                아직 무슨 기능을 넣을지 정하지 않았어요.
+              </p>
             </section>
           )}
         </div>
@@ -1504,6 +1475,7 @@ export default function Home() {
         </aside>
       </section>
 
+      {/* 글/이미지/스탠딩 표정 모달은 페이지 하단에 모아서 조건부로 띄웁니다. */}
       {readerModalItem && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/86 p-4 backdrop-blur-sm"
@@ -1533,6 +1505,23 @@ export default function Home() {
 
             <article className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_50%_0%,rgba(255,0,24,0.06),transparent_34%),#030000]">
               <div className="px-7 py-8 md:px-12 md:py-10">
+                {(readerModalItem.work.images?.length ?? 0) > 0 && (
+                  <div className="mb-8 grid gap-3 sm:grid-cols-2">
+                    {readerModalItem.work.images?.map((image) => (
+                      <button
+                        key={image.id}
+                        type="button"
+                        onClick={() => openGalleryModal({ image, character: readerModalItem.character })}
+                        className="gallery-tile group block text-left"
+                      >
+                        <div className="aspect-[4/3] overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                          <img src={image.url} alt="첨부 이미지" className="h-full w-full object-cover opacity-95 transition group-hover:scale-105" style={thumbnailStyle(image)} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <p className="whitespace-pre-line text-[0.95rem] leading-9 text-emerald-50/86">
                   {readerModalItem.work.body || "내용이 없어요."}
                 </p>
@@ -1557,7 +1546,7 @@ export default function Home() {
             <div className="flex items-center justify-between gap-3 border-b border-emerald-100/10 p-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-red-200/70">{galleryModalItem.character.name}</p>
-                <h3 className="mt-1 text-lg font-semibold text-emerald-50">{galleryModalItem.image.name}</h3>
+                <h3 className="mt-1 text-lg font-semibold text-emerald-50">이미지 확대 보기</h3>
               </div>
               <button
                 type="button"
@@ -1585,7 +1574,7 @@ export default function Home() {
               {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads and are displayed at original size in the modal. */}
               <img
                 src={galleryModalItem.image.url}
-                alt={`${galleryModalItem.character.name} ${galleryModalItem.image.name}`}
+                alt={`${galleryModalItem.character.name} 이미지`}
                 className="mx-auto h-auto max-w-none select-none object-contain"
                 style={{
                   width: `${galleryZoom * 100}%`,
@@ -1644,9 +1633,8 @@ export default function Home() {
                     >
                       <div className="aspect-[3/4] overflow-hidden bg-black">
                         {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                        <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                        <img src={image.url} alt="스탠딩 이미지" className="h-full w-full object-cover" style={thumbnailStyle(image)} />
                       </div>
-                      <p className="truncate p-3 text-xs text-emerald-50">{image.name}</p>
                     </button>
                   </article>
                 ))}

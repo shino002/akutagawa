@@ -1,4 +1,5 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
@@ -43,6 +44,12 @@ function safeFileName(fileName: string, customName: string) {
   return `${baseName || "image"}.${extension}`;
 }
 
+function createUniqueObjectName(fileName: string, customName: string) {
+  const uniqueId = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+
+  return `${uniqueId}-${safeFileName(fileName, customName)}`;
+}
+
 export async function POST(request: Request) {
   const bucket = process.env.R2_BUCKET_NAME;
   const client = getR2Client();
@@ -75,7 +82,7 @@ export async function POST(request: Request) {
   const safeCharacterId = characterId.replace(/[^a-zA-Z0-9_-]/g, "-") || "uncategorized";
   const safeWorldId = worldId.replace(/[^a-zA-Z0-9_-]/g, "-");
   const keyPrefix = safeWorldId ? `characters/${safeCharacterId}/worlds/${safeWorldId}` : `characters/${safeCharacterId}`;
-  const key = `${keyPrefix}/${safeFileName(file.name, displayName)}`;
+  const key = `${keyPrefix}/${createUniqueObjectName(file.name, displayName)}`;
   const body = Buffer.from(await file.arrayBuffer());
 
   await client.send(

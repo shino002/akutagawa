@@ -9,6 +9,7 @@ const MIN_CORRUPTION_INTERVAL_MS = 4000;
 const MAX_CORRUPTION_INTERVAL_MS = 8000;
 const MAX_CORRUPTED_NODES = 5;
 
+// 화면에 보이는 텍스트 일부를 잠깐 깨뜨렸다가 되돌리는 전역 글리치 효과입니다.
 type CorruptedTextNode = {
   corruptedText: string;
   node: Text;
@@ -39,7 +40,19 @@ function isTextNodeInViewport(node: Text) {
 }
 
 function pickRandomNodes(nodes: Text[], count: number) {
-  return [...nodes].sort(() => Math.random() - 0.5).slice(0, count);
+  const selectedNodes: Text[] = [];
+  const usedIndexes = new Set<number>();
+
+  while (selectedNodes.length < count && usedIndexes.size < nodes.length) {
+    const index = Math.floor(Math.random() * nodes.length);
+
+    if (!usedIndexes.has(index)) {
+      usedIndexes.add(index);
+      selectedNodes.push(nodes[index]);
+    }
+  }
+
+  return selectedNodes;
 }
 
 function getNextCorruptionDelay() {

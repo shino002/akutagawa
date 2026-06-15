@@ -4,19 +4,12 @@ import { ChangeEvent, FormEvent, PointerEvent, WheelEvent, useEffect, useMemo, u
 import Link from "next/link";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId } from "@/lib/auth-helpers";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import { clamp, fileNameWithoutExtension, thumbnailStyle } from "@/lib/image-helpers";
+import type { Character, CharacterWorldEntry, DiaryEntry, GuestbookEntry, HomeContent, UploadedImage, Work, World } from "@/lib/types";
 
-type UploadedImage = {
-  id: string;
-  category?: "illustration" | "standing";
-  name: string;
-  url: string;
-  size: number;
-  thumbX?: number;
-  thumbY?: number;
-  thumbScale?: number;
-};
-
+// 관리자 페이지에서만 쓰는 업로드 대기/폼 입력 타입입니다.
 type PendingUpload = {
   displayName: string;
   id: string;
@@ -35,46 +28,6 @@ type ThumbnailDragState = {
   startThumbY: number;
 };
 
-type Work = {
-  title: string;
-  kind: string;
-  date: string;
-  body: string;
-};
-
-type World = {
-  id: string;
-  title: string;
-  subtitle: string;
-  description: string;
-};
-
-type CharacterWorldEntry = {
-  worldId: string;
-  settings: string[];
-  images: UploadedImage[];
-  works: Work[];
-};
-
-type Character = {
-  id: string;
-  name: string;
-  subtitle: string;
-  quote: string;
-  palette: string;
-  profile: {
-    age: string;
-    height: string;
-    role: string;
-    keyword: string;
-  };
-  settings: string[];
-  relationships: string[];
-  images?: UploadedImage[];
-  works: Work[];
-  worldEntries?: CharacterWorldEntry[];
-};
-
 type CharacterDraft = {
   id: string;
   name: string;
@@ -89,38 +42,16 @@ type CharacterDraft = {
   relationshipsText: string;
 };
 
-type HomeContent = {
-  eyebrow: string;
-  title: string;
-  body: string;
-};
-
-type DiaryEntry = {
-  id: string;
-  title: string;
-  date: string;
-  body: string;
-};
-
-type GuestbookEntry = {
-  id: string;
-  name: string;
-  body: string;
-  reply: string;
-  createdAtMillis: number;
-};
-
 type WorldDraft = {
   id: string;
   title: string;
   subtitle: string;
   description: string;
+  password: string;
 };
 
+// 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
-const ADMIN_LOGIN_ID = "0zsogi";
-const ADMIN_AUTH_EMAIL = "0zsogi@oc-home.local";
-const AUTH_ID_EMAIL_DOMAIN = "oc-home.local";
 const paletteOptions = [
   { label: "붉은 밤", value: "from-red-600 via-zinc-900 to-black" },
   { label: "검은 장미", value: "from-red-950 via-black to-zinc-900" },
@@ -131,93 +62,21 @@ const paletteOptions = [
 ];
 
 const defaultHomeContent: HomeContent = {
-  eyebrow: "Original Character Home",
-  title: "Akutagawa Archive",
-  body: "우리가 쉬고 있는 바위틈에서는 시냇물이 흐르고 있었습니다.\n각자의 이야기와 그림, 로그를 씻어 보관하는 작은 자캐 홈입니다.",
+  eyebrow: "",
+  title: "",
+  body: "",
 };
 
 const defaultArchiveContent: HomeContent = {
-  eyebrow: "Archive",
-  title: "자캐 보관소",
-  body: "설정, 사진, 로그, 연성을 캐릭터별로 정리하는 개인 홈",
+  eyebrow: "",
+  title: "",
+  body: "",
 };
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
-}
-
-function resolveLoginEmail(loginId: string) {
-  const trimmedLoginId = loginId.trim();
-  const normalizedLoginId = trimmedLoginId.toLowerCase();
-
-  if (normalizedLoginId === ADMIN_LOGIN_ID) {
-    return ADMIN_AUTH_EMAIL;
-  }
-
-  const safeLoginId = normalizedLoginId.replace(/[^a-z0-9._-]/g, "");
-  return `${safeLoginId}@${AUTH_ID_EMAIL_DOMAIN}`;
-}
-
-function validateLoginId(loginId: string) {
-  const trimmedLoginId = loginId.trim();
-
-  if (!trimmedLoginId) {
-    return "아이디를 입력해주세요.";
-  }
-
-  if (trimmedLoginId.includes("@")) {
-    return "이메일 형식은 사용할 수 없어요. @ 없이 아이디만 입력해주세요.";
-  }
-
-  if (!/^[a-zA-Z0-9._-]+$/.test(trimmedLoginId)) {
-    return "아이디는 영어, 숫자, 점(.), 밑줄(_), 하이픈(-)만 사용할 수 있어요.";
-  }
-
-  return "";
-}
-
-function friendlyAuthError(error: unknown) {
-  const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : "";
-
-  if (code.includes("auth/invalid-credential") || code.includes("auth/wrong-password")) {
-    return "아이디 또는 비밀번호가 맞지 않아요. 다시 확인해주세요.";
-  }
-
-  if (code.includes("auth/user-not-found")) {
-    return "등록된 계정을 찾지 못했어요.";
-  }
-
-  if (code.includes("auth/too-many-requests")) {
-    return "로그인 시도가 너무 많아요. 잠시 뒤에 다시 시도해주세요.";
-  }
-
-  if (code.includes("auth/network-request-failed")) {
-    return "네트워크 연결을 확인한 뒤 다시 시도해주세요.";
-  }
-
-  return "로그인 처리 중 문제가 생겼어요. 입력값을 확인하고 다시 시도해주세요.";
-}
-
-function thumbnailStyle(image: Pick<UploadedImage, "thumbX" | "thumbY" | "thumbScale">) {
-  const x = image.thumbX ?? 50;
-  const y = image.thumbY ?? 50;
-  const scale = image.thumbScale ?? 1;
-
-  return {
-    objectPosition: `${x}% ${y}%`,
-    transform: `scale(${scale})`,
-    transformOrigin: `${x}% ${y}%`,
-  };
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function fileNameWithoutExtension(fileName: string) {
-  return fileName.replace(/\.[^/.]+$/, "");
 }
 
 function slugifyId(value: string) {
@@ -236,6 +95,7 @@ function linesToList(value: string) {
     .filter(Boolean);
 }
 
+// Firestore 문서와 관리자 입력 폼 사이를 오가는 변환 함수들입니다.
 function createBlankDraft(): CharacterDraft {
   return {
     id: "",
@@ -312,6 +172,7 @@ function createBlankWorldDraft(): WorldDraft {
     title: "",
     subtitle: "",
     description: "",
+    password: "",
   };
 }
 
@@ -321,6 +182,7 @@ function worldToDraft(world: World): WorldDraft {
     title: world.title,
     subtitle: world.subtitle,
     description: world.description,
+    password: world.password ?? "",
   };
 }
 
@@ -333,13 +195,22 @@ function createBlankWorldEntry(worldId: string): CharacterWorldEntry {
   };
 }
 
-function normalizeWorldEntries(entries: CharacterWorldEntry[] | undefined) {
+function normalizeWorks(works: Work[] | undefined): Work[] {
+  return Array.isArray(works)
+    ? works.map((work) => ({
+        ...work,
+        images: Array.isArray(work.images) ? work.images : [],
+      }))
+    : [];
+}
+
+function normalizeWorldEntries(entries: CharacterWorldEntry[] | undefined): CharacterWorldEntry[] {
   return Array.isArray(entries)
     ? entries.map((entry) => ({
         worldId: entry.worldId,
         settings: Array.isArray(entry.settings) ? entry.settings : [],
         images: Array.isArray(entry.images) ? entry.images : [],
-        works: Array.isArray(entry.works) ? entry.works : [],
+        works: normalizeWorks(entry.works),
       }))
     : [];
 }
@@ -355,6 +226,7 @@ function upsertWorldEntry(entries: CharacterWorldEntry[] | undefined, nextEntry:
   return normalizedEntries.map((entry, index) => (index === existingIndex ? nextEntry : entry));
 }
 
+// 이미지 기록을 삭제할 때 Firestore뿐 아니라 Cloudflare R2 객체도 함께 지웁니다.
 async function deleteR2Images(images: UploadedImage[]) {
   if (images.length === 0) return;
 
@@ -375,6 +247,7 @@ async function deleteR2Images(images: UploadedImage[]) {
 }
 
 export default function AdminPage() {
+  // 로그인, 관리자 패널, 선택된 자캐/세계관, 업로드 대기 목록 등 편집 화면 상태입니다.
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [loginDraft, setLoginDraft] = useState({ loginId: "", password: "" });
   const [authNotice, setAuthNotice] = useState("");
@@ -387,8 +260,10 @@ export default function AdminPage() {
   const [draft, setDraft] = useState<CharacterDraft>(() => createBlankDraft());
   const [worldDraft, setWorldDraft] = useState<WorldDraft>(() => createBlankWorldDraft());
   const [worldSettingsText, setWorldSettingsText] = useState("");
-  const [worldWorkDraft, setWorldWorkDraft] = useState({ title: "", kind: "로그", date: "", body: "" });
+  const [worldWorkDraft, setWorldWorkDraft] = useState({ title: "", kind: "세계관 연성", date: "", body: "" });
   const [workDraft, setWorkDraft] = useState({ title: "", kind: "새 연성", date: "", body: "" });
+  const [worldWorkImageFiles, setWorldWorkImageFiles] = useState<File[]>([]);
+  const [workImageFiles, setWorkImageFiles] = useState<File[]>([]);
   const [imageUploadCategory, setImageUploadCategory] = useState<"illustration" | "standing">("illustration");
   const [imageUploadWorldId, setImageUploadWorldId] = useState("");
   const [notice, setNotice] = useState("");
@@ -416,6 +291,7 @@ export default function AdminPage() {
     [activeCharacter, activeCharacterWorldId],
   );
 
+  // Auth, 썸네일 드래그, Firestore 컬렉션 구독을 담당하는 효과들입니다.
   useEffect(() => {
     const auth = getFirebaseAuth();
     return onAuthStateChanged(auth, (user) => setAuthUser(user));
@@ -442,7 +318,7 @@ export default function AdminPage() {
           return {
             ...data,
             id: data.id || characterDoc.id,
-            works: Array.isArray(data.works) ? data.works : [],
+            works: normalizeWorks(data.works),
             settings: Array.isArray(data.settings) ? data.settings : [],
             relationships: Array.isArray(data.relationships) ? data.relationships : [],
             images: Array.isArray(data.images) ? data.images : [],
@@ -477,6 +353,7 @@ export default function AdminPage() {
               title: data.title || "",
               subtitle: data.subtitle || "",
               description: data.description || "",
+              password: data.password || "",
             };
           })
           .sort((a, b) => a.title.localeCompare(b.title));
@@ -589,6 +466,7 @@ export default function AdminPage() {
     );
   }, []);
 
+  // 관리자 로그인과 자캐/세계관 선택처럼 폼 저장 전의 화면 조작을 처리합니다.
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthNotice("");
@@ -633,9 +511,10 @@ export default function AdminPage() {
     const entry = normalizeWorldEntries(activeCharacter?.worldEntries).find((worldEntry) => worldEntry.worldId === worldId);
     setActiveCharacterWorldId(worldId);
     setWorldSettingsText(entry?.settings.join("\n") ?? "");
-    setWorldWorkDraft({ title: "", kind: "로그", date: "", body: "" });
+    setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
   }
 
+  // 선택된 자캐의 세계관별 설정, 로그, 참가 상태를 저장/삭제합니다.
   async function saveCharacterWorldSettings() {
     if (!isAdmin || !activeCharacter || !activeCharacterWorldId) return;
 
@@ -668,25 +547,26 @@ export default function AdminPage() {
     if (!isAdmin || !activeCharacter || !activeCharacterWorldId) return;
 
     if (!worldWorkDraft.title.trim() || !worldWorkDraft.body.trim()) {
-      setNotice("세계관 로그 제목과 내용을 입력해주세요.");
+      setNotice("세계관 연성/로그 제목과 내용을 입력해주세요.");
       return;
     }
 
-    const nextEntry: CharacterWorldEntry = {
-      ...(activeCharacterWorldEntry ?? createBlankWorldEntry(activeCharacterWorldId)),
-      works: [
-        {
-          title: worldWorkDraft.title.trim(),
-          kind: worldWorkDraft.kind.trim() || "로그",
-          date: worldWorkDraft.date.trim() || "today",
-          body: worldWorkDraft.body.trim(),
-        },
-        ...(activeCharacterWorldEntry?.works ?? []),
-      ],
-    };
-
     try {
       setIsSaving(true);
+      const uploadedImages = await uploadWorkImages(worldWorkImageFiles, activeCharacterWorldId);
+      const nextEntry: CharacterWorldEntry = {
+        ...(activeCharacterWorldEntry ?? createBlankWorldEntry(activeCharacterWorldId)),
+        works: [
+          {
+            title: worldWorkDraft.title.trim(),
+            kind: worldWorkDraft.kind.trim() || "세계관 연성",
+            date: worldWorkDraft.date.trim() || "today",
+            body: worldWorkDraft.body.trim(),
+            images: uploadedImages,
+          },
+          ...(activeCharacterWorldEntry?.works ?? []),
+        ],
+      };
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
         {
@@ -696,10 +576,11 @@ export default function AdminPage() {
         },
         { merge: true },
       );
-      setWorldWorkDraft({ title: "", kind: "로그", date: "", body: "" });
-      setNotice("세계관 로그를 추가했어요.");
+      setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
+      setWorldWorkImageFiles([]);
+      setNotice("세계관 연성/로그를 추가했어요.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "세계관 로그 추가에 실패했어요.");
+      setNotice(error instanceof Error ? error.message : "세계관 연성/로그 추가에 실패했어요.");
     } finally {
       setIsSaving(false);
     }
@@ -707,6 +588,7 @@ export default function AdminPage() {
 
   async function deleteWorldWork(workIndex: number) {
     if (!isAdmin || !activeCharacter || !activeCharacterWorldId || !activeCharacterWorldEntry) return;
+    const targetWork = activeCharacterWorldEntry.works[workIndex];
 
     const nextEntry: CharacterWorldEntry = {
       ...activeCharacterWorldEntry,
@@ -715,6 +597,7 @@ export default function AdminPage() {
 
     try {
       setIsSaving(true);
+      await deleteR2Images(targetWork?.images ?? []);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
         {
@@ -724,9 +607,9 @@ export default function AdminPage() {
         },
         { merge: true },
       );
-      setNotice("세계관 로그를 삭제했어요.");
+      setNotice("세계관 연성/로그를 삭제했어요.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "세계관 로그 삭제에 실패했어요.");
+      setNotice(error instanceof Error ? error.message : "세계관 연성/로그 삭제에 실패했어요.");
     } finally {
       setIsSaving(false);
     }
@@ -742,7 +625,10 @@ export default function AdminPage() {
 
     try {
       setIsSaving(true);
-      await deleteR2Images(activeCharacterWorldEntry.images);
+      await deleteR2Images([
+        ...activeCharacterWorldEntry.images,
+        ...normalizeWorks(activeCharacterWorldEntry.works).flatMap((work) => work.images ?? []),
+      ]);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
         {
@@ -754,7 +640,7 @@ export default function AdminPage() {
       setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
       setActiveCharacterWorldId("");
       setWorldSettingsText("");
-      setWorldWorkDraft({ title: "", kind: "로그", date: "", body: "" });
+      setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
       setNotice("이 자캐의 세계관 참가 기록과 세계관 전용 이미지를 삭제했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "세계관 참가 기록 삭제에 실패했어요.");
@@ -763,6 +649,7 @@ export default function AdminPage() {
     }
   }
 
+  // 자캐 기본 정보와 사이트 문구, 다이어리, 방명록, 세계관 카테고리를 저장/삭제합니다.
   async function saveCharacter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice("");
@@ -960,7 +847,7 @@ export default function AdminPage() {
   function startNewWorld() {
     setActiveWorldId("");
     setWorldDraft(createBlankWorldDraft());
-    setNotice("새 세계관/TRPG 정보를 입력해주세요.");
+    setNotice("새 World 정보를 입력해주세요.");
   }
 
   async function saveWorld(event: FormEvent<HTMLFormElement>) {
@@ -988,12 +875,13 @@ export default function AdminPage() {
           title,
           subtitle: worldDraft.subtitle.trim(),
           description: worldDraft.description.trim(),
+          password: worldDraft.password.trim(),
           updatedAt: serverTimestamp(),
         },
         { merge: true },
       );
       setActiveWorldId(id);
-      setWorldDraft({ ...worldDraft, id, title });
+      setWorldDraft({ ...worldDraft, id, title, password: worldDraft.password.trim() });
       setNotice("세계관을 저장했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "세계관 저장에 실패했어요.");
@@ -1027,7 +915,9 @@ export default function AdminPage() {
     try {
       setIsSaving(true);
       const worldImages = normalizeWorldEntries(character.worldEntries).flatMap((entry) => entry.images);
-      await deleteR2Images([...(character.images ?? []), ...worldImages]);
+      const workImages = normalizeWorks(character.works).flatMap((work) => work.images ?? []);
+      const worldWorkImages = normalizeWorldEntries(character.worldEntries).flatMap((entry) => normalizeWorks(entry.works).flatMap((work) => work.images ?? []));
+      await deleteR2Images([...(character.images ?? []), ...worldImages, ...workImages, ...worldWorkImages]);
       await deleteDoc(doc(getFirebaseDb(), "characters", character.id));
       setActiveCharacterId("");
       setDraft(createBlankDraft());
@@ -1127,6 +1017,53 @@ export default function AdminPage() {
     });
   }
 
+  async function uploadWorkImages(files: File[], worldId?: string) {
+    if (!activeCharacter || files.length === 0) return [];
+
+    for (const file of files) {
+      if (file.size > MAX_UPLOAD_SIZE) {
+        throw new Error(`${file.name}은 10MB를 넘어서 업로드할 수 없어요.`);
+      }
+    }
+
+    return Promise.all(
+      files.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("characterId", activeCharacter.id);
+        formData.append("displayName", fileNameWithoutExtension(file.name));
+        if (worldId) {
+          formData.append("worldId", worldId);
+        }
+
+        const response = await fetch("/api/r2-upload", {
+          method: "POST",
+          body: formData,
+        });
+        const result = (await response.json()) as {
+          error?: string;
+          key?: string;
+          name?: string;
+          size?: number;
+          url?: string | null;
+        };
+
+        if (!response.ok || !result.url) {
+          throw new Error(result.error ?? "로그 첨부 이미지 업로드에 실패했어요.");
+        }
+
+        return {
+          id: result.key ?? `${file.name}-${file.lastModified}`,
+          category: "illustration" as const,
+          name: result.name ?? fileNameWithoutExtension(file.name),
+          url: result.url,
+          size: result.size ?? file.size,
+        };
+      }),
+    );
+  }
+
+  // 이미지 업로드, 썸네일 위치 조정, 이미지 정보 수정/삭제를 처리합니다.
   async function uploadImages() {
     if (!pendingUploads.length || !activeCharacter) {
       setNotice("먼저 사진을 선택해주세요.");
@@ -1354,11 +1291,13 @@ export default function AdminPage() {
 
     try {
       setIsSaving(true);
+      const uploadedImages = await uploadWorkImages(workImageFiles);
       const newWork: Work = {
         title: workDraft.title.trim(),
         kind: workDraft.kind.trim() || "연성",
         date: workDraft.date.trim() || "today",
         body: workDraft.body.trim(),
+        images: uploadedImages,
       };
 
       await setDoc(
@@ -1371,6 +1310,7 @@ export default function AdminPage() {
         { merge: true },
       );
       setWorkDraft({ title: "", kind: "새 연성", date: "", body: "" });
+      setWorkImageFiles([]);
       setNotice("글을 추가했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "글 추가에 실패했어요.");
@@ -1381,9 +1321,11 @@ export default function AdminPage() {
 
   async function deleteWork(workIndex: number) {
     if (!isAdmin || !activeCharacter) return;
+    const targetWork = activeCharacter.works[workIndex];
 
     try {
       setIsSaving(true);
+      await deleteR2Images(targetWork?.images ?? []);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
         {
@@ -1401,6 +1343,7 @@ export default function AdminPage() {
     }
   }
 
+  // 관리자 페이지 실제 레이아웃입니다: 좌측 선택 패널과 우측 편집 폼을 나눠 보여줍니다.
   return (
     <main className="admin-page min-h-screen bg-black px-5 py-8 text-emerald-50 md:px-8">
       <div className="fixed inset-0 bg-[linear-gradient(180deg,#000000_0%,#000000_78%,#080000_100%)]" />
@@ -1486,7 +1429,7 @@ export default function AdminPage() {
                           setDraft(characterToDraft(character));
                           setActiveCharacterWorldId("");
                           setWorldSettingsText("");
-                          setWorldWorkDraft({ title: "", kind: "로그", date: "", body: "" });
+                          setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
                         }}
                         className={`border p-3 text-left text-sm ${
                           activeCharacter?.id === character.id ? "border-red-500 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
@@ -1508,7 +1451,7 @@ export default function AdminPage() {
                       { id: "archive" as const, title: "보관소 문구", subtitle: "archive sidebar text" },
                       { id: "diary" as const, title: "다이어리", subtitle: "diary category" },
                       { id: "guestbook" as const, title: "방명록", subtitle: "guest comments" },
-                      { id: "worlds" as const, title: "세계관 관리", subtitle: "TRPG worlds" },
+                      { id: "worlds" as const, title: "World 관리", subtitle: "world archive" },
                     ].map((category) => (
                       <button
                         key={category.id}
@@ -1620,7 +1563,7 @@ export default function AdminPage() {
                       <input
                         value={homeContent.eyebrow}
                         onChange={(event) => setHomeContent((current) => ({ ...current, eyebrow: event.target.value }))}
-                        placeholder="Original Character Home"
+                        placeholder="상단 작은 문구"
                         className="auth-input"
                       />
                     </label>
@@ -1629,7 +1572,7 @@ export default function AdminPage() {
                       <input
                         value={homeContent.title}
                         onChange={(event) => setHomeContent((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="Akutagawa Archive"
+                        placeholder="상단 제목"
                         className="auth-input"
                       />
                     </label>
@@ -1662,7 +1605,7 @@ export default function AdminPage() {
                       <input
                         value={archiveContent.title}
                         onChange={(event) => setArchiveContent((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="자캐 보관소"
+                        placeholder="보관소 제목"
                         className="auth-input"
                       />
                     </label>
@@ -1779,7 +1722,7 @@ export default function AdminPage() {
                   {activeCategory === "worlds" && (
                     <section className="grid gap-4">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <h2 className="board-title">세계관/TRPG</h2>
+                        <h2 className="board-title">World 관리</h2>
                         {worldDraft.id && (
                           <button
                             type="button"
@@ -1819,6 +1762,18 @@ export default function AdminPage() {
                           placeholder="세계관을 짧게 설명해주세요."
                           className="auth-input"
                         />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        기록 열람 비밀번호
+                        <input
+                          value={worldDraft.password}
+                          onChange={(event) => setWorldDraft((current) => ({ ...current, password: event.target.value }))}
+                          placeholder="비워두면 공개 / 입력하면 기록 잠금"
+                          className="auth-input"
+                        />
+                        <span className="text-xs leading-5 text-emerald-100/45">
+                          본 페이지에서는 세계관 목록과 소개만 보이고, 참가 자캐 기록은 이 비밀번호를 입력해야 열립니다.
+                        </span>
                       </label>
                       <label className="grid gap-2 text-sm text-emerald-100/75">
                         상세 설명
@@ -1923,7 +1878,7 @@ export default function AdminPage() {
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
                       <h2 className="board-title">세계관별 자료</h2>
-                      <p className="mt-2 text-xs text-emerald-100/55">TRPG/세계관마다 설정, 그림, 로그를 따로 정리합니다.</p>
+                      <p className="mt-2 text-xs text-emerald-100/55">World마다 설정, 그림, 로그를 따로 정리합니다.</p>
                     </div>
                     <select
                       value={activeCharacterWorldId}
@@ -2008,15 +1963,28 @@ export default function AdminPage() {
                       </div>
 
                       <form onSubmit={addWorldWork} className="grid gap-3 border border-emerald-100/10 bg-black/30 p-4">
-                        <h3 className="text-sm font-semibold text-emerald-50">세계관 로그 추가</h3>
+                        <h3 className="text-sm font-semibold text-emerald-50">세계관 연성/로그 추가</h3>
                         <div className="grid gap-3 md:grid-cols-3">
                           <input value={worldWorkDraft.title} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, title: event.target.value }))} placeholder="제목" className="auth-input" />
                           <input value={worldWorkDraft.kind} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, kind: event.target.value }))} placeholder="종류" className="auth-input" />
                           <input value={worldWorkDraft.date} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, date: event.target.value }))} placeholder="날짜" className="auth-input" />
                         </div>
-                        <textarea value={worldWorkDraft.body} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, body: event.target.value }))} placeholder="로그/글 내용" className="auth-input min-h-28" />
+                        <textarea value={worldWorkDraft.body} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, body: event.target.value }))} placeholder="세계관 연성/로그 내용" className="auth-input min-h-28" />
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          세계관 연성 첨부 사진
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={(event) => setWorldWorkImageFiles(Array.from(event.target.files ?? []))}
+                            className="auth-input"
+                          />
+                          {worldWorkImageFiles.length > 0 && (
+                            <span className="text-xs text-emerald-100/50">선택된 사진 {worldWorkImageFiles.length}장</span>
+                          )}
+                        </label>
                         <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60">
-                          세계관 로그 추가
+                          세계관 연성/로그 추가
                         </button>
                       </form>
 
@@ -2032,6 +2000,16 @@ export default function AdminPage() {
                                 삭제
                               </button>
                             </div>
+                            {(work.images?.length ?? 0) > 0 && (
+                              <div className="mt-3 grid grid-cols-4 gap-2">
+                                {work.images?.map((image) => (
+                                  <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                    <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             <p className="mt-3 leading-6 text-emerald-50/70">{work.body}</p>
                           </article>
                         ))}
@@ -2214,6 +2192,19 @@ export default function AdminPage() {
                         <input value={workDraft.date} onChange={(event) => setWorkDraft((current) => ({ ...current, date: event.target.value }))} placeholder="날짜" className="auth-input" />
                       </div>
                       <textarea value={workDraft.body} onChange={(event) => setWorkDraft((current) => ({ ...current, body: event.target.value }))} placeholder="글/연성 내용" className="auth-input min-h-28" />
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        글 첨부 사진
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          onChange={(event) => setWorkImageFiles(Array.from(event.target.files ?? []))}
+                          className="auth-input"
+                        />
+                        {workImageFiles.length > 0 && (
+                          <span className="text-xs text-emerald-100/50">선택된 사진 {workImageFiles.length}장</span>
+                        )}
+                      </label>
                       <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
                         글 추가
                       </button>
@@ -2230,6 +2221,16 @@ export default function AdminPage() {
                               삭제
                             </button>
                           </div>
+                          {(work.images?.length ?? 0) > 0 && (
+                            <div className="mt-3 grid grid-cols-4 gap-2">
+                              {work.images?.map((image) => (
+                                <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                  {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                  <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           <p className="mt-3 leading-6 text-emerald-50/70">{work.body}</p>
                         </article>
                       ))}

@@ -2,8 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const BGM_SRC = "/audio/les-murmures-des-flots-lullaby.mp3";
+const BGM_PLAYLIST = [
+  "/audio/les-murmures-des-flots-lullaby.mp3",
+  "/audio/compass.mp3",
+  "/audio/old-doll.mp3",
+  "/audio/fontaine-musicbox.mp3",
+];
 const PROGRESS_INTERVAL_MS = 1000;
+const ERROR_TITLE_CHARS = ["E", "R", "O", "M", "S", "G", "0", "1", "@", "/", "\\", "_", "-", "#", "?", "!", ".", ":"];
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -13,11 +19,21 @@ function formatTime(seconds: number) {
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
+function createErrorTitle(trackIndex: number) {
+  const length = 8 + Math.floor(Math.random() * 14);
+  const body = Array.from({ length }, () => ERROR_TITLE_CHARS[Math.floor(Math.random() * ERROR_TITLE_CHARS.length)]).join("");
+
+  return `@/${trackIndex + 1}_${body}`;
+}
+
 export default function BgmPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressTimerRef = useRef<number | null>(null);
+  const trackIndexRef = useRef(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [trackIndex, setTrackIndex] = useState(0);
+  const [displayTitle, setDisplayTitle] = useState(() => createErrorTitle(0));
   const [volume, setVolume] = useState(0.55);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -63,15 +79,26 @@ export default function BgmPlayer() {
     };
   }, []);
 
+  function updateTrackDisplay(nextTrackIndex: number) {
+    trackIndexRef.current = nextTrackIndex;
+    setTrackIndex(nextTrackIndex);
+    setDisplayTitle(createErrorTitle(nextTrackIndex));
+    setProgress(0);
+    setDuration(0);
+  }
+
   function getAudio() {
     if (audioRef.current) return audioRef.current;
 
-    const audio = new Audio(BGM_SRC);
-    audio.loop = true;
+    const audio = new Audio(BGM_PLAYLIST[trackIndex]);
+    audio.loop = false;
     audio.preload = "none";
     audio.volume = volume;
     audio.addEventListener("loadedmetadata", () => {
       setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    });
+    audio.addEventListener("ended", () => {
+      void playTrack((trackIndexRef.current + 1) % BGM_PLAYLIST.length, true);
     });
     audio.addEventListener("error", () => {
       setNotice("BGM Load Failed");
@@ -79,6 +106,25 @@ export default function BgmPlayer() {
     });
     audioRef.current = audio;
     return audio;
+  }
+
+  async function playTrack(nextTrackIndex: number, shouldAutoPlay = isPlaying) {
+    const audio = getAudio();
+    updateTrackDisplay(nextTrackIndex);
+    audio.src = BGM_PLAYLIST[nextTrackIndex];
+    audio.currentTime = 0;
+    audio.load();
+
+    if (!shouldAutoPlay) return;
+
+    try {
+      await audio.play();
+      setIsPlaying(true);
+      setNotice("");
+    } catch {
+      setIsPlaying(false);
+      setNotice("Click again");
+    }
   }
 
   async function playAudio() {
@@ -161,7 +207,7 @@ export default function BgmPlayer() {
               ×
             </button>
           </div>
-          <h2 className="mt-1 truncate text-sm font-semibold text-emerald-50">Les Murmures Des Flots</h2>
+          <h2 className="mt-1 truncate text-sm font-semibold text-emerald-50">{displayTitle}</h2>
           <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-red-100/55">{isPlaying ? "playing" : "paused"}</p>
           {notice && <p className="mt-1 text-xs text-red-100/70">{notice}</p>}
         </div>
