@@ -102,6 +102,14 @@ type DiaryEntry = {
   body: string;
 };
 
+type GuestbookEntry = {
+  id: string;
+  name: string;
+  body: string;
+  reply: string;
+  createdAtMillis: number;
+};
+
 type WorldDraft = {
   id: string;
   title: string;
@@ -342,10 +350,12 @@ export default function AdminPage() {
   const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
+  const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>([]);
+  const [guestbookReplyDrafts, setGuestbookReplyDrafts] = useState<Record<string, string>>({});
   const [activeDiaryId, setActiveDiaryId] = useState("");
   const [diaryDraft, setDiaryDraft] = useState<DiaryEntry>(() => createBlankDiaryEntry());
   const [adminPanel, setAdminPanel] = useState<"categories" | "characters">("categories");
-  const [activeCategory, setActiveCategory] = useState<"home" | "archive" | "diary" | "worlds">("home");
+  const [activeCategory, setActiveCategory] = useState<"home" | "archive" | "diary" | "guestbook" | "worlds">("home");
 
   const isAdmin = authUser?.email === ADMIN_AUTH_EMAIL;
   const activeCharacter = useMemo(
@@ -495,6 +505,38 @@ export default function AdminPage() {
         });
       },
       (error) => setNotice(`다이어리 불러오기 실패: ${error.message}`),
+    );
+  }, []);
+
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      collection(db, "guestbook"),
+      (snapshot) => {
+        const nextEntries = snapshot.docs
+          .map((guestDoc) => {
+            const data = guestDoc.data() as Partial<GuestbookEntry>;
+            return {
+              id: data.id || guestDoc.id,
+              name: data.name || "익명",
+              body: data.body || "",
+              reply: data.reply || "",
+              createdAtMillis: typeof data.createdAtMillis === "number" ? data.createdAtMillis : 0,
+            };
+          })
+          .filter((entry) => entry.body)
+          .sort((a, b) => b.createdAtMillis - a.createdAtMillis);
+
+        setGuestbookEntries(nextEntries);
+        setGuestbookReplyDrafts((current) => {
+          const nextDrafts: Record<string, string> = {};
+          nextEntries.forEach((entry) => {
+            nextDrafts[entry.id] = current[entry.id] ?? entry.reply;
+          });
+          return nextDrafts;
+        });
+      },
+      (error) => setNotice(`방명록 불러오기 실패: ${error.message}`),
     );
   }, []);
 
@@ -806,6 +848,54 @@ export default function AdminPage() {
       setNotice("일기를 삭제했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "일기 삭제에 실패했어요.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function saveGuestbookReply(entry: GuestbookEntry) {
+    if (!isAdmin) {
+      setNotice("관리자만 방명록 답글을 저장할 수 있어요.");
+      return;
+    }
+
+    const reply = guestbookReplyDrafts[entry.id]?.trim() ?? "";
+
+    try {
+      setIsSaving(true);
+      await setDoc(
+        doc(getFirebaseDb(), "guestbook", entry.id),
+        {
+          reply,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+      setNotice("방명록 답글을 저장했어요.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "방명록 답글 저장에 실패했어요.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteGuestbookEntry(entry: GuestbookEntry) {
+    if (!isAdmin) {
+      setNotice("관리자만 방명록을 삭제할 수 있어요.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      await deleteDoc(doc(getFirebaseDb(), "guestbook", entry.id));
+      setGuestbookReplyDrafts((current) => {
+        const nextDrafts = { ...current };
+        delete nextDrafts[entry.id];
+        return nextDrafts;
+      });
+      setNotice("방명록을 삭제했어요.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "방명록 삭제에 실패했어요.");
     } finally {
       setIsSaving(false);
     }
@@ -1361,6 +1451,7 @@ export default function AdminPage() {
                       { id: "home" as const, title: "상단문구 수정", subtitle: "home main text" },
                       { id: "archive" as const, title: "보관소 문구", subtitle: "archive sidebar text" },
                       { id: "diary" as const, title: "다이어리", subtitle: "diary category" },
+                      { id: "guestbook" as const, title: "방명록", subtitle: "guest comments" },
                       { id: "worlds" as const, title: "세계관 관리", subtitle: "TRPG worlds" },
                     ].map((category) => (
                       <button
@@ -1456,7 +1547,13 @@ export default function AdminPage() {
             <section className="grid gap-6">
               {adminPanel === "categories" && (
                 <form
-                  onSubmit={activeCategory === "diary" ? saveDiaryEntry : activeCategory === "worlds" ? saveWorld : saveHomeContent}
+                  onSubmit={(event) => {
+                    if (activeCategory === "diary") return saveDiaryEntry(event);
+                    if (activeCategory === "worlds") return saveWorld(event);
+                    event.preventDefault();
+                    if (activeCategory === "guestbook") return;
+                    return saveHomeContent(event);
+                  }}
                   className="glass-card grid gap-6 p-5 md:p-6"
                 >
                   {activeCategory === "home" && (
@@ -1570,6 +1667,59 @@ export default function AdminPage() {
                   </section>
                   )}
 
+                  {activeCategory === "guestbook" && (
+                    <section className="grid gap-4">
+                      <div>
+                        <h2 className="board-title">방명록 관리</h2>
+                        <p className="mt-2 text-sm text-emerald-100/55">본 페이지에 남겨진 방명록에 관리자 답글을 달 수 있어요.</p>
+                      </div>
+                      <div className="grid gap-4">
+                        {guestbookEntries.map((entry, index) => (
+                          <article key={entry.id} className="border border-emerald-100/10 bg-black/30 p-4">
+                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                              <div>
+                                <p className="font-semibold text-emerald-50">No.{guestbookEntries.length - index} {entry.name}</p>
+                                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-emerald-50/70">{entry.body}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => deleteGuestbookEntry(entry)}
+                                disabled={isSaving}
+                                className="shrink-0 border border-red-500/60 px-3 py-2 text-xs text-red-100 disabled:opacity-60"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                            <label className="mt-4 grid gap-2 text-sm text-emerald-100/75">
+                              관리자 답글
+                              <textarea
+                                value={guestbookReplyDrafts[entry.id] ?? ""}
+                                onChange={(event) =>
+                                  setGuestbookReplyDrafts((current) => ({ ...current, [entry.id]: event.target.value }))
+                                }
+                                placeholder="답글을 입력해주세요."
+                                className="auth-input min-h-28"
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => saveGuestbookReply(entry)}
+                              disabled={isSaving}
+                              className="mt-3 justify-self-end bg-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+                            >
+                              답글 저장
+                            </button>
+                          </article>
+                        ))}
+                        {guestbookEntries.length === 0 && (
+                          <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/55">
+                            아직 남겨진 방명록이 없어요.
+                          </p>
+                        )}
+                      </div>
+                    </section>
+                  )}
+
                   {activeCategory === "worlds" && (
                     <section className="grid gap-4">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1626,9 +1776,11 @@ export default function AdminPage() {
                     </section>
                   )}
 
-                  <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
-                    {activeCategory === "diary" ? "일기 저장" : activeCategory === "worlds" ? "세계관 저장" : "카테고리 저장"}
-                  </button>
+                  {activeCategory !== "guestbook" && (
+                    <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
+                      {activeCategory === "diary" ? "일기 저장" : activeCategory === "worlds" ? "세계관 저장" : "카테고리 저장"}
+                    </button>
+                  )}
                 </form>
               )}
 

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import BootLoadingScreen from "./components/BootLoadingScreen";
 import ClickSound from "./components/ClickSound";
 import TextCorruptor from "./components/TextCorruptor";
 import "./globals.css";
@@ -31,7 +30,6 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <BootLoadingScreen />
         <ClickSound />
         <TextCorruptor />
         {children}

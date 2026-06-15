@@ -8,7 +8,7 @@ import {
   signOut,
   type User,
 } from "firebase/auth";
-import { collection, doc, onSnapshot } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import BgmPlayer from "./components/BgmPlayer";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 
@@ -91,6 +91,14 @@ type DiaryEntry = {
   body: string;
 };
 
+type GuestbookEntry = {
+  id: string;
+  name: string;
+  body: string;
+  reply: string;
+  createdAtMillis: number;
+};
+
 const ADMIN_LOGIN_ID = "0zsogi";
 const ADMIN_AUTH_EMAIL = "0zsogi@oc-home.local";
 
@@ -120,19 +128,6 @@ function thumbnailStyle(image: UploadedImage) {
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
-
-const initialGuestbook = [
-  {
-    name: "방문자",
-    body: "새 자캐 홈 오픈 축하해요. 캐릭터별 설정을 따로 볼 수 있어서 좋아요.",
-    reply: "감사합니다. 다음에는 관계도랑 로그도 더 채워둘게요.",
-  },
-  {
-    name: "익명",
-    body: "배너 교환 신청 남기고 갑니다.",
-    reply: "확인했습니다. 링크 정리해서 찾아갈게요.",
-  },
-];
 
 const extracts = [
   "이름은 존재를 붙드는 가장 작은 주문이다.",
@@ -211,7 +206,7 @@ export default function Home() {
   const [showPassword, setShowPassword] = useState(true);
   const [authNotice, setAuthNotice] = useState("");
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [guestbook, setGuestbook] = useState(initialGuestbook);
+  const [guestbook, setGuestbook] = useState<GuestbookEntry[]>([]);
   const [guestDraft, setGuestDraft] = useState({ name: "", body: "" });
   const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
@@ -452,6 +447,32 @@ export default function Home() {
     );
   }, []);
 
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      collection(db, "guestbook"),
+      (snapshot) => {
+        const nextEntries = snapshot.docs
+          .map((guestDoc) => {
+            const data = guestDoc.data() as Partial<GuestbookEntry>;
+            return {
+              id: data.id || guestDoc.id,
+              name: data.name || "익명",
+              body: data.body || "",
+              reply: data.reply || "",
+              createdAtMillis: typeof data.createdAtMillis === "number" ? data.createdAtMillis : 0,
+            };
+          })
+          .filter((entry) => entry.body)
+          .sort((a, b) => b.createdAtMillis - a.createdAtMillis);
+        setGuestbook(nextEntries);
+      },
+      (error) => {
+        setAuthNotice(`방명록 불러오기 실패: ${error.message}`);
+      },
+    );
+  }, []);
+
   function moveSection(section: SectionId) {
     setActiveSection(section);
     setMenuOpen(false);
@@ -492,19 +513,24 @@ export default function Home() {
     setAuthNotice("로그아웃했습니다.");
   }
 
-  function submitGuest(event: FormEvent<HTMLFormElement>) {
+  async function submitGuest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!guestDraft.name.trim() || !guestDraft.body.trim()) return;
 
-    setGuestbook((current) => [
-      {
+    try {
+      await addDoc(collection(getFirebaseDb(), "guestbook"), {
         name: guestDraft.name.trim(),
         body: guestDraft.body.trim(),
-        reply: "답글을 여기에 달 수 있어요.",
-      },
-      ...current,
-    ]);
-    setGuestDraft({ name: "", body: "" });
+        reply: "",
+        createdAtMillis: Date.now(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      setGuestDraft({ name: "", body: "" });
+      setAuthNotice("방명록을 남겼어요.");
+    } catch (error) {
+      setAuthNotice(error instanceof Error ? error.message : "방명록 저장에 실패했어요.");
+    }
   }
 
   return (
@@ -518,7 +544,7 @@ export default function Home() {
         }
 
         body,
-        body *:not(i):not([class*="icon"]):not(.material-icons):not(.fa):not(.fas):not(.far):not(.fab):not(.auth-input):not(.boot-loading-screen):not(.boot-loading-screen *) {
+        body *:not(i):not([class*="icon"]):not(.material-icons):not(.fa):not(.fas):not(.far):not(.fab):not(.auth-input) {
           font-family: "KbizHanmaumMyungjo", "Zen Old Mincho", serif !important;
         }
       `}</style>
@@ -1268,12 +1294,19 @@ export default function Home() {
               </form>
               <div className="mt-6 space-y-4">
                 {guestbook.map((guest, index) => (
-                  <article key={`${guest.name}-${index}`} className="rounded-3xl border border-emerald-100/10 bg-emerald-950/30 p-5">
+                  <article key={guest.id} className="rounded-3xl border border-emerald-100/10 bg-emerald-950/30 p-5">
                     <p className="font-semibold">No.{guestbook.length - index} {guest.name}</p>
                     <p className="mt-3 text-sm leading-7 text-emerald-50/75">{guest.body}</p>
-                    <div className="mt-4 rounded-2xl bg-emerald-100/10 p-4 text-sm text-emerald-50/70">답글: {guest.reply}</div>
+                    {guest.reply && (
+                      <div className="mt-4 rounded-2xl bg-emerald-100/10 p-4 text-sm text-emerald-50/70">답글: {guest.reply}</div>
+                    )}
                   </article>
                 ))}
+                {guestbook.length === 0 && (
+                  <p className="rounded-3xl border border-emerald-100/10 bg-black/25 p-5 text-sm text-emerald-50/55">
+                    아직 남겨진 방명록이 없어요.
+                  </p>
+                )}
               </div>
             </section>
           )}
