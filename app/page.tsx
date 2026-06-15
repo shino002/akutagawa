@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import dayjs from "dayjs";
+import "dayjs/locale/ko";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -11,6 +13,8 @@ import {
 import { addDoc, collection, doc, onSnapshot, serverTimestamp } from "firebase/firestore";
 import BgmPlayer from "./components/BgmPlayer";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+
+dayjs.locale("ko");
 
 type Character = {
   id: string;
@@ -101,6 +105,7 @@ type GuestbookEntry = {
 
 const ADMIN_LOGIN_ID = "0zsogi";
 const ADMIN_AUTH_EMAIL = "0zsogi@oc-home.local";
+const AUTH_ID_EMAIL_DOMAIN = "oc-home.local";
 
 function resolveLoginEmail(loginId: string) {
   const trimmedLoginId = loginId.trim();
@@ -110,7 +115,61 @@ function resolveLoginEmail(loginId: string) {
     return ADMIN_AUTH_EMAIL;
   }
 
-  return trimmedLoginId;
+  const safeLoginId = normalizedLoginId.replace(/[^a-z0-9._-]/g, "");
+  return `${safeLoginId}@${AUTH_ID_EMAIL_DOMAIN}`;
+}
+
+function displayLoginId(email?: string | null) {
+  if (!email) return "";
+  return email.endsWith(`@${AUTH_ID_EMAIL_DOMAIN}`) ? email.split("@")[0] : email;
+}
+
+function validateLoginId(loginId: string) {
+  const trimmedLoginId = loginId.trim();
+
+  if (!trimmedLoginId) {
+    return "아이디를 입력해주세요.";
+  }
+
+  if (trimmedLoginId.includes("@")) {
+    return "이메일 형식은 사용할 수 없어요. @ 없이 아이디만 입력해주세요.";
+  }
+
+  if (!/^[a-zA-Z0-9._-]+$/.test(trimmedLoginId)) {
+    return "아이디는 영어, 숫자, 점(.), 밑줄(_), 하이픈(-)만 사용할 수 있어요.";
+  }
+
+  return "";
+}
+
+function friendlyAuthError(error: unknown) {
+  const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : "";
+
+  if (code.includes("auth/invalid-credential") || code.includes("auth/wrong-password")) {
+    return "아이디 또는 비밀번호가 맞지 않아요. 다시 확인해주세요.";
+  }
+
+  if (code.includes("auth/user-not-found")) {
+    return "등록된 계정을 찾지 못했어요.";
+  }
+
+  if (code.includes("auth/email-already-in-use")) {
+    return "이미 가입된 계정이에요. 로그인으로 들어와주세요.";
+  }
+
+  if (code.includes("auth/weak-password")) {
+    return "비밀번호는 6자 이상으로 입력해주세요.";
+  }
+
+  if (code.includes("auth/too-many-requests")) {
+    return "로그인 시도가 너무 많아요. 잠시 뒤에 다시 시도해주세요.";
+  }
+
+  if (code.includes("auth/network-request-failed")) {
+    return "네트워크 연결을 확인한 뒤 다시 시도해주세요.";
+  }
+
+  return "로그인 처리 중 문제가 생겼어요. 입력값을 확인하고 다시 시도해주세요.";
 }
 
 function thumbnailStyle(image: UploadedImage) {
@@ -198,6 +257,7 @@ export default function Home() {
   const [readerModalItem, setReaderModalItem] = useState<ReaderModalItem | null>(null);
   const [activeTab, setActiveTab] = useState<"settings" | "images" | "works" | "worlds">("settings");
   const [activeCharacterWorldId, setActiveCharacterWorldId] = useState("");
+  const [calendarMonth, setCalendarMonth] = useState(() => dayjs().startOf("month"));
   const [menuOpen, setMenuOpen] = useState(true);
   const [firestoreCharacters, setFirestoreCharacters] = useState<Character[]>([]);
   const [authUser, setAuthUser] = useState<User | null>(null);
@@ -205,6 +265,7 @@ export default function Home() {
   const [authDraft, setAuthDraft] = useState({ loginId: "", password: "" });
   const [showPassword, setShowPassword] = useState(true);
   const [authNotice, setAuthNotice] = useState("");
+  const [authPanelOpen, setAuthPanelOpen] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [guestbook, setGuestbook] = useState<GuestbookEntry[]>([]);
   const [guestDraft, setGuestDraft] = useState({ name: "", body: "" });
@@ -272,6 +333,20 @@ export default function Home() {
         : [],
     [activeWorld, characters],
   );
+  const calendarDays = useMemo(() => {
+    const start = calendarMonth.startOf("month").startOf("week");
+    const today = dayjs();
+
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = start.add(index, "day");
+      return {
+        date,
+        dayLabel: date.format("D"),
+        isCurrentMonth: date.month() === calendarMonth.month(),
+        isToday: date.isSame(today, "day"),
+      };
+    });
+  }, [calendarMonth]);
 
   const allWorks = useMemo(
     () =>
@@ -475,14 +550,20 @@ export default function Home() {
 
   function moveSection(section: SectionId) {
     setActiveSection(section);
-    setMenuOpen(false);
   }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setAuthNotice("");
 
-    if (!authDraft.loginId.trim() || !authDraft.password) {
+    const loginIdError = validateLoginId(authDraft.loginId);
+
+    if (loginIdError) {
+      setAuthNotice(loginIdError);
+      return;
+    }
+
+    if (!authDraft.password) {
       setAuthNotice("아이디와 비밀번호를 입력해주세요.");
       return;
     }
@@ -502,7 +583,7 @@ export default function Home() {
 
       setAuthDraft({ loginId: "", password: "" });
     } catch (error) {
-      setAuthNotice(error instanceof Error ? error.message : "인증 처리에 실패했어요.");
+      setAuthNotice(friendlyAuthError(error));
     } finally {
       setIsAuthLoading(false);
     }
@@ -515,12 +596,21 @@ export default function Home() {
 
   async function submitGuest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!guestDraft.name.trim() || !guestDraft.body.trim()) return;
+    const name = guestDraft.name.trim() || "익명";
+    const body = guestDraft.body.trim();
+
+    if (!authUser) {
+      setAuthNotice("방명록은 로그인한 사람만 남길 수 있어요.");
+      setAuthPanelOpen(true);
+      return;
+    }
+
+    if (!body) return;
 
     try {
       await addDoc(collection(getFirebaseDb(), "guestbook"), {
-        name: guestDraft.name.trim(),
-        body: guestDraft.body.trim(),
+        name,
+        body,
         reply: "",
         createdAtMillis: Date.now(),
         createdAt: serverTimestamp(),
@@ -551,21 +641,23 @@ export default function Home() {
       <div className="fixed inset-0 bg-[linear-gradient(180deg,#000000_0%,#000000_78%,#080000_100%)]" />
       <div className="noise-layer" aria-hidden="true" />
 
-      <button
-        type="button"
-        onClick={() => setMenuOpen((value) => !value)}
-        className="fixed left-5 top-5 z-30 grid size-11 place-items-center rounded-full border border-emerald-100/20 bg-emerald-950/80 text-lg shadow-2xl backdrop-blur"
-        aria-label="메뉴 열기"
-      >
-        ☰
-      </button>
-
       <aside
-        className={`fixed bottom-4 left-5 top-16 z-30 w-56 overflow-y-auto rounded-3xl border border-emerald-100/15 bg-emerald-950/85 p-3 shadow-2xl backdrop-blur-xl transition ${
-          menuOpen ? "translate-x-0 opacity-100" : "-translate-x-8 opacity-0 pointer-events-none"
-        } md:translate-x-0 md:opacity-100 md:pointer-events-auto`}
+        className={`side-menu fixed left-5 top-5 z-30 backdrop-blur-xl ${
+          menuOpen ? "is-open" : "is-collapsed"
+        }`}
       >
-        <div className="mb-4 rounded-2xl border border-emerald-100/10 p-4">
+        <button
+          type="button"
+          onClick={() => setMenuOpen((value) => !value)}
+          className="side-menu-trigger"
+          aria-expanded={menuOpen}
+          aria-label={menuOpen ? "메뉴 닫기" : "메뉴 열기"}
+        >
+          ☰
+        </button>
+
+        <div className="side-menu-content" aria-hidden={!menuOpen}>
+        <div className="mb-3 border border-emerald-100/10 p-3">
           <p className="text-xs uppercase tracking-[0.4em] text-emerald-200/70">{archiveContent.eyebrow}</p>
           <h1 className="mt-2 font-serif text-2xl font-bold">{archiveContent.title}</h1>
           <p className="mt-2 text-xs leading-5 text-emerald-100/60">{archiveContent.body}</p>
@@ -577,7 +669,7 @@ export default function Home() {
               key={section.id}
               type="button"
               onClick={() => moveSection(section.id)}
-              className={`group flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition ${
+              className={`group flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition ${
                 activeSection === section.id
                   ? "bg-emerald-200 text-emerald-950"
                   : "text-emerald-50/75 hover:bg-emerald-100/10 hover:text-white"
@@ -589,91 +681,114 @@ export default function Home() {
           ))}
         </nav>
 
-        <section className="mt-5 rounded-2xl border border-emerald-100/10 bg-black/20 p-3">
-          {authUser ? (
-            <div className="space-y-3 text-xs">
-              <p className="text-emerald-100/60">{isAdmin ? "관리자 로그인됨" : "로그인됨"}</p>
-              <p className="break-all text-emerald-50">{isAdmin ? ADMIN_LOGIN_ID : authUser.email}</p>
-              {isAdmin && (
-                <a
-                  href="/admin"
-                  className="block border border-red-600/40 bg-red-950/30 p-2 text-center text-red-100"
-                >
-                  수정 페이지로 이동
-                </a>
+        <section
+          className={`auth-panel mt-3 border border-emerald-100/10 bg-black/20 ${authPanelOpen ? "is-open" : "is-collapsed"}`}
+        >
+          <button
+            type="button"
+            onClick={() => setAuthPanelOpen((value) => !value)}
+            className="auth-panel-trigger"
+            aria-expanded={authPanelOpen}
+            aria-label={authPanelOpen ? "로그인 창 닫기" : "로그인 창 열기"}
+          >
+            <span className="auth-panel-dot" />
+            <span>{authUser ? "USER" : "LOGIN"}</span>
+            <span className="auth-panel-trigger-mark">{authPanelOpen ? "×" : "+"}</span>
+          </button>
+          {authPanelOpen && (
+            <div className="auth-panel-content">
+              <p className="mb-3 text-[10px] uppercase tracking-[0.28em] text-red-100/65">
+                {authUser ? "Account" : authMode === "signup" ? "Sign Up" : "Login"}
+              </p>
+
+              {authUser ? (
+                <div className="space-y-2 text-xs">
+                  <p className="text-emerald-100/60">{isAdmin ? "관리자 로그인됨" : "로그인됨"}</p>
+                  <p className="break-all text-emerald-50">{isAdmin ? ADMIN_LOGIN_ID : displayLoginId(authUser.email)}</p>
+                  {isAdmin && (
+                    <a
+                      href="/admin"
+                      className="block border border-red-600/40 bg-red-950/30 p-2 text-center text-red-100"
+                    >
+                      수정 페이지로 이동
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={logout}
+                    className="w-full border border-emerald-100/15 bg-emerald-100/10 py-2 text-emerald-50"
+                  >
+                    로그아웃
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={submitAuth} className="space-y-2.5">
+                  <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode("signup")}
+                      className={`py-1.5 ${
+                        authMode === "signup" ? "bg-red-700/80 text-red-50" : "border border-emerald-100/15 text-emerald-100/65"
+                      }`}
+                    >
+                      회원가입
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode("login")}
+                      className={`py-1.5 ${
+                        authMode === "login" ? "bg-red-700/80 text-red-50" : "border border-emerald-100/15 text-emerald-100/65"
+                      }`}
+                    >
+                      로그인
+                    </button>
+                  </div>
+                  <input
+                    value={authDraft.loginId}
+                    onChange={(event) => setAuthDraft((current) => ({ ...current, loginId: event.target.value }))}
+                    placeholder="아이디"
+                    type="text"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="auth-input auth-input-compact"
+                  />
+                  <div className="grid grid-cols-[1fr_auto] gap-1.5">
+                    <input
+                      value={authDraft.password}
+                      onChange={(event) => setAuthDraft((current) => ({ ...current, password: event.target.value }))}
+                      placeholder="비밀번호"
+                      type={showPassword ? "text" : "password"}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      className="auth-input auth-input-compact"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((value) => !value)}
+                      className="border border-emerald-100/15 px-2 text-[11px] text-emerald-100/70"
+                    >
+                      {showPassword ? "숨김" : "보기"}
+                    </button>
+                  </div>
+                  <button
+                    disabled={isAuthLoading}
+                    className="w-full bg-red-700/80 py-2 text-[11px] font-semibold text-red-50 disabled:opacity-60"
+                  >
+                    {isAuthLoading ? "확인 중..." : authMode === "signup" ? "가입하기" : "로그인하기"}
+                  </button>
+                </form>
               )}
-              <button
-                type="button"
-                onClick={logout}
-                className="w-full rounded-full bg-emerald-100/15 py-2 text-emerald-50"
-              >
-                로그아웃
-              </button>
+
+              {authNotice && <p className="mt-2 border border-red-600/30 bg-red-950/20 p-2 text-xs leading-5 text-red-100/80">{authNotice}</p>}
             </div>
-          ) : (
-            <form onSubmit={submitAuth} className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("signup")}
-                  className={`rounded-full py-2 ${
-                    authMode === "signup" ? "bg-emerald-200 text-emerald-950" : "border border-emerald-100/20 text-emerald-100/70"
-                  }`}
-                >
-                  회원가입
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAuthMode("login")}
-                  className={`rounded-full py-2 ${
-                    authMode === "login" ? "bg-emerald-200 text-emerald-950" : "border border-emerald-100/20 text-emerald-100/70"
-                  }`}
-                >
-                  로그인
-                </button>
-              </div>
-              <input
-                value={authDraft.loginId}
-                onChange={(event) => setAuthDraft((current) => ({ ...current, loginId: event.target.value }))}
-                placeholder="id or email"
-                type="text"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                className="auth-input"
-              />
-              <div className="grid grid-cols-[1fr_auto] gap-2">
-                <input
-                  value={authDraft.password}
-                  onChange={(event) => setAuthDraft((current) => ({ ...current, password: event.target.value }))}
-                  placeholder="password"
-                  type={showPassword ? "text" : "password"}
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  className="auth-input"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((value) => !value)}
-                  className="border border-emerald-100/20 px-3 text-xs text-emerald-100/70"
-                >
-                  {showPassword ? "숨김" : "보기"}
-                </button>
-              </div>
-              <button
-                disabled={isAuthLoading}
-                className="w-full rounded-full bg-emerald-200 py-2 text-xs font-semibold text-emerald-950 disabled:opacity-60"
-              >
-                {isAuthLoading ? "처리 중..." : authMode === "signup" ? "가입하기" : "로그인하기"}
-              </button>
-              {authNotice && <p className="text-xs leading-5 text-emerald-100/60">{authNotice}</p>}
-            </form>
           )}
         </section>
+        </div>
       </aside>
 
-      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-6 px-5 pb-12 pt-5 md:px-8 md:pl-64 xl:grid xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-6 px-5 pb-12 pt-5 md:px-8 md:pl-64 xl:grid xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="space-y-6">
           {activeSection === "home" && (
             <section className="glass-card p-6 md:p-8">
@@ -1281,16 +1396,21 @@ export default function Home() {
                 <input
                   value={guestDraft.name}
                   onChange={(event) => setGuestDraft((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="이름"
+                  placeholder="이름 (비우면 익명)"
+                  disabled={!authUser}
                   className="rounded-2xl border border-emerald-100/10 bg-emerald-950/50 px-4 py-3 text-sm outline-none placeholder:text-emerald-100/35"
                 />
                 <textarea
                   value={guestDraft.body}
                   onChange={(event) => setGuestDraft((current) => ({ ...current, body: event.target.value }))}
-                  placeholder="남기고 싶은 말을 적어주세요."
+                  placeholder={authUser ? "남기고 싶은 말을 적어주세요." : "로그인 후 방명록을 남길 수 있어요."}
+                  disabled={!authUser}
                   className="min-h-24 rounded-2xl border border-emerald-100/10 bg-emerald-950/50 px-4 py-3 text-sm leading-7 outline-none placeholder:text-emerald-100/35"
                 />
-                <button className="justify-self-end rounded-full bg-emerald-200 px-5 py-2 text-sm font-semibold text-emerald-950">남기기</button>
+                {!authUser && (
+                  <p className="text-xs text-red-100/70">방명록 작성은 로그인 후 가능합니다.</p>
+                )}
+                <button disabled={!authUser} className="justify-self-end rounded-full bg-emerald-200 px-5 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-50">남기기</button>
               </form>
               <div className="mt-6 space-y-4">
                 {guestbook.map((guest, index) => (
@@ -1328,27 +1448,56 @@ export default function Home() {
 
         <aside className="space-y-4">
           <section className="glass-card p-6">
-            <h3 className="board-title">선택된 자캐</h3>
-            <div className={`mt-5 aspect-[3/2] overflow-hidden rounded-3xl bg-gradient-to-br ${activeCharacter.palette}`}>
-              {activeMainIllustration && (
-                /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
-                <img
-                  src={activeMainIllustration.url}
-                  alt={`${activeCharacter.name} 대표 그림`}
-                  className="h-full w-full object-cover opacity-90"
-                  style={thumbnailStyle(activeMainIllustration)}
-                />
-              )}
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.28em] text-red-100/55">Calendar</p>
+                <h3 className="board-title mt-1">{calendarMonth.format("YYYY.MM")}</h3>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth((current) => current.subtract(1, "month"))}
+                  className="game-menu-button grid size-8 place-items-center text-sm"
+                  aria-label="이전 달"
+                >
+                  ◀
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth(dayjs().startOf("month"))}
+                  className="game-menu-button h-8 px-3 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  aria-label="이번 달"
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth((current) => current.add(1, "month"))}
+                  className="game-menu-button grid size-8 place-items-center text-sm"
+                  aria-label="다음 달"
+                >
+                  ▶
+                </button>
+              </div>
             </div>
-            <p className="mt-4 font-serif text-3xl font-bold">{activeCharacter.name}</p>
-            <p className="mt-2 text-sm text-emerald-100/60">{activeCharacter.subtitle}</p>
-            <button
-              type="button"
-              onClick={() => setActiveSection("characters")}
-              className="mt-5 w-full rounded-full bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950"
-            >
-              설정 보기
-            </button>
+            <div className="mt-5 grid grid-cols-7 border border-red-600/25 bg-black/25 text-center text-[11px]">
+              {["일", "월", "화", "수", "목", "금", "토"].map((weekday) => (
+                <div key={weekday} className="border-b border-red-600/20 py-2 text-red-100/60">
+                  {weekday}
+                </div>
+              ))}
+              {calendarDays.map((day) => (
+                <div
+                  key={day.date.format("YYYY-MM-DD")}
+                  className={`min-h-10 border-b border-r border-red-600/10 p-1.5 ${
+                    day.isCurrentMonth ? "text-emerald-50/78" : "text-emerald-100/22"
+                  } ${day.isToday ? "bg-red-700/35 text-red-50" : ""}`}
+                >
+                  <span className="inline-grid size-6 place-items-center">{day.dayLabel}</span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-xs leading-5 text-emerald-100/50">오늘 날짜는 붉게 표시됩니다.</p>
           </section>
 
           <BgmPlayer />

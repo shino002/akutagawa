@@ -193,6 +193,99 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   cursor: pointer;
 }
 
+.side-menu {
+  overflow: hidden;
+  width: 18rem;
+  max-height: calc(100vh - 2.5rem);
+  padding: 0.75rem;
+  border: 1px solid rgba(60, 6, 9, 0.88);
+  border-radius: 0;
+  background: rgba(3, 0, 0, 0.9);
+  box-shadow:
+    0 18px 60px rgba(0, 0, 0, 0.65),
+    inset 0 0 0 1px rgba(255, 0, 24, 0.09);
+  transition:
+    width 320ms ease,
+    max-height 320ms ease,
+    padding 320ms ease,
+    background 320ms ease,
+    box-shadow 320ms ease;
+}
+
+.side-menu.is-collapsed {
+  width: 2.75rem;
+  max-height: 2.75rem;
+  padding: 0;
+  border-color: rgba(255, 0, 24, 0.68);
+  background: #030000;
+  box-shadow:
+    2px 2px 0 #000,
+    inset 1px 0 0 rgba(255, 0, 24, 0.45),
+    inset -1px 0 0 rgba(255, 0, 24, 0.45);
+}
+
+.side-menu-trigger {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: #050000;
+  color: #fff2f2;
+  font-size: 1.2rem;
+  line-height: 1;
+  text-shadow: 1px 1px 0 #000;
+  transition:
+    width 260ms ease,
+    background 220ms ease,
+    color 220ms ease,
+    border-color 220ms ease;
+}
+
+.side-menu.is-open .side-menu-trigger {
+  width: 100%;
+  height: 2.45rem;
+  margin-bottom: 0;
+  border: 1px solid rgba(255, 0, 24, 0.45);
+  border-radius: 0;
+  border-bottom-color: rgba(255, 0, 24, 0.22);
+  background: linear-gradient(180deg, rgba(24, 0, 4, 0.98), rgba(4, 0, 0, 0.98));
+  justify-items: start;
+  padding-left: 0.8rem;
+}
+
+.side-menu-content {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transform-origin: left top;
+  max-height: calc(100vh - 5.5rem);
+  overflow: hidden;
+  margin-top: 0;
+  border: 1px solid rgba(255, 0, 24, 0.28);
+  border-top: 0;
+  padding: 0.55rem;
+  transition:
+    opacity 220ms ease,
+    max-height 320ms ease,
+    padding 320ms ease,
+    transform 320ms cubic-bezier(0.2, 0.85, 0.2, 1);
+}
+
+.side-menu-content::-webkit-scrollbar {
+  display: none;
+}
+
+.side-menu.is-collapsed .side-menu-content {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  padding-top: 0;
+  padding-bottom: 0;
+  transform: translateY(-0.75rem) scale(0.96);
+  pointer-events: none;
+}
+
 .bgm-player {
   overflow: hidden;
   background: rgba(0, 0, 0, 0.88);
@@ -305,6 +398,85 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   animation: bgm-lp-spin 4.8s linear infinite;
 }
 
+.auth-panel {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  transition:
+    max-height 320ms ease,
+    background 300ms ease,
+    box-shadow 300ms ease;
+}
+
+.auth-panel.is-collapsed {
+  max-height: 2.55rem;
+  background: rgba(0, 0, 0, 0.74);
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.76);
+}
+
+.auth-panel.is-open {
+  max-height: 26rem;
+  box-shadow:
+    inset 0 0 28px rgba(0, 0, 0, 0.68),
+    0 0 16px rgba(255, 0, 24, 0.08);
+}
+
+.auth-panel-trigger {
+  display: flex;
+  width: 100%;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 0;
+  background: transparent;
+  padding: 0 0.75rem;
+  color: rgba(254, 226, 226, 0.82);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+}
+
+.auth-panel-trigger span:nth-child(2) {
+  flex: 1;
+  text-align: left;
+}
+
+.auth-panel-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 9999px;
+  background: #ff0018;
+  box-shadow: 0 0 10px rgba(255, 0, 24, 0.8);
+}
+
+.auth-panel-trigger-mark {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.auth-panel-content {
+  position: relative;
+  z-index: 1;
+  padding: 0 0.65rem 0.65rem;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transform-origin: right top;
+  animation: auth-panel-in 180ms ease both;
+}
+
+@keyframes auth-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-0.35rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes bgm-lp-spin {
   from {
     transform: rotate(0deg);
@@ -391,6 +563,41 @@ select {
 
 .auth-input::placeholder {
   color: rgba(255, 210, 210, 0.58) !important;
+}
+
+.auth-input-compact {
+  min-height: 2.25rem;
+  padding: 0.52rem 0.65rem;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.game-menu-button {
+  position: relative;
+  border: 1px solid rgba(210, 210, 210, 0.72);
+  background:
+    linear-gradient(180deg, rgba(44, 0, 6, 0.98), rgba(12, 0, 0, 0.98));
+  color: #fff2f2;
+  text-shadow: 1px 1px 0 #000;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 0, 24, 0.22),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.9),
+    2px 2px 0 #000;
+  image-rendering: pixelated;
+}
+
+.game-menu-button:hover {
+  background:
+    linear-gradient(180deg, rgba(72, 0, 10, 0.98), rgba(20, 0, 0, 0.98));
+  border-color: rgba(255, 120, 120, 0.68);
+  color: #ffffff;
+}
+
+.game-menu-button:active {
+  transform: translate(2px, 2px);
+  box-shadow:
+    inset 1px 1px 0 rgba(0, 0, 0, 0.95),
+    inset 0 0 0 1px rgba(255, 0, 24, 0.18);
 }
 
 .admin-page {
