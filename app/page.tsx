@@ -1,0 +1,1479 @@
+"use client";
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  type User,
+} from "firebase/auth";
+import { collection, doc, onSnapshot } from "firebase/firestore";
+import BgmPlayer from "./components/BgmPlayer";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+
+type Character = {
+  id: string;
+  name: string;
+  subtitle: string;
+  quote: string;
+  palette: string;
+  profile: {
+    age: string;
+    height: string;
+    role: string;
+    keyword: string;
+  };
+  settings: string[];
+  relationships: string[];
+  images?: UploadedImage[];
+  works: {
+    title: string;
+    kind: string;
+    date: string;
+    body: string;
+  }[];
+  worldEntries?: CharacterWorldEntry[];
+};
+
+type Work = Character["works"][number];
+
+type World = {
+  id: string;
+  title: string;
+  subtitle: string;
+  description: string;
+};
+
+type CharacterWorldEntry = {
+  worldId: string;
+  settings: string[];
+  images: UploadedImage[];
+  works: Work[];
+};
+
+type UploadedImage = {
+  id: string;
+  category?: "illustration" | "standing";
+  name: string;
+  url: string;
+  size: number;
+  thumbX?: number;
+  thumbY?: number;
+  thumbScale?: number;
+};
+
+type GalleryModalItem = {
+  image: UploadedImage;
+  character: Character;
+};
+
+type ExpressionModalItem = {
+  character: Character;
+  images: UploadedImage[];
+};
+
+type ReaderModalItem = {
+  character: Character;
+  work: Work;
+};
+
+type HomeContent = {
+  eyebrow: string;
+  title: string;
+  body: string;
+};
+
+type DiaryEntry = {
+  id: string;
+  title: string;
+  date: string;
+  body: string;
+};
+
+const ADMIN_LOGIN_ID = "0zsogi";
+const ADMIN_AUTH_EMAIL = "0zsogi@oc-home.local";
+
+function resolveLoginEmail(loginId: string) {
+  const trimmedLoginId = loginId.trim();
+  const normalizedLoginId = trimmedLoginId.toLowerCase();
+
+  if (normalizedLoginId === ADMIN_LOGIN_ID) {
+    return ADMIN_AUTH_EMAIL;
+  }
+
+  return trimmedLoginId;
+}
+
+function thumbnailStyle(image: UploadedImage) {
+  const x = image.thumbX ?? 50;
+  const y = image.thumbY ?? 50;
+  const scale = image.thumbScale ?? 1;
+
+  return {
+    objectPosition: `${x}% ${y}%`,
+    transform: `scale(${scale})`,
+    transformOrigin: `${x}% ${y}%`,
+  };
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+const initialGuestbook = [
+  {
+    name: "방문자",
+    body: "새 자캐 홈 오픈 축하해요. 캐릭터별 설정을 따로 볼 수 있어서 좋아요.",
+    reply: "감사합니다. 다음에는 관계도랑 로그도 더 채워둘게요.",
+  },
+  {
+    name: "익명",
+    body: "배너 교환 신청 남기고 갑니다.",
+    reply: "확인했습니다. 링크 정리해서 찾아갈게요.",
+  },
+];
+
+const extracts = [
+  "이름은 존재를 붙드는 가장 작은 주문이다.",
+  "비밀은 숨겨진 진실이 아니라, 아직 말할 사람을 고르지 못한 문장이다.",
+  "돌아갈 곳이 없다는 말은 때때로 어디든 갈 수 있다는 뜻이었다.",
+];
+
+const defaultHomeContent: HomeContent = {
+  eyebrow: "Original Character Home",
+  title: "Akutagawa Archive",
+  body: "우리가 쉬고 있는 바위틈에서는 시냇물이 흐르고 있었습니다.\n각자의 이야기와 그림, 로그를 씻어 보관하는 작은 자캐 홈입니다.",
+};
+
+const defaultArchiveContent: HomeContent = {
+  eyebrow: "Archive",
+  title: "자캐 보관소",
+  body: "설정, 사진, 로그, 연성을 캐릭터별로 정리하는 개인 홈",
+};
+
+const sections = [
+  { id: "home", label: "Home" },
+  { id: "characters", label: "Character" },
+  { id: "worlds", label: "TRPG" },
+  { id: "diary", label: "Diary" },
+  { id: "guest", label: "Guest" },
+  { id: "extract", label: "Extract" },
+] as const;
+
+type SectionId = (typeof sections)[number]["id"];
+
+const emptyCharacter: Character = {
+  id: "",
+  name: "자캐 없음",
+  subtitle: "관리자 로그인 후 Character에서 자캐를 추가해주세요.",
+  quote: "아직 등록된 자캐가 없어요.",
+  palette: "from-red-600 via-zinc-900 to-black",
+  profile: {
+    age: "",
+    height: "",
+    role: "",
+    keyword: "",
+  },
+  settings: [],
+  relationships: [],
+  images: [],
+  works: [],
+  worldEntries: [],
+};
+
+function normalizeWorldEntries(entries: CharacterWorldEntry[] | undefined) {
+  return Array.isArray(entries)
+    ? entries.map((entry) => ({
+        worldId: entry.worldId,
+        settings: Array.isArray(entry.settings) ? entry.settings : [],
+        images: Array.isArray(entry.images) ? entry.images : [],
+        works: Array.isArray(entry.works) ? entry.works : [],
+      }))
+    : [];
+}
+
+export default function Home() {
+  const [activeSection, setActiveSection] = useState<SectionId>("home");
+  const [activeCharacterId, setActiveCharacterId] = useState("");
+  const [activeWorldId, setActiveWorldId] = useState("");
+  const [galleryModalItem, setGalleryModalItem] = useState<GalleryModalItem | null>(null);
+  const [expressionModalItem, setExpressionModalItem] = useState<ExpressionModalItem | null>(null);
+  const [galleryZoom, setGalleryZoom] = useState(1);
+  const [readerModalItem, setReaderModalItem] = useState<ReaderModalItem | null>(null);
+  const [activeTab, setActiveTab] = useState<"settings" | "images" | "works" | "worlds">("settings");
+  const [activeCharacterWorldId, setActiveCharacterWorldId] = useState("");
+  const [menuOpen, setMenuOpen] = useState(true);
+  const [firestoreCharacters, setFirestoreCharacters] = useState<Character[]>([]);
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authDraft, setAuthDraft] = useState({ loginId: "", password: "" });
+  const [showPassword, setShowPassword] = useState(true);
+  const [authNotice, setAuthNotice] = useState("");
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [guestbook, setGuestbook] = useState(initialGuestbook);
+  const [guestDraft, setGuestDraft] = useState({ name: "", body: "" });
+  const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
+  const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
+  const [worlds, setWorlds] = useState<World[]>([]);
+
+  const characters = useMemo(() => {
+    return firestoreCharacters;
+  }, [firestoreCharacters]);
+
+  const activeCharacter = useMemo(
+    () => characters.find((character) => character.id === activeCharacterId) ?? characters[0] ?? emptyCharacter,
+    [activeCharacterId, characters],
+  );
+  const activeCharacterImages = useMemo(
+    () => activeCharacter.images ?? [],
+    [activeCharacter],
+  );
+  const activeIllustrationImages = useMemo(
+    () => activeCharacterImages.filter((image) => image.category !== "standing"),
+    [activeCharacterImages],
+  );
+  const activeStandingImages = useMemo(
+    () => activeCharacterImages.filter((image) => image.category === "standing"),
+    [activeCharacterImages],
+  );
+  const activeMainIllustration = activeIllustrationImages[0] ?? activeCharacterImages[0];
+
+  const activeWorks = useMemo(
+    () => activeCharacter.works,
+    [activeCharacter],
+  );
+  const activeCharacterWorldEntries = useMemo(
+    () => normalizeWorldEntries(activeCharacter.worldEntries).filter((entry) => worlds.some((world) => world.id === entry.worldId)),
+    [activeCharacter, worlds],
+  );
+  const activeCharacterWorldEntry = useMemo(
+    () => activeCharacterWorldEntries.find((entry) => entry.worldId === activeCharacterWorldId) ?? activeCharacterWorldEntries[0],
+    [activeCharacterWorldEntries, activeCharacterWorldId],
+  );
+  const activeWorldIllustrationImages = useMemo(
+    () => (activeCharacterWorldEntry?.images ?? []).filter((image) => image.category !== "standing"),
+    [activeCharacterWorldEntry],
+  );
+  const activeWorldStandingImages = useMemo(
+    () => (activeCharacterWorldEntry?.images ?? []).filter((image) => image.category === "standing"),
+    [activeCharacterWorldEntry],
+  );
+  const activeWorldMainIllustration = activeWorldIllustrationImages[0] ?? activeCharacterWorldEntry?.images[0];
+  const activeWorld = useMemo(
+    () => worlds.find((world) => world.id === activeWorldId) ?? worlds[0],
+    [activeWorldId, worlds],
+  );
+  const activeWorldParticipants = useMemo(
+    () =>
+      activeWorld
+        ? characters
+            .map((character) => ({
+              character,
+              entry: normalizeWorldEntries(character.worldEntries).find((worldEntry) => worldEntry.worldId === activeWorld.id),
+            }))
+            .filter((item): item is { character: Character; entry: CharacterWorldEntry } => Boolean(item.entry))
+        : [],
+    [activeWorld, characters],
+  );
+
+  const allWorks = useMemo(
+    () =>
+      characters.flatMap((character) =>
+        character.works.map((work) => ({
+          character,
+          work,
+        })),
+      ),
+    [characters],
+  );
+
+  const recentItems = useMemo(
+    () => [
+      ...allWorks.map(({ character, work }) => ({
+        characterId: character.id,
+        title: `${character.name} - ${work.title}`,
+          meta: work.kind,
+          date: work.date,
+      })),
+      ...guestbook.slice(0, 2).map((guest) => ({
+        characterId: "",
+        title: `방명록 - ${guest.name}`,
+        meta: "comment",
+        date: "new",
+      })),
+    ],
+    [allWorks, guestbook],
+  );
+
+  const isAdmin = authUser?.email === ADMIN_AUTH_EMAIL;
+  const visibleSections = sections;
+
+  function openGalleryModal(item: GalleryModalItem) {
+    setGalleryZoom(1);
+    setGalleryModalItem(item);
+  }
+
+  function updateGalleryZoom(nextZoom: number) {
+    setGalleryZoom(clamp(nextZoom, 0.5, 3));
+  }
+
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+    return onAuthStateChanged(auth, (user) => {
+      setAuthUser(user);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!galleryModalItem) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [galleryModalItem]);
+
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      collection(db, "characters"),
+      (snapshot) => {
+        setFirestoreCharacters(
+          snapshot.docs
+            .map((characterDoc) => {
+              const data = characterDoc.data() as Character;
+              return {
+                ...data,
+                id: data.id || characterDoc.id,
+                works: Array.isArray(data.works) ? data.works : [],
+                settings: Array.isArray(data.settings) ? data.settings : [],
+                relationships: Array.isArray(data.relationships) ? data.relationships : [],
+                images: Array.isArray(data.images) ? data.images : [],
+                worldEntries: normalizeWorldEntries(data.worldEntries),
+              };
+            }),
+        );
+      },
+      (error) => {
+        setAuthNotice(`Firestore 불러오기 실패: ${error.message}`);
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      collection(db, "worlds"),
+      (snapshot) => {
+        const nextWorlds = snapshot.docs
+          .map((worldDoc) => {
+            const data = worldDoc.data() as Partial<World>;
+            return {
+              id: data.id || worldDoc.id,
+              title: data.title || "",
+              subtitle: data.subtitle || "",
+              description: data.description || "",
+            };
+          })
+          .sort((a, b) => a.title.localeCompare(b.title));
+
+        setWorlds(nextWorlds);
+        setActiveWorldId((current) => current || nextWorlds[0]?.id || "");
+        setActiveCharacterWorldId((current) => current || nextWorlds[0]?.id || "");
+      },
+      (error) => {
+        setAuthNotice(`세계관 불러오기 실패: ${error.message}`);
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      doc(db, "site", "home"),
+      (snapshot) => {
+        const data = snapshot.data() as Partial<HomeContent> | undefined;
+        setHomeContent({
+          eyebrow: data?.eyebrow || defaultHomeContent.eyebrow,
+          title: data?.title || defaultHomeContent.title,
+          body: data?.body || defaultHomeContent.body,
+        });
+      },
+      (error) => {
+        setAuthNotice(`홈 문구 불러오기 실패: ${error.message}`);
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      doc(db, "site", "archive"),
+      (snapshot) => {
+        const data = snapshot.data() as Partial<HomeContent> | undefined;
+        setArchiveContent({
+          eyebrow: data?.eyebrow || defaultArchiveContent.eyebrow,
+          title: data?.title || defaultArchiveContent.title,
+          body: data?.body || defaultArchiveContent.body,
+        });
+      },
+      (error) => {
+        setAuthNotice(`보관소 문구 불러오기 실패: ${error.message}`);
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      collection(db, "diaryEntries"),
+      (snapshot) => {
+        const nextEntries = snapshot.docs
+          .map((diaryDoc) => {
+            const data = diaryDoc.data() as Partial<DiaryEntry>;
+            return {
+              id: data.id || diaryDoc.id,
+              title: data.title || "",
+              date: data.date || "",
+              body: data.body || "",
+            };
+          })
+          .filter((entry) => entry.title || entry.body)
+          .sort((a, b) => b.date.localeCompare(a.date));
+        setDiaryEntries(nextEntries);
+      },
+      (error) => {
+        setAuthNotice(`다이어리 불러오기 실패: ${error.message}`);
+      },
+    );
+  }, []);
+
+  function moveSection(section: SectionId) {
+    setActiveSection(section);
+    setMenuOpen(false);
+  }
+
+  async function submitAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setAuthNotice("");
+
+    if (!authDraft.loginId.trim() || !authDraft.password) {
+      setAuthNotice("아이디와 비밀번호를 입력해주세요.");
+      return;
+    }
+
+    try {
+      setIsAuthLoading(true);
+      const auth = getFirebaseAuth();
+      const loginEmail = resolveLoginEmail(authDraft.loginId);
+
+      if (authMode === "signup") {
+        await createUserWithEmailAndPassword(auth, loginEmail, authDraft.password);
+        setAuthNotice("회원가입 완료. 로그인 상태입니다.");
+      } else {
+        await signInWithEmailAndPassword(auth, loginEmail, authDraft.password);
+        setAuthNotice("로그인 완료.");
+      }
+
+      setAuthDraft({ loginId: "", password: "" });
+    } catch (error) {
+      setAuthNotice(error instanceof Error ? error.message : "인증 처리에 실패했어요.");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }
+
+  async function logout() {
+    await signOut(getFirebaseAuth());
+    setAuthNotice("로그아웃했습니다.");
+  }
+
+  function submitGuest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!guestDraft.name.trim() || !guestDraft.body.trim()) return;
+
+    setGuestbook((current) => [
+      {
+        name: guestDraft.name.trim(),
+        body: guestDraft.body.trim(),
+        reply: "답글을 여기에 달 수 있어요.",
+      },
+      ...current,
+    ]);
+    setGuestDraft({ name: "", body: "" });
+  }
+
+  return (
+    <main className="min-h-screen overflow-x-hidden bg-black text-emerald-50">
+      <style jsx global>{`
+        @font-face {
+          font-family: "KbizHanmaumMyungjo";
+          src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/KBIZHanmaumMyungjo.woff") format("woff");
+          font-weight: normal;
+          font-display: swap;
+        }
+
+        body,
+        body *:not(i):not([class*="icon"]):not(.material-icons):not(.fa):not(.fas):not(.far):not(.fab):not(.auth-input):not(.boot-loading-screen):not(.boot-loading-screen *) {
+          font-family: "KbizHanmaumMyungjo", "Zen Old Mincho", serif !important;
+        }
+      `}</style>
+      <div className="fixed inset-0 bg-[linear-gradient(180deg,#000000_0%,#000000_78%,#080000_100%)]" />
+      <div className="noise-layer" aria-hidden="true" />
+
+      <button
+        type="button"
+        onClick={() => setMenuOpen((value) => !value)}
+        className="fixed left-5 top-5 z-30 grid size-11 place-items-center rounded-full border border-emerald-100/20 bg-emerald-950/80 text-lg shadow-2xl backdrop-blur"
+        aria-label="메뉴 열기"
+      >
+        ☰
+      </button>
+
+      <aside
+        className={`fixed bottom-4 left-5 top-16 z-30 w-56 overflow-y-auto rounded-3xl border border-emerald-100/15 bg-emerald-950/85 p-3 shadow-2xl backdrop-blur-xl transition ${
+          menuOpen ? "translate-x-0 opacity-100" : "-translate-x-8 opacity-0 pointer-events-none"
+        } md:translate-x-0 md:opacity-100 md:pointer-events-auto`}
+      >
+        <div className="mb-4 rounded-2xl border border-emerald-100/10 p-4">
+          <p className="text-xs uppercase tracking-[0.4em] text-emerald-200/70">{archiveContent.eyebrow}</p>
+          <h1 className="mt-2 font-serif text-2xl font-bold">{archiveContent.title}</h1>
+          <p className="mt-2 text-xs leading-5 text-emerald-100/60">{archiveContent.body}</p>
+        </div>
+
+        <nav className="space-y-2">
+          {visibleSections.map((section) => (
+            <button
+              key={section.id}
+              type="button"
+              onClick={() => moveSection(section.id)}
+              className={`group flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm transition ${
+                activeSection === section.id
+                  ? "bg-emerald-200 text-emerald-950"
+                  : "text-emerald-50/75 hover:bg-emerald-100/10 hover:text-white"
+              }`}
+            >
+              <span>{section.label}</span>
+              <span className="text-xs opacity-60">›</span>
+            </button>
+          ))}
+        </nav>
+
+        <section className="mt-5 rounded-2xl border border-emerald-100/10 bg-black/20 p-3">
+          {authUser ? (
+            <div className="space-y-3 text-xs">
+              <p className="text-emerald-100/60">{isAdmin ? "관리자 로그인됨" : "로그인됨"}</p>
+              <p className="break-all text-emerald-50">{isAdmin ? ADMIN_LOGIN_ID : authUser.email}</p>
+              {isAdmin && (
+                <a
+                  href="/admin"
+                  className="block border border-red-600/40 bg-red-950/30 p-2 text-center text-red-100"
+                >
+                  수정 페이지로 이동
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={logout}
+                className="w-full rounded-full bg-emerald-100/15 py-2 text-emerald-50"
+              >
+                로그아웃
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={submitAuth} className="space-y-3">
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("signup")}
+                  className={`rounded-full py-2 ${
+                    authMode === "signup" ? "bg-emerald-200 text-emerald-950" : "border border-emerald-100/20 text-emerald-100/70"
+                  }`}
+                >
+                  회원가입
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthMode("login")}
+                  className={`rounded-full py-2 ${
+                    authMode === "login" ? "bg-emerald-200 text-emerald-950" : "border border-emerald-100/20 text-emerald-100/70"
+                  }`}
+                >
+                  로그인
+                </button>
+              </div>
+              <input
+                value={authDraft.loginId}
+                onChange={(event) => setAuthDraft((current) => ({ ...current, loginId: event.target.value }))}
+                placeholder="id or email"
+                type="text"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="auth-input"
+              />
+              <div className="grid grid-cols-[1fr_auto] gap-2">
+                <input
+                  value={authDraft.password}
+                  onChange={(event) => setAuthDraft((current) => ({ ...current, password: event.target.value }))}
+                  placeholder="password"
+                  type={showPassword ? "text" : "password"}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className="auth-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="border border-emerald-100/20 px-3 text-xs text-emerald-100/70"
+                >
+                  {showPassword ? "숨김" : "보기"}
+                </button>
+              </div>
+              <button
+                disabled={isAuthLoading}
+                className="w-full rounded-full bg-emerald-200 py-2 text-xs font-semibold text-emerald-950 disabled:opacity-60"
+              >
+                {isAuthLoading ? "처리 중..." : authMode === "signup" ? "가입하기" : "로그인하기"}
+              </button>
+              {authNotice && <p className="text-xs leading-5 text-emerald-100/60">{authNotice}</p>}
+            </form>
+          )}
+        </section>
+      </aside>
+
+      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-6 px-5 pb-12 pt-5 md:px-8 md:pl-64 xl:grid xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="space-y-6">
+          {activeSection === "home" && (
+            <section className="glass-card p-6 md:p-8">
+              <p className="text-sm uppercase tracking-[0.35em] text-emerald-100/60">{homeContent.eyebrow}</p>
+              <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">{homeContent.title}</h2>
+              <p className="mt-5 max-w-2xl whitespace-pre-line text-sm leading-7 text-emerald-50/85 md:text-base">
+                {homeContent.body}
+              </p>
+            </section>
+          )}
+
+          {activeSection === "home" && (
+            <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+              <div className="glass-card p-6">
+                <h3 className="board-title">최근 갱신된 글</h3>
+                <div className="mt-5 space-y-3">
+                  {recentItems.slice(0, 6).map((item) => (
+                    <button
+                      key={`${item.title}-${item.date}`}
+                      type="button"
+                      onClick={() => {
+                        if (item.meta === "comment") {
+                          setActiveSection("guest");
+                          return;
+                        }
+
+                        setActiveCharacterId(item.characterId);
+                        setActiveTab("works");
+                        setActiveSection("characters");
+                      }}
+                      className="flex w-full items-center justify-between rounded-2xl border border-emerald-100/10 bg-emerald-950/30 px-4 py-3 text-left transition hover:bg-emerald-100/10"
+                    >
+                      <span>
+                        <span className="block text-sm font-semibold">{item.title}</span>
+                        <span className="text-xs text-emerald-100/50">{item.meta}</span>
+                      </span>
+                      <span className="text-xs text-emerald-100/60">{item.date}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="glass-card p-6">
+                <h3 className="board-title">자캐 바로가기</h3>
+                <div className="mt-5 grid gap-3">
+                  {characters.map((character) => {
+                    const shortcutImage = (character.images ?? [])[0];
+
+                    return (
+                      <button
+                        key={character.id}
+                        type="button"
+                        onClick={() => {
+                          setActiveCharacterId(character.id);
+                          setActiveSection("characters");
+                        }}
+                        className="overflow-hidden rounded-2xl border border-emerald-100/10 bg-emerald-950/30 text-left transition hover:-translate-y-1 hover:border-emerald-100/30"
+                      >
+                        <div className={`aspect-[3/2] overflow-hidden bg-gradient-to-r ${character.palette}`}>
+                          {shortcutImage && (
+                            /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                            <img
+                              src={shortcutImage.url}
+                              alt={`${character.name} 대표 그림`}
+                              className="h-full w-full object-cover opacity-90"
+                              style={thumbnailStyle(shortcutImage)}
+                            />
+                          )}
+                        </div>
+                        <div className="p-4">
+                          <p className="font-serif text-xl font-bold">{character.name}</p>
+                          <p className="mt-1 text-xs text-emerald-100/60">{character.subtitle}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {activeSection === "characters" && (
+            <section className="space-y-6">
+              <section className="glass-card p-6 md:p-8">
+                <div className="text-center">
+                  <p className="text-center text-xs uppercase tracking-[0.45em] text-emerald-100/55">Character Cards</p>
+                </div>
+
+                {characters.length === 0 ? (
+                  <div className="mt-6 border border-emerald-100/10 bg-black/20 p-5 text-sm leading-7 text-emerald-100/65">
+                    아직 등록된 자캐가 없어요. 관리자 로그인 후 `새 자캐 만들기`로 첫 카드를 추가해주세요.
+                  </div>
+                ) : (
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {characters.map((character) => {
+                      const cardImage = (character.images ?? []).find((image) => image.category !== "standing") ?? (character.images ?? [])[0];
+
+                      return (
+                        <button
+                          key={character.id}
+                          type="button"
+                          onClick={() => {
+                            setActiveCharacterId(character.id);
+                            setActiveTab("settings");
+                          }}
+                          className={`character-card text-left ${activeCharacter.id === character.id ? "is-active" : ""}`}
+                        >
+                          <div className={`aspect-[3/2] overflow-hidden bg-gradient-to-br ${character.palette}`}>
+                            {cardImage && (
+                              /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                              <img
+                                src={cardImage.url}
+                                alt={`${character.name} 대표 그림`}
+                                className="h-full w-full object-cover opacity-95 transition duration-300 hover:scale-105 hover:opacity-100"
+                                style={thumbnailStyle(cardImage)}
+                              />
+                            )}
+                          </div>
+                          <div className="p-4">
+                            <p className="text-xs uppercase tracking-[0.28em] text-red-200/70">{character.id}</p>
+                            <h4 className="mt-2 text-2xl font-bold text-emerald-50">{character.name}</h4>
+                            <p className="mt-2 line-clamp-2 text-sm leading-6 text-emerald-100/65">{character.subtitle}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              <section className="glass-card overflow-hidden">
+                <div className={`h-56 overflow-hidden bg-gradient-to-r ${activeCharacter.palette}`}>
+                  {activeMainIllustration && (
+                    /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                    <img
+                      src={activeMainIllustration.url}
+                      alt={`${activeCharacter.name} 대표 그림`}
+                      className="h-full w-full object-cover opacity-90"
+                      style={thumbnailStyle(activeMainIllustration)}
+                    />
+                  )}
+                </div>
+                <div className="p-6 md:p-8">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-emerald-100/50">Character Detail</p>
+                      <h3 className="mt-2 font-serif text-5xl font-bold">{activeCharacter.name}</h3>
+                      <p className="mt-2 text-emerald-100/70">{activeCharacter.subtitle}</p>
+                    </div>
+                  </div>
+
+                  <blockquote className="mt-6 border border-emerald-100/10 bg-black/20 p-5 text-sm leading-7 text-emerald-50/80">
+                    “{activeCharacter.quote}”
+                  </blockquote>
+
+                  <dl className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {Object.entries(activeCharacter.profile).map(([key, value]) => (
+                      <div key={key} className="border border-emerald-100/10 bg-emerald-950/30 p-4">
+                        <dt className="text-xs uppercase text-emerald-100/45">{key}</dt>
+                        <dd className="mt-2 text-sm">{value || "-"}</dd>
+                      </div>
+                    ))}
+                  </dl>
+
+                  <div className="mt-6 flex flex-wrap gap-2">
+                    {(["settings", "images", "works", "worlds"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setActiveTab(tab)}
+                        className={`px-4 py-2 text-sm ${
+                          activeTab === tab ? "bg-emerald-200 text-emerald-950" : "bg-emerald-100/10 text-emerald-50/70"
+                        }`}
+                      >
+                        {tab === "settings" ? "설정" : tab === "images" ? "그림" : tab === "works" ? "글" : "세계관"}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="mt-6">
+                    {activeTab === "settings" && (
+                      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+                        <div className="space-y-3">
+                          {activeCharacter.settings.length > 0 ? (
+                            activeCharacter.settings.map((setting) => (
+                              <p key={setting} className="border border-emerald-100/10 bg-emerald-950/30 p-4 text-sm leading-7">
+                                {setting}
+                              </p>
+                            ))
+                          ) : (
+                            <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">등록된 상세 설정이 없어요.</p>
+                          )}
+                        </div>
+                        <div className="grid content-start gap-4">
+                          <button
+                            type="button"
+                            onClick={() => activeMainIllustration && openGalleryModal({ image: activeMainIllustration, character: activeCharacter })}
+                            className="gallery-tile group block w-full text-left"
+                            disabled={!activeMainIllustration}
+                          >
+                            <div className="h-96 overflow-hidden md:h-[520px]">
+                              {activeMainIllustration ? (
+                                /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                                <img
+                                  src={activeMainIllustration.url}
+                                  alt={`${activeCharacter.name} 일러스트`}
+                                  className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
+                                  style={thumbnailStyle(activeMainIllustration)}
+                                />
+                              ) : (
+                                <div className={`h-full w-full bg-gradient-to-r ${activeCharacter.palette}`} />
+                              )}
+                            </div>
+                            <p className="p-3 text-xs text-emerald-50">일러스트 대표 썸네일</p>
+                          </button>
+
+                          {activeStandingImages.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setExpressionModalItem({ character: activeCharacter, images: activeStandingImages })}
+                              className="border border-red-600/40 bg-black/35 p-4 text-left transition hover:border-red-500"
+                            >
+                              <p className="text-xs uppercase tracking-[0.25em] text-red-100/55">Standing Expressions</p>
+                              <div className="mt-3 grid grid-cols-4 gap-2">
+                                {activeStandingImages.slice(0, 4).map((image) => (
+                                  <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                    <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                  </div>
+                                ))}
+                              </div>
+                              <p className="mt-3 text-sm text-emerald-50/75">스탠딩 표정 {activeStandingImages.length}장 보기</p>
+                            </button>
+                          )}
+
+                          <div className="border border-emerald-100/10 bg-emerald-950/30 p-4">
+                            <p className="text-xs uppercase text-emerald-100/45">Relationship</p>
+                            <ul className="mt-3 space-y-2 text-sm text-emerald-50/80">
+                              {activeCharacter.relationships.length > 0 ? (
+                                activeCharacter.relationships.map((relationship) => <li key={relationship}>{relationship}</li>)
+                              ) : (
+                                <li className="text-emerald-100/50">등록된 관계가 없어요.</li>
+                              )}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === "images" && (
+                      <div className="space-y-4">
+                        {activeStandingImages.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setExpressionModalItem({ character: activeCharacter, images: activeStandingImages })}
+                            className="block w-full border border-red-600/45 bg-red-950/10 p-5 text-left transition hover:border-red-500"
+                          >
+                            <p className="text-xs uppercase tracking-[0.28em] text-red-100/55">Standing Expression Set</p>
+                            <h4 className="mt-2 text-xl font-semibold text-emerald-50">스탠딩 표정 모음</h4>
+                            <p className="mt-2 text-sm text-emerald-100/65">{activeStandingImages.length}장의 표정 이미지를 한 번에 봅니다.</p>
+                          </button>
+                        )}
+                        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                          {activeIllustrationImages.map((image, index) => (
+                            <article key={image.id} className="gallery-tile group">
+                              <button
+                                type="button"
+                                onClick={() => openGalleryModal({ image, character: activeCharacter })}
+                                className="block w-full text-left"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                <img
+                                  src={image.url}
+                                  alt={`${activeCharacter.name} 그림 ${index + 1}`}
+                                  className="h-64 w-full object-cover opacity-90 transition duration-300 group-hover:scale-105 group-hover:opacity-100"
+                                  style={thumbnailStyle(image)}
+                                />
+                              </button>
+                              <div className="p-4 text-sm text-emerald-100/70">
+                                <p className="truncate text-xs text-emerald-50">{image.name}</p>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                        {activeCharacterImages.length === 0 && (
+                          <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">등록된 그림이 없어요.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {activeTab === "works" && (
+                      <div className="space-y-4">
+                        {activeWorks.length > 0 && (
+                          <p className="border border-red-600/30 bg-red-950/10 p-3 text-sm text-emerald-100/70">
+                            글 카드를 누르면 이북 리더 화면으로 열립니다.
+                          </p>
+                        )}
+                        {activeWorks.map((work, index) => (
+                          <button
+                            key={`${work.title}-${work.date}-${index}`}
+                            type="button"
+                            onClick={() => {
+                              setReaderModalItem({ character: activeCharacter, work });
+                            }}
+                            className="block w-full border border-emerald-100/10 bg-emerald-950/30 p-5 text-left transition hover:border-red-500/70 hover:bg-red-950/10"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
+                                <h4 className="mt-2 text-xl font-semibold">{work.title}</h4>
+                              </div>
+                              <span className="bg-emerald-200 px-4 py-2 text-xs font-semibold text-emerald-950">이북 리더로 보기</span>
+                            </div>
+                            <p className="mt-3 line-clamp-3 text-sm leading-7 text-emerald-50/75">{work.body}</p>
+                          </button>
+                        ))}
+                        {activeWorks.length === 0 && (
+                          <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">등록된 글이 없어요.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {activeTab === "worlds" && (
+                      <div className="grid gap-5">
+                        {activeCharacterWorldEntries.length > 0 ? (
+                          <>
+                            <div className="flex flex-wrap gap-2">
+                              {activeCharacterWorldEntries.map((entry) => {
+                                const world = worlds.find((item) => item.id === entry.worldId);
+                                return (
+                                  <button
+                                    key={entry.worldId}
+                                    type="button"
+                                    onClick={() => setActiveCharacterWorldId(entry.worldId)}
+                                    className={`px-4 py-2 text-sm ${
+                                      activeCharacterWorldEntry?.worldId === entry.worldId ? "bg-emerald-200 text-emerald-950" : "bg-emerald-100/10 text-emerald-50/70"
+                                    }`}
+                                  >
+                                    {world?.title ?? entry.worldId}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {activeCharacterWorldEntry && (
+                              <article className="grid gap-5 border border-emerald-100/10 bg-black/20 p-5">
+                                <div>
+                                  <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/45">World Data</p>
+                                  <h4 className="mt-2 text-2xl font-semibold">
+                                    {worlds.find((world) => world.id === activeCharacterWorldEntry.worldId)?.title ?? activeCharacterWorldEntry.worldId}
+                                  </h4>
+                                </div>
+                                <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+                                  <div className="grid content-start gap-3">
+                                    {activeCharacterWorldEntry.settings.length > 0 ? (
+                                      activeCharacterWorldEntry.settings.map((setting) => (
+                                        <p key={setting} className="border border-emerald-100/10 bg-emerald-950/30 p-4 text-sm leading-7">{setting}</p>
+                                      ))
+                                    ) : (
+                                      <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/60">이 세계관 설정이 없어요.</p>
+                                    )}
+                                  </div>
+                                  <div className="grid content-start gap-4">
+                                    <button
+                                      type="button"
+                                      onClick={() => activeWorldMainIllustration && openGalleryModal({ image: activeWorldMainIllustration, character: activeCharacter })}
+                                      className="gallery-tile group block w-full text-left"
+                                      disabled={!activeWorldMainIllustration}
+                                    >
+                                      <div className="h-96 overflow-hidden md:h-[520px]">
+                                        {activeWorldMainIllustration ? (
+                                          /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                                          <img
+                                            src={activeWorldMainIllustration.url}
+                                            alt={`${activeCharacter.name} 세계관 일러스트`}
+                                            className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
+                                            style={thumbnailStyle(activeWorldMainIllustration)}
+                                          />
+                                        ) : (
+                                          <div className={`h-full w-full bg-gradient-to-r ${activeCharacter.palette}`} />
+                                        )}
+                                      </div>
+                                      <p className="truncate p-3 text-xs text-emerald-50">{activeWorldMainIllustration?.name ?? "세계관 일러스트"}</p>
+                                    </button>
+
+                                    {activeWorldStandingImages.length > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpressionModalItem({ character: activeCharacter, images: activeWorldStandingImages })}
+                                        className="border border-red-600/40 bg-black/35 p-4 text-left transition hover:border-red-500"
+                                      >
+                                        <p className="text-xs uppercase tracking-[0.25em] text-red-100/55">World Standing Expressions</p>
+                                        <div className="mt-3 grid grid-cols-4 gap-2">
+                                          {activeWorldStandingImages.slice(0, 4).map((image) => (
+                                            <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                              {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                              <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                            </div>
+                                          ))}
+                                        </div>
+                                        <p className="mt-3 text-sm text-emerald-50/75">세계관 스탠딩 표정 {activeWorldStandingImages.length}장 보기</p>
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="grid gap-3">
+                                  {activeCharacterWorldEntry.works.map((work, index) => (
+                                    <button
+                                      key={`${work.title}-${work.date}-${index}`}
+                                      type="button"
+                                      onClick={() => setReaderModalItem({ character: activeCharacter, work })}
+                                      className="border border-emerald-100/10 bg-emerald-950/30 p-4 text-left hover:border-red-500/70"
+                                    >
+                                      <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
+                                      <h4 className="mt-2 text-lg font-semibold">{work.title}</h4>
+                                      <p className="mt-2 line-clamp-2 text-sm leading-7 text-emerald-50/70">{work.body}</p>
+                                    </button>
+                                  ))}
+                                </div>
+                              </article>
+                            )}
+                          </>
+                        ) : (
+                          <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">참가한 세계관 자료가 없어요.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              </section>
+            </section>
+          )}
+
+          {activeSection === "worlds" && (
+            <section className="space-y-6">
+              <section className="glass-card p-6 md:p-8">
+                <p className="text-xs uppercase tracking-[0.3em] text-emerald-100/50">TRPG / World</p>
+                <h3 className="mt-2 font-serif text-4xl font-bold">세계관 기록</h3>
+                <p className="mt-3 text-sm text-emerald-100/65">세계관을 선택하면 참가한 자캐와 해당 세계관 전용 설정, 그림, 로그를 모아 볼 수 있어요.</p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {worlds.map((world) => (
+                    <button
+                      key={world.id}
+                      type="button"
+                      onClick={() => setActiveWorldId(world.id)}
+                      className={`border p-5 text-left transition ${
+                        activeWorld?.id === world.id ? "border-red-500 bg-red-950/20" : "border-emerald-100/10 bg-black/30 hover:border-red-500/50"
+                      }`}
+                    >
+                      <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/40">{world.id}</p>
+                      <h4 className="mt-2 text-2xl font-semibold">{world.title}</h4>
+                      <p className="mt-2 text-sm text-emerald-100/60">{world.subtitle}</p>
+                    </button>
+                  ))}
+                </div>
+                {worlds.length === 0 && (
+                  <p className="mt-6 border border-emerald-100/10 bg-black/30 p-5 text-sm text-emerald-100/60">아직 등록된 세계관이 없어요.</p>
+                )}
+              </section>
+
+              {activeWorld && (
+                <section className="glass-card p-6 md:p-8">
+                  <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px] md:items-start">
+                    <div>
+                      <p className="text-xs uppercase tracking-[0.3em] text-emerald-100/45">Selected World</p>
+                      <h3 className="mt-2 font-serif text-4xl font-bold">{activeWorld.title}</h3>
+                      <p className="mt-2 text-emerald-100/65">{activeWorld.subtitle}</p>
+                      {activeWorld.description && <p className="mt-4 whitespace-pre-line text-sm leading-8 text-emerald-50/75">{activeWorld.description}</p>}
+                    </div>
+                    <p className="border border-red-600/30 bg-red-950/10 p-4 text-center text-sm text-emerald-100/75">참가 자캐 {activeWorldParticipants.length}명</p>
+                  </div>
+
+                  <div className="mt-6 grid gap-5">
+                    {activeWorldParticipants.map(({ character, entry }) => {
+                      const worldIllustrations = entry.images.filter((image) => image.category !== "standing");
+                      const worldStandings = entry.images.filter((image) => image.category === "standing");
+                      const worldMainIllustration = worldIllustrations[0] ?? entry.images[0];
+
+                      return (
+                      <article key={`${activeWorld.id}-${character.id}`} className="border border-emerald-100/10 bg-black/25 p-5">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <p className="text-xs uppercase tracking-[0.25em] text-emerald-100/40">{character.id}</p>
+                              <h4 className="mt-2 text-2xl font-semibold">{character.name}</h4>
+                              <p className="mt-1 text-sm text-emerald-100/60">{character.subtitle}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveCharacterId(character.id);
+                                setActiveCharacterWorldId(entry.worldId);
+                                setActiveTab("worlds");
+                                setActiveSection("characters");
+                              }}
+                              className="border border-emerald-100/20 px-4 py-2 text-sm text-emerald-50"
+                            >
+                              자캐 상세로 보기
+                            </button>
+                          </div>
+
+                        <div className="mt-5 grid items-start gap-4 xl:grid-cols-[0.9fr_1fr]">
+                          <div className="grid gap-3">
+                            {entry.settings.length > 0 ? (
+                              entry.settings.map((setting) => (
+                                <p key={setting} className="border border-emerald-100/10 bg-emerald-950/30 p-4 text-sm leading-7">{setting}</p>
+                              ))
+                            ) : (
+                              <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/60">등록된 세계관 설정이 없어요.</p>
+                            )}
+                          </div>
+                          <div className="grid content-start gap-4">
+                            <button
+                              type="button"
+                              onClick={() => worldMainIllustration && openGalleryModal({ image: worldMainIllustration, character })}
+                              className="gallery-tile group block w-full text-left"
+                              disabled={!worldMainIllustration}
+                            >
+                              <div className="h-96 overflow-hidden md:h-[520px]">
+                                {worldMainIllustration ? (
+                                  /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                                  <img
+                                    src={worldMainIllustration.url}
+                                    alt={`${character.name} ${activeWorld.title} 일러스트`}
+                                    className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
+                                    style={thumbnailStyle(worldMainIllustration)}
+                                  />
+                                ) : (
+                                  <div className={`h-full w-full bg-gradient-to-r ${character.palette}`} />
+                                )}
+                              </div>
+                              <p className="truncate p-3 text-xs text-emerald-50">{worldMainIllustration?.name ?? "세계관 일러스트"}</p>
+                            </button>
+
+                            {worldStandings.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setExpressionModalItem({ character, images: worldStandings })}
+                                className="border border-red-600/40 bg-black/35 p-4 text-left transition hover:border-red-500"
+                              >
+                                <p className="text-xs uppercase tracking-[0.25em] text-red-100/55">World Standing Expressions</p>
+                                <div className="mt-3 grid grid-cols-4 gap-2">
+                                  {worldStandings.slice(0, 4).map((image) => (
+                                    <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                      {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                      <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                    </div>
+                                  ))}
+                                </div>
+                                <p className="mt-3 text-sm text-emerald-50/75">세계관 스탠딩 표정 {worldStandings.length}장 보기</p>
+                              </button>
+                            )}
+                            <div className="grid gap-3">
+                              {entry.works.map((work, index) => (
+                                <button
+                                  key={`${work.title}-${work.date}-${index}`}
+                                  type="button"
+                                  onClick={() => setReaderModalItem({ character, work })}
+                                  className="border border-emerald-100/10 bg-emerald-950/30 p-4 text-left hover:border-red-500/70"
+                                >
+                                  <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
+                                  <h5 className="mt-2 text-lg font-semibold">{work.title}</h5>
+                                  <p className="mt-2 line-clamp-2 text-sm leading-7 text-emerald-50/70">{work.body}</p>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                      );
+                    })}
+                    {activeWorldParticipants.length === 0 && (
+                      <p className="border border-emerald-100/10 bg-black/30 p-5 text-sm text-emerald-100/60">이 세계관에 연결된 자캐 자료가 아직 없어요.</p>
+                    )}
+                  </div>
+                </section>
+              )}
+            </section>
+          )}
+
+          {activeSection === "diary" && (
+            <section className="glass-card p-6 md:p-8">
+              <h3 className="board-title">다이어리</h3>
+              <div className="mt-5 grid gap-4">
+                {diaryEntries.length > 0 ? (
+                  diaryEntries.map((entry) => (
+                    <article key={entry.id} className="rounded-3xl border border-emerald-100/10 bg-emerald-950/30 p-5">
+                      <p className="text-xs text-emerald-100/50">{entry.date}</p>
+                      <h4 className="mt-2 text-xl font-semibold text-emerald-50">{entry.title}</h4>
+                      <p className="mt-4 whitespace-pre-line text-sm leading-8 text-emerald-50/78">{entry.body}</p>
+                    </article>
+                  ))
+                ) : (
+                  <p className="rounded-3xl border border-emerald-100/10 bg-black/30 p-5 text-sm text-emerald-100/60">
+                    아직 저장된 일기가 없어요.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {activeSection === "guest" && (
+            <section className="glass-card p-6 md:p-8">
+              <h3 className="board-title">방명록</h3>
+              <form onSubmit={submitGuest} className="mt-5 grid gap-3 rounded-3xl border border-emerald-100/10 bg-black/20 p-4">
+                <input
+                  value={guestDraft.name}
+                  onChange={(event) => setGuestDraft((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="이름"
+                  className="rounded-2xl border border-emerald-100/10 bg-emerald-950/50 px-4 py-3 text-sm outline-none placeholder:text-emerald-100/35"
+                />
+                <textarea
+                  value={guestDraft.body}
+                  onChange={(event) => setGuestDraft((current) => ({ ...current, body: event.target.value }))}
+                  placeholder="남기고 싶은 말을 적어주세요."
+                  className="min-h-24 rounded-2xl border border-emerald-100/10 bg-emerald-950/50 px-4 py-3 text-sm leading-7 outline-none placeholder:text-emerald-100/35"
+                />
+                <button className="justify-self-end rounded-full bg-emerald-200 px-5 py-2 text-sm font-semibold text-emerald-950">남기기</button>
+              </form>
+              <div className="mt-6 space-y-4">
+                {guestbook.map((guest, index) => (
+                  <article key={`${guest.name}-${index}`} className="rounded-3xl border border-emerald-100/10 bg-emerald-950/30 p-5">
+                    <p className="font-semibold">No.{guestbook.length - index} {guest.name}</p>
+                    <p className="mt-3 text-sm leading-7 text-emerald-50/75">{guest.body}</p>
+                    <div className="mt-4 rounded-2xl bg-emerald-100/10 p-4 text-sm text-emerald-50/70">답글: {guest.reply}</div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {activeSection === "extract" && (
+            <section className="glass-card p-6 md:p-8">
+              <h3 className="board-title">발췌</h3>
+              <div className="mt-5 grid gap-4">
+                {extracts.map((extract, index) => (
+                  <blockquote key={extract} className="rounded-3xl border border-emerald-100/10 bg-emerald-950/30 p-5 text-sm leading-8 text-emerald-50/80">
+                    <span className="mb-3 block text-xs text-emerald-100/45">Extract {String(index + 1).padStart(2, "0")}</span>
+                    “{extract}”
+                  </blockquote>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+
+        <aside className="space-y-4">
+          <section className="glass-card p-6">
+            <h3 className="board-title">선택된 자캐</h3>
+            <div className={`mt-5 aspect-[3/2] overflow-hidden rounded-3xl bg-gradient-to-br ${activeCharacter.palette}`}>
+              {activeMainIllustration && (
+                /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                <img
+                  src={activeMainIllustration.url}
+                  alt={`${activeCharacter.name} 대표 그림`}
+                  className="h-full w-full object-cover opacity-90"
+                  style={thumbnailStyle(activeMainIllustration)}
+                />
+              )}
+            </div>
+            <p className="mt-4 font-serif text-3xl font-bold">{activeCharacter.name}</p>
+            <p className="mt-2 text-sm text-emerald-100/60">{activeCharacter.subtitle}</p>
+            <button
+              type="button"
+              onClick={() => setActiveSection("characters")}
+              className="mt-5 w-full rounded-full bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950"
+            >
+              설정 보기
+            </button>
+          </section>
+
+          <BgmPlayer />
+        </aside>
+      </section>
+
+      {readerModalItem && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/86 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${readerModalItem.work.title} 이북 보기`}
+          onClick={() => setReaderModalItem(null)}
+        >
+          <div
+            className="flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden border border-red-600/45 bg-[#070000] shadow-2xl shadow-black"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-red-600/25 p-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-red-200/60">Ebook Reader / {readerModalItem.character.name}</p>
+                <h3 className="mt-1 text-xl font-bold text-emerald-50">{readerModalItem.work.title}</h3>
+                <p className="mt-1 text-xs text-emerald-100/45">{readerModalItem.work.kind} / {readerModalItem.work.date}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReaderModalItem(null)}
+                className="border border-emerald-100/20 px-3 py-2 text-sm text-emerald-50"
+              >
+                닫기
+              </button>
+            </div>
+
+            <article className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_50%_0%,rgba(255,0,24,0.06),transparent_34%),#030000]">
+              <div className="px-7 py-8 md:px-12 md:py-10">
+                <p className="whitespace-pre-line text-[0.95rem] leading-9 text-emerald-50/86">
+                  {readerModalItem.work.body || "내용이 없어요."}
+                </p>
+              </div>
+            </article>
+          </div>
+        </div>
+      )}
+
+      {galleryModalItem && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/82 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${galleryModalItem.character.name} 이미지 확대 보기`}
+          onClick={() => setGalleryModalItem(null)}
+        >
+          <div
+            className="max-h-[92vh] w-full max-w-5xl overflow-hidden border border-emerald-100/20 bg-[#100707] shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-emerald-100/10 p-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-red-200/70">{galleryModalItem.character.name}</p>
+                <h3 className="mt-1 text-lg font-semibold text-emerald-50">{galleryModalItem.image.name}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGalleryModalItem(null)}
+                className="border border-emerald-100/20 px-3 py-2 text-sm text-emerald-50"
+              >
+                닫기
+              </button>
+            </div>
+            <div
+              className="max-h-[72vh] overflow-auto overscroll-contain bg-black/40 p-4"
+              onWheel={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                const currentTarget = event.currentTarget;
+                const scrollLeft = currentTarget.scrollLeft;
+                const scrollTop = currentTarget.scrollTop;
+                updateGalleryZoom(galleryZoom + (event.deltaY < 0 ? 0.12 : -0.12));
+                requestAnimationFrame(() => {
+                  currentTarget.scrollLeft = scrollLeft;
+                  currentTarget.scrollTop = scrollTop;
+                });
+              }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads and are displayed at original size in the modal. */}
+              <img
+                src={galleryModalItem.image.url}
+                alt={`${galleryModalItem.character.name} ${galleryModalItem.image.name}`}
+                className="mx-auto h-auto max-w-none select-none object-contain"
+                style={{
+                  width: `${galleryZoom * 100}%`,
+                }}
+                draggable={false}
+              />
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-emerald-100/10 p-4 text-xs text-emerald-100/60">
+              <span className="mr-auto text-emerald-100/50">휠로 확대/축소 가능</span>
+              <button type="button" onClick={() => updateGalleryZoom(galleryZoom - 0.2)} className="border border-emerald-100/20 px-3 py-2 text-emerald-50">
+                축소
+              </button>
+              <button type="button" onClick={() => updateGalleryZoom(1)} className="border border-emerald-100/20 px-3 py-2 text-emerald-50">
+                {Math.round(galleryZoom * 100)}%
+              </button>
+              <button type="button" onClick={() => updateGalleryZoom(galleryZoom + 0.2)} className="border border-emerald-100/20 px-3 py-2 text-emerald-50">
+                확대
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {expressionModalItem && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/86 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${expressionModalItem.character.name} 스탠딩 표정 보기`}
+          onClick={() => setExpressionModalItem(null)}
+        >
+          <div
+            className="max-h-[92vh] w-full max-w-5xl overflow-hidden border border-red-600/45 bg-[#070000] shadow-2xl shadow-black"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-red-600/20 p-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-red-200/70">{expressionModalItem.character.name}</p>
+                <h3 className="mt-1 text-lg font-semibold text-emerald-50">스탠딩 표정 모음</h3>
+              </div>
+              <button type="button" onClick={() => setExpressionModalItem(null)} className="border border-emerald-100/20 px-3 py-2 text-sm text-emerald-50">
+                닫기
+              </button>
+            </div>
+            <div className="max-h-[76vh] overflow-y-auto p-4">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {expressionModalItem.images.map((image) => (
+                  <article key={image.id} className="gallery-tile">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setExpressionModalItem(null);
+                        openGalleryModal({ image, character: expressionModalItem.character });
+                      }}
+                      className="block w-full text-left"
+                    >
+                      <div className="aspect-[3/4] overflow-hidden bg-black">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                        <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                      </div>
+                      <p className="truncate p-3 text-xs text-emerald-50">{image.name}</p>
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </main>
+  );
+}
