@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "자캐 보관소",
-  description: "자캐별 사진, 설정, 연성, 기록을 정리하는 개인 홈",
+  title: "芥川",
+  description: "자̷캐̸ 보̶관̴소̷ ― 사̵진̸, 설̶정̷, 연̸성̴, 기̶록̷의 파̴편̵들̸",
 };
 
 export default function RootLayout({
