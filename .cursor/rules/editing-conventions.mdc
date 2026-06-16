@@ -1,0 +1,32 @@
+---
+description: Comment preservation, Korean encoding, and formatting rules when editing code
+alwaysApply: true
+---
+
+# Code Editing Conventions
+
+## 1. Preserve and Write Comments
+
+- When modifying or moving code, **always preserve existing comments**. Do not delete them arbitrarily.
+- When writing new code, add comments that explain intent, constraints, or trade-offs where useful.
+  (Do NOT add narration comments like `// increment counter` that just restate the code.)
+- If you must change a comment's content, ensure its meaning is not lost.
+
+## 2. Preserve Korean Encoding
+
+- When moving or editing code, comments, or strings, **never break Korean characters**. Always keep files in UTF-8.
+- After editing, verify no broken characters such as `?`, `��`, or `\uFFFD` were introduced.
+- Do NOT write files via PowerShell `>`, `Out-File`, or `echo` (they save as CP949 and corrupt Korean).
+  Always use editing tools (Write / StrReplace) to create or modify files.
+
+## 3. Apply Formatting After Edits
+
+After writing or modifying code, apply the following **only to the changed files**:
+
+```bash
+pnpm exec eslint --fix <changed files>
+pnpm exec prettier --write <changed files>
+```
+
+- Do not run these on unchanged files (avoid unnecessary diffs).
+- If lint errors are not auto-fixable, fix them manually.
