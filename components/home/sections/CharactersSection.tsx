@@ -4,6 +4,7 @@ import { type FormEvent, useMemo } from "react";
 import { cn } from "@/utils/cn";
 import { thumbnailStyle } from "@/lib/image-helpers";
 import { emptyCharacter } from "@/constants/home";
+import { TextGlitch } from "@/components/TextGlitch";
 import { normalizeWorldEntries } from "@/utils/normalizers";
 import type { Character, UploadedImage, World } from "@/lib/types";
 import type {
@@ -35,6 +36,8 @@ const PROFILE_LABELS: Record<keyof Character["profile"], string> = {
 };
 
 const imageCreditName = (image: UploadedImage) => image.name?.trim() ?? "";
+const formatHeroCharacterId = (id: string) =>
+  id ? `${id.slice(0, 1).toUpperCase()}${id.slice(1).toLowerCase()}` : "";
 
 interface CharactersSectionProps {
   characters: Character[];
@@ -48,7 +51,11 @@ interface CharactersSectionProps {
   worldPasswordDrafts: Record<string, string>;
   onWorldPasswordChange: (worldId: string, value: string) => void;
   unlockedWorldIds: Record<string, boolean>;
-  onUnlockCharacterWorld: (event: FormEvent<HTMLFormElement>, worldId: string) => void;
+  canUnlockWorlds: boolean;
+  onUnlockCharacterWorld: (
+    event: FormEvent<HTMLFormElement>,
+    worldId: string,
+  ) => void | Promise<void>;
   onOpenGallery: (item: GalleryModalItem) => void;
   onOpenExpression: (item: ExpressionModalItem) => void;
   onOpenReader: (item: ReaderModalItem) => void;
@@ -67,6 +74,7 @@ export function CharactersSection({
   worldPasswordDrafts,
   onWorldPasswordChange,
   unlockedWorldIds,
+  canUnlockWorlds,
   onUnlockCharacterWorld,
   onOpenGallery,
   onOpenExpression,
@@ -128,16 +136,20 @@ export function CharactersSection({
     activeCharacterWorldEntry &&
     (!activeCharacterWorldPassword || unlockedWorldIds[activeCharacterWorldEntry.worldId]),
   );
+  const heroCharacterId = formatHeroCharacterId(activeCharacter.id);
 
   return (
     <section className={cn("space-y-6", className)}>
       {!activeCharacterId && (
       <section className="glass-card character-index-panel p-6 md:p-8">
         <div className="character-index-header">
-          <p className="text-xs tracking-[0.45em] text-emerald-100/55 uppercase">
-            Character Files
+          <p className="character-index-blue-text text-xs tracking-[0.45em] uppercase">
+            <TextGlitch className="character-index-blue-text" text="Character Files" />
           </p>
-          <span>{String(characters.length).padStart(2, "0")} Records</span>
+          <TextGlitch
+            className="character-index-blue-text"
+            text={`${String(characters.length).padStart(2, "0")} Records`}
+          />
         </div>
 
         {characters.length === 0 ? (
@@ -176,18 +188,18 @@ export function CharactersSection({
                   </div>
                   <div className="archive-character-card-body">
                     <p className="archive-character-card-id">
-                      {character.id}
+                      <TextGlitch text={character.id} />
                     </p>
                     <h4 className="archive-character-card-name">
-                      {character.name}
+                      <TextGlitch text={character.name} />
                       {character.kanjiName && (
                         <span className="kanji-name ml-2 align-baseline text-[0.58em] text-stone-300/55">
-                          {character.kanjiName}
+                          <TextGlitch text={character.kanjiName} />
                         </span>
                       )}
                     </h4>
                     <p className="archive-character-card-subtitle">
-                      {character.subtitle}
+                      <TextGlitch text={character.subtitle} />
                     </p>
                   </div>
                 </button>
@@ -200,7 +212,7 @@ export function CharactersSection({
 
       {activeCharacterId && (
       <section className="glass-card case-file-detail dossier-viewer overflow-hidden">
-        <div className="case-file-hero">
+        <div className="case-file-hero" data-character-id={heroCharacterId}>
           <div className={`absolute inset-0 bg-gradient-to-br ${activeCharacter.palette}`} />
           {activeMainIllustration && (
             /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
@@ -223,16 +235,20 @@ export function CharactersSection({
               left: "1rem",
             }}
           >
-            <p className="case-file-kicker">Private Archive / Case File</p>
+            <p className="case-file-kicker">
+              <TextGlitch text="Private Archive / Case File" />
+            </p>
             <h3 className="case-file-name">
-              {activeCharacter.name}
+              <TextGlitch text={activeCharacter.name} />
               {activeCharacter.kanjiName && (
                   <span className="kanji-name ml-3 align-baseline text-[0.34em] text-stone-300/55">
-                  {activeCharacter.kanjiName}
+                  <TextGlitch text={activeCharacter.kanjiName} />
                 </span>
               )}
             </h3>
-            <p className="case-file-subtitle">{activeCharacter.subtitle}</p>
+            <p className="case-file-subtitle">
+              <TextGlitch text={activeCharacter.subtitle} />
+            </p>
           </div>
           <button
             type="button"
@@ -541,7 +557,9 @@ export function CharactersSection({
                             className="grid gap-3 border border-stone-400/15 bg-stone-900/10 p-4"
                           >
                             <p className="text-sm leading-7 text-emerald-100/70">
-                              이 세계관의 설정, 그림, 연성/로그를 보려면 비밀번호를 입력해주세요.
+                              {canUnlockWorlds
+                                ? "이 세계관의 설정, 그림, 연성/로그를 보려면 비밀번호를 입력해주세요."
+                                : "세계관 비밀번호는 회원가입 또는 로그인 후 입력할 수 있어요."}
                             </p>
                             <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
                               <input
@@ -553,11 +571,12 @@ export function CharactersSection({
                                     event.target.value,
                                   )
                                 }
-                                placeholder="World password"
+                                placeholder={canUnlockWorlds ? "World password" : "회원가입 또는 로그인 필요"}
                                 className="auth-input auth-input-compact"
+                                disabled={!canUnlockWorlds}
                               />
                               <button className="border border-stone-400/25 bg-stone-900/30 px-5 py-2 text-sm text-stone-100">
-                                기록 열기
+                                {canUnlockWorlds ? "기록 열기" : "로그인 창 열기"}
                               </button>
                             </div>
                           </form>

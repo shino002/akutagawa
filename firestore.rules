@@ -22,6 +22,16 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    match /users/{userId}/worldUnlocks/{worldId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create, update: if
+        request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(["worldId", "unlockedAt"]) &&
+        request.resource.data.worldId == worldId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
     match /{document=**} {
       allow read: if true;
       allow write: if isAdmin();

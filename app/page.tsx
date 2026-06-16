@@ -49,7 +49,9 @@ export default function Home() {
   const { data: diaryEntries, error: diaryError } = useDiaryEntries();
   const { data: guestbook, error: guestbookError } = useGuestbook();
   const modals = useHomeModals();
-  const worldUnlock = useWorldUnlock(worlds, setAuthNotice);
+  const worldUnlock = useWorldUnlock(worlds, auth.authUser, setAuthNotice, () =>
+    auth.setAuthPanelOpen(true),
+  );
 
   // 사용자가 명시적으로 선택한 ID가 없으면 첫 번째 세계관을 활성으로 사용합니다.
   const effectiveActiveWorldId = activeWorldId || worlds[0]?.id || "";
@@ -180,6 +182,7 @@ export default function Home() {
               worldPasswordDrafts={worldUnlock.worldPasswordDrafts}
               onWorldPasswordChange={handleWorldPasswordChange}
               unlockedWorldIds={worldUnlock.unlockedWorldIds}
+              canUnlockWorlds={Boolean(auth.authUser)}
               onUnlockCharacterWorld={worldUnlock.unlockWorldById}
               onOpenGallery={modals.openGalleryModal}
               onOpenExpression={modals.setExpressionModalItem}
@@ -196,6 +199,7 @@ export default function Home() {
               worldPasswordDrafts={worldUnlock.worldPasswordDrafts}
               onWorldPasswordChange={handleWorldPasswordChange}
               unlockedWorldIds={worldUnlock.unlockedWorldIds}
+              canUnlockWorlds={Boolean(auth.authUser)}
               onUnlockWorld={handleUnlockActiveWorld}
               onViewParticipant={viewParticipantInCharacterTab}
               onOpenGallery={modals.openGalleryModal}

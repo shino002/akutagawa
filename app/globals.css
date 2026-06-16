@@ -1036,7 +1036,7 @@ select {
 }
 
 .case-file-hero::after {
-  content: "RECORD ROOM";
+  content: attr(data-character-id);
   position: absolute;
   right: 1.2rem;
   bottom: 0.7rem;
@@ -1139,10 +1139,10 @@ select {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 0, 24, 0.58);
-  background: rgba(0, 0, 0, 0.62);
+  border: 1px solid rgba(56, 189, 248, 0.62);
+  background: rgba(7, 15, 32, 0.72);
   padding: 0.65rem 1rem;
-  color: rgba(255, 230, 230, 0.82);
+  color: rgba(191, 219, 254, 0.9);
   font-size: 0.86rem;
   transition:
     border-color 160ms ease,
@@ -1151,8 +1151,8 @@ select {
 }
 
 .case-back-button:hover {
-  border-color: rgba(255, 210, 210, 0.72);
-  background: rgba(80, 0, 8, 0.55);
+  border-color: rgba(125, 211, 252, 0.82);
+  background: rgba(14, 32, 64, 0.82);
   transform: translateY(-1px);
 }
 
@@ -3273,8 +3273,15 @@ main :where(
 }
 
 .case-file-hero::after {
-  color: rgba(111, 143, 215, 0.08) !important;
+  content: attr(data-character-id) !important;
+  color: rgba(111, 143, 215, 0.18) !important;
   background: transparent !important;
+  opacity: 1 !important;
+  animation: current-heading-glitch 2.4s steps(1, end) infinite;
+}
+
+.text-glitch {
+  animation: current-text-glitch 2.4s steps(1, end) infinite;
 }
 
 main :where([class*="border-stone"], [class*="border-red"], [class*="border-rose"], [class*="border-pink"], [class*="border-emerald"]) {
@@ -3366,4 +3373,8 @@ html body main .side-menu [class*="text-emerald"],
 html body main .auth-panel-trigger,
 html body main .bgm-player p {
   color: rgba(126, 155, 225, 0.78) !important;
+}
+
+html body main .character-index-blue-text {
+  color: #f7f1dc !important;
 }
