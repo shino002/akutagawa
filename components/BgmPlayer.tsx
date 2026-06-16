@@ -29,6 +29,10 @@ const ERROR_TITLE_CHARS = [
   ".",
   ":",
 ];
+const INITIAL_TRACK = {
+  index: 0,
+  title: "@/1_SIGNAL_LOST",
+};
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -48,14 +52,18 @@ function createErrorTitle(trackIndex: number) {
   return `@/${trackIndex + 1}_${body}`;
 }
 
+function getRandomTrackIndex() {
+  return Math.floor(Math.random() * BGM_PLAYLIST.length);
+}
+
 export function BgmPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressTimerRef = useRef<number | null>(null);
   const trackIndexRef = useRef(0);
+  const autoPlayAttemptedRef = useRef(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [trackIndex, setTrackIndex] = useState(0);
-  const [displayTitle, setDisplayTitle] = useState(() => createErrorTitle(0));
+  const [track, setTrack] = useState(INITIAL_TRACK);
   const [volume, setVolume] = useState(0.55);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -103,8 +111,10 @@ export function BgmPlayer() {
 
   function updateTrackDisplay(nextTrackIndex: number) {
     trackIndexRef.current = nextTrackIndex;
-    setTrackIndex(nextTrackIndex);
-    setDisplayTitle(createErrorTitle(nextTrackIndex));
+    setTrack({
+      index: nextTrackIndex,
+      title: createErrorTitle(nextTrackIndex),
+    });
     setProgress(0);
     setDuration(0);
   }
@@ -112,7 +122,7 @@ export function BgmPlayer() {
   function getAudio() {
     if (audioRef.current) return audioRef.current;
 
-    const audio = new Audio(BGM_PLAYLIST[trackIndex]);
+    const audio = new Audio(BGM_PLAYLIST[track.index]);
     audio.loop = false;
     audio.preload = "none";
     audio.volume = volume;
@@ -145,7 +155,7 @@ export function BgmPlayer() {
       setNotice("");
     } catch {
       setIsPlaying(false);
-      setNotice("Click again");
+      setNotice("Click anywhere");
     }
   }
 
@@ -157,7 +167,7 @@ export function BgmPlayer() {
       setIsPlaying(true);
       setNotice("");
     } catch {
-      setNotice("Click again");
+      setNotice("Click anywhere");
     }
   }
 
@@ -173,7 +183,7 @@ export function BgmPlayer() {
         setNotice("");
       }
     } catch {
-      setNotice("Click again");
+      setNotice("Click anywhere");
     }
   }
 
@@ -193,9 +203,39 @@ export function BgmPlayer() {
     setIsCollapsed(false);
   }
 
+  useEffect(() => {
+    if (autoPlayAttemptedRef.current) return;
+
+    autoPlayAttemptedRef.current = true;
+    const initialTrackIndex = getRandomTrackIndex();
+    trackIndexRef.current = initialTrackIndex;
+    void playTrack(initialTrackIndex, true);
+    // 첫 렌더는 고정 제목으로 맞추고, 접속 후 클라이언트에서만 랜덤 첫 곡을 정합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    function startAfterUserGesture() {
+      const audio = audioRef.current;
+
+      if (audio && !audio.paused) return;
+      void playTrack(trackIndexRef.current, true);
+    }
+
+    window.addEventListener("pointerdown", startAfterUserGesture, { capture: true, once: true });
+    window.addEventListener("keydown", startAfterUserGesture, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", startAfterUserGesture, { capture: true });
+      window.removeEventListener("keydown", startAfterUserGesture);
+    };
+    // 자동재생이 막힌 브라우저에서 첫 사용자 입력으로만 재생을 재시도합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <aside
-      className={`bgm-player relative w-full rounded-2xl border border-red-600/70 px-3 pt-2 pb-3 text-emerald-50 shadow-[0_0_24px_rgba(0,0,0,0.9)] backdrop-blur-sm select-none ${isCollapsed ? "is-collapsed" : ""}`}
+      className={`bgm-player archive-panel relative w-full px-3 pt-2 pb-3 text-emerald-50 backdrop-blur-sm select-none ${isCollapsed ? "is-collapsed" : ""}`}
       onClick={isCollapsed ? expandPlayer : undefined}
       aria-label={isCollapsed ? "BGM 플레이어 펼치기" : undefined}
     >
@@ -221,7 +261,7 @@ export function BgmPlayer() {
 
         <div className="min-w-0 self-center">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] tracking-[0.35em] text-red-200/70 uppercase">BGM Player</p>
+            <p className="archive-kicker">BGM Player</p>
             <button
               type="button"
               onClick={collapsePlayer}
@@ -231,22 +271,13 @@ export function BgmPlayer() {
               ×
             </button>
           </div>
-          {/* displayTitle은 Math.random 기반의 글리치 텍스트라서 서버와 클라이언트가 서로 다른 값을 만들어요.
-              의도된 비결정적 표현이므로 suppressHydrationWarning으로 미스매치 경고만 막습니다. */}
-          <h2
-            className="mt-1 truncate text-sm font-semibold text-emerald-50"
-            suppressHydrationWarning
-          >
-            {displayTitle}
-          </h2>
-          <p className="mt-2 text-[10px] tracking-[0.22em] text-red-100/55 uppercase">
-            {isPlaying ? "playing" : "paused"}
-          </p>
-          {notice && <p className="mt-1 text-xs text-red-100/70">{notice}</p>}
+          <h2 className="mt-1 truncate text-sm font-semibold text-emerald-50">{track.title}</h2>
+          <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-stone-300/55">{isPlaying ? "playing" : "paused"}</p>
+          {notice && <p className="mt-1 text-xs text-stone-300/70">{notice}</p>}
         </div>
       </div>
 
-      <div className="bgm-expanded-content mt-3 grid gap-2 border-t border-red-600/20 pt-2.5">
+      <div className="bgm-expanded-content mt-3 grid gap-2 border-t border-stone-400/15 pt-2.5">
         <label className="grid gap-1.5 text-[10px] tracking-[0.18em] text-emerald-100/50 uppercase">
           <span>
             {formatTime((progress / 100) * duration)} / {formatTime(duration)}
@@ -258,7 +289,7 @@ export function BgmPlayer() {
             step="0.1"
             value={progress}
             onChange={(event) => seek(Number(event.target.value))}
-            className="accent-red-700"
+            className="accent-stone-400"
           />
         </label>
         <label className="grid gap-1.5 text-[10px] tracking-[0.18em] text-emerald-100/50 uppercase">
@@ -270,7 +301,7 @@ export function BgmPlayer() {
             step="0.01"
             value={volume}
             onChange={(event) => setVolume(Number(event.target.value))}
-            className="accent-red-700"
+            className="accent-stone-400"
           />
         </label>
       </div>

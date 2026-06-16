@@ -61,21 +61,21 @@ export function HomeSection({
   );
 
   return (
-    <div className={cn("space-y-6", className)}>
-      <section className="glass-card p-6 md:p-8">
-        <p className="text-sm tracking-[0.35em] text-emerald-100/60 uppercase">
+    <div className={cn("space-y-4", className)}>
+      <section className="glass-card p-5 md:p-7">
+        <p className="archive-kicker">
           {homeContent.eyebrow}
         </p>
-        <h2 className="mt-4 font-serif text-4xl font-bold md:text-6xl">{homeContent.title}</h2>
-        <p className="mt-5 max-w-2xl text-sm leading-7 whitespace-pre-line text-emerald-50/85 md:text-base">
+        <h2 className="archive-title mt-4 font-serif text-5xl md:text-7xl">{homeContent.title}</h2>
+        <p className="mt-5 max-w-3xl border-l border-stone-400/25 bg-black/25 px-4 py-3 text-sm leading-8 whitespace-pre-line text-emerald-50/82 md:text-base">
           {homeContent.body}
         </p>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className="glass-card p-6">
+      <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="glass-card p-5">
           <h3 className="board-title">최근 갱신된 글</h3>
-          <div className="mt-5 space-y-3">
+          <div className="mt-4 space-y-2">
             {recentItems.slice(0, 6).map((item) => (
               <button
                 key={`${item.title}-${item.date}`}
@@ -87,7 +87,7 @@ export function HomeSection({
                   }
                   onNavigateToCharacterWorks(item.characterId);
                 }}
-                className="flex w-full items-center justify-between rounded-2xl border border-emerald-100/10 bg-emerald-950/30 px-4 py-3 text-left transition hover:bg-emerald-100/10"
+                className="archive-row flex w-full items-center justify-between px-4 py-2.5 text-left"
               >
                 <span>
                   <span className="block text-sm font-semibold">{item.title}</span>
@@ -99,9 +99,9 @@ export function HomeSection({
           </div>
         </div>
 
-        <div className="glass-card p-6">
-          <h3 className="board-title">자캐 바로가기</h3>
-          <div className="mt-5 grid gap-3">
+        <div className="glass-card p-5">
+          <h3 className="board-title">Character Files</h3>
+          <div className="mt-4 grid gap-2">
             {characters.map((character) => {
               const shortcutImage = (character.images ?? [])[0];
 
@@ -110,17 +110,17 @@ export function HomeSection({
                   key={character.id}
                   type="button"
                   onClick={() => onNavigateToCharacterDetail(character.id)}
-                  className="overflow-hidden rounded-2xl border border-emerald-100/10 bg-emerald-950/30 text-left transition hover:-translate-y-1 hover:border-emerald-100/30"
+                  className="archive-row grid overflow-hidden text-left sm:grid-cols-[120px_1fr]"
                 >
                   <div
-                    className={`aspect-[3/2] overflow-hidden bg-gradient-to-r ${character.palette}`}
+                    className={`aspect-[3/2] overflow-hidden border-r border-stone-400/15 bg-gradient-to-r ${character.palette}`}
                   >
                     {shortcutImage && (
                       /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
                       <img
                         src={shortcutImage.url}
                         alt={`${character.name} 대표 그림`}
-                        className="h-full w-full object-cover opacity-90"
+                        className="h-full w-full object-cover opacity-75 grayscale-[0.25] contrast-125"
                         style={thumbnailStyle(shortcutImage)}
                       />
                     )}

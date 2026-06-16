@@ -154,8 +154,8 @@ export default function Home() {
         authNotice={displayedNotice}
       />
 
-      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1600px] flex-col gap-6 px-5 pt-5 pb-12 md:px-8 md:pl-64 xl:grid xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
-        <div className="space-y-6">
+      <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-5 pt-5 pb-12 md:px-8 md:pl-64 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-4">
           {activeSection === "home" && (
             <HomeSection
               homeContent={homeContent}
@@ -219,7 +219,7 @@ export default function Home() {
           {activeSection === "extract" && <ExtractSection />}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-3">
           <CalendarWidget />
 
           <BgmPlayer />

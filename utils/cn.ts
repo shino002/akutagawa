@@ -6,7 +6,7 @@ import { twMerge } from "tailwind-merge";
  * Later classes override earlier ones following Tailwind specificity rules.
  *
  * @example
- * cn("p-4 text-sm", isActive && "bg-red-500", className)
+ * cn("p-4 text-sm", isActive && "bg-stone-500", className)
  */
 export const cn = (...inputs: ClassValue[]): string => {
   return twMerge(clsx(inputs));

@@ -5,7 +5,7 @@ import { cn } from "@/utils/cn";
 import { thumbnailStyle } from "@/lib/image-helpers";
 import { emptyCharacter } from "@/constants/home";
 import { normalizeWorldEntries } from "@/utils/normalizers";
-import type { Character, World } from "@/lib/types";
+import type { Character, UploadedImage, World } from "@/lib/types";
 import type {
   CharacterDetailTab,
   ExpressionModalItem,
@@ -14,13 +14,27 @@ import type {
 } from "@/types/home.types";
 
 const TAB_LABELS: Record<CharacterDetailTab, string> = {
-  settings: "설정",
+  settings: "기록",
   images: "그림",
-  works: "글",
-  worlds: "세계관",
+  works: "연성",
+  worlds: "World",
 };
 
 const TAB_ORDER: CharacterDetailTab[] = ["settings", "images", "works", "worlds"];
+const TAB_CODES: Record<CharacterDetailTab, string> = {
+  settings: "FILE-01",
+  images: "FILE-02",
+  works: "FILE-03",
+  worlds: "FILE-04",
+};
+const PROFILE_LABELS: Record<keyof Character["profile"], string> = {
+  age: "나이",
+  height: "신장",
+  role: "역할",
+  keyword: "키워드",
+};
+
+const imageCreditName = (image: UploadedImage) => image.name?.trim() ?? "";
 
 interface CharactersSectionProps {
   characters: Character[];
@@ -117,19 +131,21 @@ export function CharactersSection({
 
   return (
     <section className={cn("space-y-6", className)}>
-      <section className="glass-card p-6 md:p-8">
-        <div className="text-center">
-          <p className="text-center text-xs tracking-[0.45em] text-emerald-100/55 uppercase">
-            Character Cards
+      {!activeCharacterId && (
+      <section className="glass-card character-index-panel p-6 md:p-8">
+        <div className="character-index-header">
+          <p className="text-xs tracking-[0.45em] text-emerald-100/55 uppercase">
+            Character Files
           </p>
+          <span>{String(characters.length).padStart(2, "0")} Records</span>
         </div>
 
         {characters.length === 0 ? (
-          <div className="mt-6 border border-emerald-100/10 bg-black/20 p-5 text-sm leading-7 text-emerald-100/65">
+          <div className="archive-panel mt-6 p-5 text-sm leading-7 text-emerald-100/65">
             아직 등록된 자캐가 없어요. 관리자 로그인 후 `새 자캐 만들기`로 첫 카드를 추가해주세요.
           </div>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="character-index-grid">
             {characters.map((character) => {
               const cardImage =
                 (character.images ?? []).find((image) => image.category !== "standing") ??
@@ -143,27 +159,34 @@ export function CharactersSection({
                     setActiveCharacterId(character.id);
                     setActiveTab("settings");
                   }}
-                  className={`character-card text-left ${activeCharacter.id === character.id ? "is-active" : ""}`}
+                  className={`archive-character-card text-left ${activeCharacterId === character.id ? "is-active" : ""}`}
                 >
                   <div
-                    className={`aspect-[3/2] overflow-hidden bg-gradient-to-br ${character.palette}`}
+                    className={`archive-character-card-image bg-gradient-to-br ${character.palette}`}
                   >
                     {cardImage && (
                       /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
                       <img
                         src={cardImage.url}
                         alt={`${character.name} 대표 그림`}
-                        className="h-full w-full object-cover opacity-95 transition duration-300 hover:scale-105 hover:opacity-100"
+                        className="h-full w-full object-cover"
                         style={thumbnailStyle(cardImage)}
                       />
                     )}
                   </div>
-                  <div className="p-4">
-                    <p className="text-xs tracking-[0.28em] text-red-200/70 uppercase">
+                  <div className="archive-character-card-body">
+                    <p className="archive-character-card-id">
                       {character.id}
                     </p>
-                    <h4 className="mt-2 text-2xl font-bold text-emerald-50">{character.name}</h4>
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-emerald-100/65">
+                    <h4 className="archive-character-card-name">
+                      {character.name}
+                      {character.kanjiName && (
+                        <span className="kanji-name ml-2 align-baseline text-[0.58em] text-stone-300/55">
+                          {character.kanjiName}
+                        </span>
+                      )}
+                    </h4>
+                    <p className="archive-character-card-subtitle">
                       {character.subtitle}
                     </p>
                   </div>
@@ -173,75 +196,113 @@ export function CharactersSection({
           </div>
         )}
       </section>
+      )}
 
-      <section className="glass-card overflow-hidden">
-        <div className={`h-56 overflow-hidden bg-gradient-to-r ${activeCharacter.palette}`}>
+      {activeCharacterId && (
+      <section className="glass-card case-file-detail dossier-viewer overflow-hidden">
+        <div className="case-file-hero">
+          <div className={`absolute inset-0 bg-gradient-to-br ${activeCharacter.palette}`} />
           {activeMainIllustration && (
             /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
             <img
               src={activeMainIllustration.url}
               alt={`${activeCharacter.name} 대표 그림`}
-              className="h-full w-full object-cover opacity-90"
+              className="case-file-hero-image"
               style={thumbnailStyle(activeMainIllustration)}
             />
           )}
+          <div className="case-file-hero-grid" />
+          <div
+            className="case-file-title-block"
+            style={{
+              position: "absolute",
+              zIndex: 8,
+              top: "auto",
+              right: "auto",
+              bottom: "0.65rem",
+              left: "1rem",
+            }}
+          >
+            <p className="case-file-kicker">Private Archive / Case File</p>
+            <h3 className="case-file-name">
+              {activeCharacter.name}
+              {activeCharacter.kanjiName && (
+                  <span className="kanji-name ml-3 align-baseline text-[0.34em] text-stone-300/55">
+                  {activeCharacter.kanjiName}
+                </span>
+              )}
+            </h3>
+            <p className="case-file-subtitle">{activeCharacter.subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveCharacterId("");
+              setActiveTab("settings");
+            }}
+            className="case-back-button"
+            style={{
+              top: "1rem",
+              right: "auto",
+              bottom: "auto",
+              left: "1rem",
+            }}
+          >
+            목록으로
+          </button>
         </div>
-        <div className="p-6 md:p-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-xs tracking-[0.3em] text-emerald-100/50 uppercase">
-                Character Detail
-              </p>
-              <h3 className="mt-2 font-serif text-5xl font-bold">{activeCharacter.name}</h3>
-              <p className="mt-2 text-emerald-100/70">{activeCharacter.subtitle}</p>
-            </div>
+        <div className="dossier-body p-6 md:p-8">
+          <div className="case-file-meta">
+            <span>NO. {activeCharacter.id || "UNREGISTERED"}</span>
+            {activeCharacter.classification && <span>분류: {activeCharacter.classification}</span>}
+            {(activeCharacter.statusTags ?? []).slice(0, 4).map((tag) => (
+              <span key={tag}>{tag}</span>
+            ))}
           </div>
 
-          <blockquote className="mt-6 border border-emerald-100/10 bg-black/20 p-5 text-sm leading-7 text-emerald-50/80">
+          <blockquote className="case-file-quote">
             “{activeCharacter.quote}”
           </blockquote>
 
-          <dl className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <dl className="case-profile-grid">
             {Object.entries(activeCharacter.profile).map(([key, value]) => (
-              <div key={key} className="border border-emerald-100/10 bg-emerald-950/30 p-4">
-                <dt className="text-xs text-emerald-100/45 uppercase">{key}</dt>
-                <dd className="mt-2 text-sm">{value || "-"}</dd>
+              <div key={key} className="case-profile-cell">
+                <dt>{PROFILE_LABELS[key as keyof Character["profile"]]}</dt>
+                <dd>{value || "-"}</dd>
               </div>
             ))}
           </dl>
 
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="case-tab-strip">
             {TAB_ORDER.map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 text-sm ${
-                  activeTab === tab
-                    ? "bg-emerald-200 text-emerald-950"
-                    : "bg-emerald-100/10 text-emerald-50/70"
-                }`}
+                className={`case-tab-button ${activeTab === tab ? "is-active" : ""}`}
               >
+                <span>{TAB_CODES[tab]}</span>
                 {TAB_LABELS[tab]}
               </button>
             ))}
           </div>
 
-          <div className="mt-6">
+          <div className="case-tab-panel">
             {activeTab === "settings" && (
-              <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-                <div className="space-y-3">
+              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="case-setting-list">
                   {activeCharacter.settings.length > 0 ? (
-                    activeCharacter.settings.map((setting) => (
+                    activeCharacter.settings.map((setting, index) => (
                       <p
                         key={setting}
-                        className="border border-emerald-100/10 bg-emerald-950/30 p-4 text-sm leading-7"
+                        className="case-setting-note"
                       >
+                        <span>RECORD {String(index + 1).padStart(2, "0")}</span>
                         {setting}
                       </p>
                     ))
                   ) : (
-                    <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">
+                    <p className="plain-empty-note">
                       등록된 상세 설정이 없어요.
                     </p>
                   )}
@@ -253,10 +314,10 @@ export function CharactersSection({
                       activeMainIllustration &&
                       onOpenGallery({ image: activeMainIllustration, character: activeCharacter })
                     }
-                    className="gallery-tile group block w-full text-left"
+                    className="case-evidence-preview group block w-full text-left"
                     disabled={!activeMainIllustration}
                   >
-                    <div className="h-96 overflow-hidden md:h-[520px]">
+                    <div className="relative h-96 overflow-hidden md:h-[520px]">
                       {activeMainIllustration ? (
                         /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
                         <img
@@ -270,8 +331,8 @@ export function CharactersSection({
                           className={`h-full w-full bg-gradient-to-r ${activeCharacter.palette}`}
                         />
                       )}
+                      <span className="case-evidence-stamp">VISUAL RECORD</span>
                     </div>
-                    <p className="p-3 text-xs text-emerald-50">일러스트 대표 썸네일</p>
                   </button>
 
                   {activeStandingImages.length > 0 && (
@@ -283,16 +344,16 @@ export function CharactersSection({
                           images: activeStandingImages,
                         })
                       }
-                      className="border border-red-600/40 bg-black/35 p-4 text-left transition hover:border-red-500"
+                      className="case-side-record text-left"
                     >
-                      <p className="text-xs tracking-[0.25em] text-red-100/55 uppercase">
+                      <p className="text-xs tracking-[0.25em] text-stone-300/55 uppercase">
                         Standing Expressions
                       </p>
                       <div className="mt-3 grid grid-cols-4 gap-2">
                         {activeStandingImages.slice(0, 4).map((image) => (
                           <div
                             key={image.id}
-                            className="aspect-square overflow-hidden border border-red-600/25 bg-black"
+                            className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
                             <img
@@ -310,7 +371,7 @@ export function CharactersSection({
                     </button>
                   )}
 
-                  <div className="border border-emerald-100/10 bg-emerald-950/30 p-4">
+                  <div className="case-side-record">
                     <p className="text-xs text-emerald-100/45 uppercase">Relationship</p>
                     <ul className="mt-3 space-y-2 text-sm text-emerald-50/80">
                       {activeCharacter.relationships.length > 0 ? (
@@ -327,7 +388,7 @@ export function CharactersSection({
             )}
 
             {activeTab === "images" && (
-              <div className="space-y-4">
+              <div className="dossier-tab-stack">
                 {activeStandingImages.length > 0 && (
                   <button
                     type="button"
@@ -337,9 +398,9 @@ export function CharactersSection({
                         images: activeStandingImages,
                       })
                     }
-                    className="block w-full border border-red-600/45 bg-red-950/10 p-5 text-left transition hover:border-red-500"
+                    className="case-side-record block w-full text-left transition hover:border-stone-400/35"
                   >
-                    <p className="text-xs tracking-[0.28em] text-red-100/55 uppercase">
+                    <p className="text-xs tracking-[0.28em] text-stone-300/55 uppercase">
                       Standing Expression Set
                     </p>
                     <h4 className="mt-2 text-xl font-semibold text-emerald-50">스탠딩 표정 모음</h4>
@@ -348,13 +409,13 @@ export function CharactersSection({
                     </p>
                   </button>
                 )}
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="dossier-gallery-grid">
                   {activeIllustrationImages.map((image, index) => (
                     <article key={image.id} className="gallery-tile group">
                       <button
                         type="button"
                         onClick={() => onOpenGallery({ image, character: activeCharacter })}
-                        className="block w-full text-left"
+                        className="relative block w-full overflow-hidden text-left"
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
                         <img
@@ -363,12 +424,15 @@ export function CharactersSection({
                           className="h-64 w-full object-cover opacity-90 transition duration-300 group-hover:scale-105 group-hover:opacity-100"
                           style={thumbnailStyle(image)}
                         />
+                        {imageCreditName(image) && (
+                          <span className="image-credit-label">{imageCreditName(image)}</span>
+                        )}
                       </button>
                     </article>
                   ))}
                 </div>
                 {activeCharacterImages.length === 0 && (
-                  <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">
+                  <p className="plain-empty-note">
                     등록된 그림이 없어요.
                   </p>
                 )}
@@ -376,9 +440,9 @@ export function CharactersSection({
             )}
 
             {activeTab === "works" && (
-              <div className="space-y-4">
+              <div className="dossier-tab-stack">
                 {activeWorks.length > 0 && (
-                  <p className="border border-red-600/30 bg-red-950/10 p-3 text-sm text-emerald-100/70">
+                  <p className="border border-stone-400/18 bg-stone-900/10 p-3 text-sm text-emerald-100/70">
                     글 카드를 누르면 이북 리더 화면으로 열립니다.
                   </p>
                 )}
@@ -387,7 +451,7 @@ export function CharactersSection({
                     key={`${work.title}-${work.date}-${index}`}
                     type="button"
                     onClick={() => onOpenReader({ character: activeCharacter, work })}
-                    className="block w-full border border-emerald-100/10 bg-emerald-950/30 p-5 text-left transition hover:border-red-500/70 hover:bg-red-950/10"
+                    className="case-setting-note block w-full text-left transition hover:border-stone-400/35"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -396,7 +460,7 @@ export function CharactersSection({
                         </p>
                         <h4 className="mt-2 text-xl font-semibold">{work.title}</h4>
                       </div>
-                      <span className="bg-emerald-200 px-4 py-2 text-xs font-semibold text-emerald-950">
+                      <span className="archive-submit-button px-4 py-2 text-xs font-semibold">
                         이북 리더로 보기
                       </span>
                     </div>
@@ -405,7 +469,7 @@ export function CharactersSection({
                         {work.images?.slice(0, 5).map((image) => (
                           <div
                             key={image.id}
-                            className="aspect-square overflow-hidden border border-red-600/25 bg-black"
+                            className="relative aspect-square overflow-hidden border border-stone-400/15 bg-black"
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
                             <img
@@ -414,6 +478,11 @@ export function CharactersSection({
                               className="h-full w-full object-cover opacity-90"
                               style={thumbnailStyle(image)}
                             />
+                            {imageCreditName(image) && (
+                              <span className="image-credit-label image-credit-label-compact">
+                                {imageCreditName(image)}
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -424,7 +493,7 @@ export function CharactersSection({
                   </button>
                 ))}
                 {activeWorks.length === 0 && (
-                  <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">
+                  <p className="plain-empty-note">
                     등록된 글이 없어요.
                   </p>
                 )}
@@ -443,10 +512,10 @@ export function CharactersSection({
                             key={entry.worldId}
                             type="button"
                             onClick={() => setActiveCharacterWorldId(entry.worldId)}
-                            className={`px-4 py-2 text-sm ${
+                            className={`case-tab-button px-4 py-2 text-sm ${
                               activeCharacterWorldEntry?.worldId === entry.worldId
-                                ? "bg-emerald-200 text-emerald-950"
-                                : "bg-emerald-100/10 text-emerald-50/70"
+                                ? "is-active"
+                                : ""
                             }`}
                           >
                             {world?.title ?? entry.worldId}
@@ -456,9 +525,9 @@ export function CharactersSection({
                     </div>
                     {activeCharacterWorldEntry &&
                       (!isActiveCharacterWorldUnlocked ? (
-                        <article className="grid gap-4 border border-red-600/30 bg-black/30 p-5">
+                        <article className="case-side-record grid gap-4">
                           <div>
-                            <p className="text-xs tracking-[0.25em] text-red-100/55 uppercase">
+                            <p className="text-xs tracking-[0.25em] text-stone-300/55 uppercase">
                               World Data Locked
                             </p>
                             <h4 className="mt-2 text-2xl font-semibold">
@@ -469,7 +538,7 @@ export function CharactersSection({
                             onSubmit={(event) =>
                               onUnlockCharacterWorld(event, activeCharacterWorldEntry.worldId)
                             }
-                            className="grid gap-3 border border-red-600/25 bg-red-950/10 p-4"
+                            className="grid gap-3 border border-stone-400/15 bg-stone-900/10 p-4"
                           >
                             <p className="text-sm leading-7 text-emerald-100/70">
                               이 세계관의 설정, 그림, 연성/로그를 보려면 비밀번호를 입력해주세요.
@@ -487,14 +556,14 @@ export function CharactersSection({
                                 placeholder="World password"
                                 className="auth-input auth-input-compact"
                               />
-                              <button className="border border-red-600/50 bg-red-950/40 px-5 py-2 text-sm text-red-50">
+                              <button className="border border-stone-400/25 bg-stone-900/30 px-5 py-2 text-sm text-stone-100">
                                 기록 열기
                               </button>
                             </div>
                           </form>
                         </article>
                       ) : (
-                        <article className="grid gap-5 border border-emerald-100/10 bg-black/20 p-5">
+                          <article className="archive-panel grid gap-5 p-5">
                           <div>
                             <p className="text-xs tracking-[0.25em] text-emerald-100/45 uppercase">
                               World Data
@@ -509,130 +578,76 @@ export function CharactersSection({
                             <div className="grid content-start gap-3">
                               {activeCharacterWorldEntry.settings.length > 0 ? (
                                 activeCharacterWorldEntry.settings.map((setting) => (
-                                  <p
-                                    key={setting}
-                                    className="border border-emerald-100/10 bg-emerald-950/30 p-4 text-sm leading-7"
-                                  >
+                                  <p key={setting} className="case-setting-note">
                                     {setting}
                                   </p>
                                 ))
                               ) : (
-                                <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/60">
+                                <p className="plain-empty-note">
                                   이 세계관 설정이 없어요.
                                 </p>
                               )}
                             </div>
                             <div className="grid content-start gap-4">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  activeWorldMainIllustration &&
-                                  onOpenGallery({
-                                    image: activeWorldMainIllustration,
-                                    character: activeCharacter,
-                                  })
-                                }
-                                className="gallery-tile group block w-full text-left"
-                                disabled={!activeWorldMainIllustration}
-                              >
-                                <div className="h-96 overflow-hidden md:h-[520px]">
-                                  {activeWorldMainIllustration ? (
-                                    /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
-                                    <img
-                                      src={activeWorldMainIllustration.url}
-                                      alt={`${activeCharacter.name} 세계관 일러스트`}
-                                      className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
-                                      style={thumbnailStyle(activeWorldMainIllustration)}
-                                    />
-                                  ) : (
-                                    <div
-                                      className={`h-full w-full bg-gradient-to-r ${activeCharacter.palette}`}
-                                    />
-                                  )}
-                                </div>
-                                <p className="truncate p-3 text-xs text-emerald-50">
-                                  세계관 일러스트
-                                </p>
-                              </button>
-
-                              {activeWorldStandingImages.length > 0 && (
+                              <article className="gallery-tile world-profile-card">
                                 <button
                                   type="button"
                                   onClick={() =>
-                                    onOpenExpression({
+                                    activeWorldMainIllustration &&
+                                    onOpenGallery({
+                                      image: activeWorldMainIllustration,
                                       character: activeCharacter,
-                                      images: activeWorldStandingImages,
                                     })
                                   }
-                                  className="border border-red-600/40 bg-black/35 p-4 text-left transition hover:border-red-500"
+                                  className="group block w-full text-left"
+                                  disabled={!activeWorldMainIllustration}
                                 >
-                                  <p className="text-xs tracking-[0.25em] text-red-100/55 uppercase">
-                                    World Standing Expressions
-                                  </p>
-                                  <div className="mt-3 grid grid-cols-4 gap-2">
-                                    {activeWorldStandingImages.slice(0, 4).map((image) => (
+                                  <div className="relative h-96 overflow-hidden md:h-[520px]">
+                                    {activeWorldMainIllustration ? (
+                                      /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                                      <img
+                                        src={activeWorldMainIllustration.url}
+                                        alt={`${activeCharacter.name} 세계관 일러스트`}
+                                        className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
+                                        style={thumbnailStyle(activeWorldMainIllustration)}
+                                      />
+                                    ) : (
                                       <div
-                                        key={image.id}
-                                        className="aspect-square overflow-hidden border border-red-600/25 bg-black"
-                                      >
-                                        {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                        <img
-                                          src={image.url}
-                                          alt="스탠딩 이미지"
-                                          className="h-full w-full object-cover"
-                                          style={thumbnailStyle(image)}
-                                        />
-                                      </div>
-                                    ))}
+                                        className={`h-full w-full bg-gradient-to-r ${activeCharacter.palette}`}
+                                      />
+                                    )}
+                                    {activeWorldMainIllustration &&
+                                      imageCreditName(activeWorldMainIllustration) && (
+                                        <span className="image-credit-label image-credit-label-large">
+                                          {imageCreditName(activeWorldMainIllustration)}
+                                        </span>
+                                      )}
                                   </div>
-                                  <p className="mt-3 text-sm text-emerald-50/75">
-                                    세계관 스탠딩 표정 {activeWorldStandingImages.length}장 보기
-                                  </p>
                                 </button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="grid gap-3">
-                            {activeCharacterWorldEntry.works.map((work, index) => (
-                              <button
-                                key={`${work.title}-${work.date}-${index}`}
-                                type="button"
-                                onClick={() => onOpenReader({ character: activeCharacter, work })}
-                                className="border border-emerald-100/10 bg-emerald-950/30 p-4 text-left hover:border-red-500/70"
-                              >
-                                <p className="text-xs text-emerald-100/45">
-                                  {work.kind} / {work.date}
-                                </p>
-                                <h4 className="mt-2 text-lg font-semibold">{work.title}</h4>
-                                {(work.images?.length ?? 0) > 0 && (
-                                  <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
-                                    {work.images?.slice(0, 5).map((image) => (
-                                      <div
-                                        key={image.id}
-                                        className="aspect-square overflow-hidden border border-red-600/25 bg-black"
-                                      >
-                                        {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                        <img
-                                          src={image.url}
-                                          alt="첨부 이미지"
-                                          className="h-full w-full object-cover opacity-90"
-                                          style={thumbnailStyle(image)}
-                                        />
-                                      </div>
-                                    ))}
-                                  </div>
+                                {activeWorldStandingImages.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onOpenExpression({
+                                        character: activeCharacter,
+                                        images: activeWorldStandingImages,
+                                      })
+                                    }
+                                    className="world-profile-banner"
+                                  >
+                                    <span>세계관 스탠딩 표정 {activeWorldStandingImages.length}장 보기</span>
+                                    <span>OPEN</span>
+                                  </button>
                                 )}
-                                <p className="mt-2 line-clamp-2 text-sm leading-7 text-emerald-50/70">
-                                  {work.body}
-                                </p>
-                              </button>
-                            ))}
+                              </article>
+
+                            </div>
                           </div>
                         </article>
                       ))}
                   </>
                 ) : (
-                  <p className="border border-emerald-100/10 bg-black/20 p-4 text-sm text-emerald-100/60">
+                  <p className="plain-empty-note">
                     참가한 세계관 자료가 없어요.
                   </p>
                 )}
@@ -641,6 +656,7 @@ export function CharactersSection({
           </div>
         </div>
       </section>
+      )}
     </section>
   );
 }

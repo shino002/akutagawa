@@ -24,15 +24,15 @@ export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderM
       onClick={onClose}
     >
       <div
-        className="flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden border border-red-600/45 bg-[#070000] shadow-2xl shadow-black"
+        className="dossier-viewer flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-red-600/25 p-4">
+        <div className="flex items-center justify-between gap-3 border-b border-stone-400/15 p-4">
           <div>
-            <p className="text-xs tracking-[0.35em] text-red-200/60 uppercase">
+            <p className="archive-kicker">
               Ebook Reader / {item.character.name}
             </p>
-            <h3 className="mt-1 text-xl font-bold text-emerald-50">{item.work.title}</h3>
+            <h3 className="archive-title mt-1 text-2xl">{item.work.title}</h3>
             <p className="mt-1 text-xs text-emerald-100/45">
               {item.work.kind} / {item.work.date}
             </p>
@@ -40,7 +40,7 @@ export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderM
           <button
             type="button"
             onClick={onClose}
-            className="border border-emerald-100/20 px-3 py-2 text-sm text-emerald-50"
+            className="archive-submit-button px-3 py-2 text-sm"
           >
             닫기
           </button>

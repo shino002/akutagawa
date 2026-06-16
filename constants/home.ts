@@ -40,7 +40,7 @@ export const emptyCharacter: Character = {
   name: "자캐 없음",
   subtitle: "관리자 로그인 후 Character에서 자캐를 추가해주세요.",
   quote: "아직 등록된 자캐가 없어요.",
-  palette: "from-red-600 via-zinc-900 to-black",
+  palette: "from-zinc-700 via-zinc-950 to-black",
   profile: {
     age: "",
     height: "",

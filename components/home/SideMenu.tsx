@@ -86,11 +86,11 @@ export function SideMenu({
       </button>
 
       <div className="side-menu-content" aria-hidden={!menuOpen}>
-        <div className="mb-3 border border-emerald-100/10 p-3">
-          <p className="text-xs tracking-[0.4em] text-emerald-200/70 uppercase">
+        <div className="archive-panel mb-3 p-3">
+          <p className="archive-kicker">
             {archiveContent.eyebrow}
           </p>
-          <h1 className="mt-2 font-serif text-2xl font-bold">{archiveContent.title}</h1>
+          <h1 className="archive-title mt-2 font-serif text-3xl">{archiveContent.title}</h1>
           <p className="mt-2 text-xs leading-5 text-emerald-100/60">{archiveContent.body}</p>
         </div>
 
@@ -100,10 +100,10 @@ export function SideMenu({
               key={section.id}
               type="button"
               onClick={() => onSelectSection(section.id)}
-              className={`group flex w-full items-center justify-between px-4 py-2.5 text-left text-sm transition ${
+              className={`archive-row group flex w-full items-center justify-between px-4 py-2.5 text-left text-sm ${
                 activeSection === section.id
-                  ? "bg-emerald-200 text-emerald-950"
-                  : "text-emerald-50/75 hover:bg-emerald-100/10 hover:text-white"
+                  ? "border-stone-400/35 bg-stone-800/20 text-stone-100"
+                  : "text-emerald-50/75 hover:text-white"
               }`}
             >
               <span>{section.label}</span>
@@ -113,7 +113,7 @@ export function SideMenu({
         </nav>
 
         <section
-          className={`auth-panel mt-3 border border-emerald-100/10 bg-black/20 ${authPanelOpen ? "is-open" : "is-collapsed"}`}
+          className={`auth-panel archive-panel mt-3 ${authPanelOpen ? "is-open" : "is-collapsed"}`}
         >
           <button
             type="button"
@@ -128,7 +128,7 @@ export function SideMenu({
           </button>
           {authPanelOpen && (
             <div className="auth-panel-content">
-              <p className="mb-3 text-[10px] tracking-[0.28em] text-red-100/65 uppercase">
+              <p className="mb-3 text-[10px] tracking-[0.28em] text-stone-300/65 uppercase">
                 {authUser ? "Account" : authMode === "signup" ? "Sign Up" : "Login"}
               </p>
 
@@ -141,7 +141,7 @@ export function SideMenu({
                   {isAdmin && (
                     <a
                       href="/admin"
-                      className="block border border-red-600/40 bg-red-950/30 p-2 text-center text-red-100"
+                      className="block border border-stone-400/25 bg-stone-900/30 p-2 text-center text-stone-200"
                     >
                       수정 페이지로 이동
                     </a>
@@ -149,7 +149,7 @@ export function SideMenu({
                   <button
                     type="button"
                     onClick={logout}
-                    className="w-full border border-emerald-100/15 bg-emerald-100/10 py-2 text-emerald-50"
+                      className="archive-row w-full py-2 text-emerald-50"
                   >
                     로그아웃
                   </button>
@@ -162,8 +162,8 @@ export function SideMenu({
                       onClick={() => setAuthMode("signup")}
                       className={`py-1.5 ${
                         authMode === "signup"
-                          ? "bg-red-700/80 text-red-50"
-                          : "border border-emerald-100/15 text-emerald-100/65"
+                          ? "bg-stone-700/35 text-stone-100"
+                          : "border border-stone-400/15 text-emerald-100/65"
                       }`}
                     >
                       회원가입
@@ -173,8 +173,8 @@ export function SideMenu({
                       onClick={() => setAuthMode("login")}
                       className={`py-1.5 ${
                         authMode === "login"
-                          ? "bg-red-700/80 text-red-50"
-                          : "border border-emerald-100/15 text-emerald-100/65"
+                          ? "bg-stone-700/35 text-stone-100"
+                          : "border border-stone-400/15 text-emerald-100/65"
                       }`}
                     >
                       로그인
@@ -208,14 +208,14 @@ export function SideMenu({
                     <button
                       type="button"
                       onClick={() => setShowPassword((value) => !value)}
-                      className="border border-emerald-100/15 px-2 text-[11px] text-emerald-100/70"
+                      className="border border-stone-400/18 px-2 text-[11px] text-emerald-100/70"
                     >
                       {showPassword ? "숨김" : "보기"}
                     </button>
                   </div>
                   <button
                     disabled={isAuthLoading}
-                    className="w-full bg-red-700/80 py-2 text-[11px] font-semibold text-red-50 disabled:opacity-60"
+                    className="w-full bg-stone-700/35 py-2 text-[11px] font-semibold text-stone-100 disabled:opacity-60"
                   >
                     {isAuthLoading
                       ? "확인 중..."
@@ -227,7 +227,7 @@ export function SideMenu({
               )}
 
               {authNotice && (
-                <p className="mt-2 border border-red-600/30 bg-red-950/20 p-2 text-xs leading-5 text-red-100/80">
+                <p className="mt-2 border border-stone-400/20 bg-stone-900/20 p-2 text-xs leading-5 text-stone-200/80">
                   {authNotice}
                 </p>
               )}

@@ -35,6 +35,9 @@ export type CharacterWorldEntry = {
 export type Character = {
   id: string;
   name: string;
+  kanjiName?: string;
+  statusTags?: string[];
+  classification?: string;
   subtitle: string;
   quote: string;
   palette: string;

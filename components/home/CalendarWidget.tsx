@@ -49,8 +49,8 @@ export function CalendarWidget({ className }: CalendarWidgetProps) {
     <section className={cn("glass-card p-6", className)}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs tracking-[0.28em] text-red-100/55 uppercase">Calendar</p>
-          <h3 className="board-title mt-1">{calendarMonth.format("YYYY.MM")}</h3>
+          <p className="archive-kicker">Calendar</p>
+          <h3 className="archive-title mt-1 font-serif text-3xl">{calendarMonth.format("YYYY.MM")}</h3>
         </div>
         <div className="flex items-center gap-1.5">
           <button
@@ -79,24 +79,24 @@ export function CalendarWidget({ className }: CalendarWidgetProps) {
           </button>
         </div>
       </div>
-      <div className="mt-5 grid grid-cols-7 border border-red-600/25 bg-black/25 text-center text-[11px]">
+      <div className="archive-panel mt-5 grid grid-cols-7 text-center text-[11px]">
         {WEEKDAYS.map((weekday) => (
-          <div key={weekday} className="border-b border-red-600/20 py-2 text-red-100/60">
+          <div key={weekday} className="border-b border-stone-400/15 py-2 text-stone-300/55">
             {weekday}
           </div>
         ))}
         {calendarDays.map((day) => (
           <div
             key={day.date.format("YYYY-MM-DD")}
-            className={`min-h-10 border-r border-b border-red-600/10 p-1.5 ${
+            className={`min-h-10 border-r border-b border-stone-400/10 p-1.5 ${
               day.isCurrentMonth ? "text-emerald-50/78" : "text-emerald-100/22"
-            } ${day.isToday ? "bg-red-700/35 text-red-50" : ""}`}
+            } ${day.isToday ? "bg-stone-500/16 text-stone-100" : ""}`}
           >
             <span className="inline-grid size-6 place-items-center">{day.dayLabel}</span>
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs leading-5 text-emerald-100/50">오늘 날짜는 붉게 표시됩니다.</p>
+      <p className="mt-4 text-xs leading-5 text-emerald-100/50">오늘 날짜는 흐리게 표시됩니다.</p>
     </section>
   );
 }

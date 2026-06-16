@@ -24,20 +24,20 @@ export function GalleryModal({ item, zoom, onZoomChange, onClose, className }: G
       onClick={onClose}
     >
       <div
-        className="max-h-[92vh] w-full max-w-5xl overflow-hidden border border-emerald-100/20 bg-[#100707] shadow-2xl"
+        className="dossier-viewer max-h-[92vh] w-full max-w-5xl overflow-hidden"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-emerald-100/10 p-4">
+        <div className="flex items-center justify-between gap-3 border-b border-stone-400/15 p-4">
           <div>
-            <p className="text-xs tracking-[0.3em] text-red-200/70 uppercase">
+            <p className="archive-kicker">
               {item.character.name}
             </p>
-            <h3 className="mt-1 text-lg font-semibold text-emerald-50">이미지 확대 보기</h3>
+            <h3 className="archive-title mt-1 text-2xl">이미지 확대 보기</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="border border-emerald-100/20 px-3 py-2 text-sm text-emerald-50"
+            className="archive-submit-button px-3 py-2 text-sm"
           >
             닫기
           </button>
@@ -68,26 +68,26 @@ export function GalleryModal({ item, zoom, onZoomChange, onClose, className }: G
             draggable={false}
           />
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-emerald-100/10 p-4 text-xs text-emerald-100/60">
+        <div className="flex flex-wrap items-center justify-end gap-2 border-t border-stone-400/15 p-4 text-xs text-emerald-100/60">
           <span className="mr-auto text-emerald-100/50">휠로 확대/축소 가능</span>
           <button
             type="button"
             onClick={() => onZoomChange(zoom - 0.2)}
-            className="border border-emerald-100/20 px-3 py-2 text-emerald-50"
+            className="archive-row px-3 py-2 text-emerald-50"
           >
             축소
           </button>
           <button
             type="button"
             onClick={() => onZoomChange(1)}
-            className="border border-emerald-100/20 px-3 py-2 text-emerald-50"
+            className="archive-row px-3 py-2 text-emerald-50"
           >
             {Math.round(zoom * 100)}%
           </button>
           <button
             type="button"
             onClick={() => onZoomChange(zoom + 0.2)}
-            className="border border-emerald-100/20 px-3 py-2 text-emerald-50"
+            className="archive-row px-3 py-2 text-emerald-50"
           >
             확대
           </button>

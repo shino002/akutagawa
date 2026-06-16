@@ -6,7 +6,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } fr
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId } from "@/lib/auth-helpers";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
-import { clamp, fileNameWithoutExtension, thumbnailStyle } from "@/lib/image-helpers";
+import { clamp, thumbnailStyle } from "@/lib/image-helpers";
 import type { Character, CharacterWorldEntry, DiaryEntry, GuestbookEntry, HomeContent, UploadedImage, Work, World } from "@/lib/types";
 
 // 관리자 페이지에서만 쓰는 업로드 대기/폼 입력 타입입니다.
@@ -31,6 +31,9 @@ type ThumbnailDragState = {
 type CharacterDraft = {
   id: string;
   name: string;
+  kanjiName: string;
+  statusTagsText: string;
+  classification: string;
   subtitle: string;
   quote: string;
   palette: string;
@@ -53,12 +56,11 @@ type WorldDraft = {
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
 const paletteOptions = [
-  { label: "붉은 밤", value: "from-red-600 via-zinc-900 to-black" },
-  { label: "검은 장미", value: "from-red-950 via-black to-zinc-900" },
-  { label: "잿빛 흑백", value: "from-zinc-100 via-zinc-700 to-black" },
-  { label: "와인 그림자", value: "from-rose-900 via-red-950 to-black" },
-  { label: "낡은 종이", value: "from-stone-200 via-red-900 to-black" },
-  { label: "푸른 어둠", value: "from-slate-300 via-slate-900 to-black" },
+  { label: "꺼진 화면", value: "from-zinc-950 via-black to-zinc-900" },
+  { label: "잿빛 흑백", value: "from-zinc-200 via-zinc-800 to-black" },
+  { label: "낡은 필름", value: "from-stone-300 via-zinc-800 to-black" },
+  { label: "먹색 그림자", value: "from-neutral-700 via-neutral-950 to-black" },
+  { label: "푸른 잔상", value: "from-slate-300 via-slate-900 to-black" },
 ];
 
 const defaultHomeContent: HomeContent = {
@@ -100,9 +102,12 @@ function createBlankDraft(): CharacterDraft {
   return {
     id: "",
     name: "",
+    kanjiName: "",
+    statusTagsText: "",
+    classification: "",
     subtitle: "",
     quote: "",
-    palette: "from-red-600 via-zinc-900 to-black",
+    palette: "from-zinc-950 via-black to-zinc-900",
     age: "",
     height: "",
     role: "",
@@ -116,6 +121,9 @@ function characterToDraft(character: Character): CharacterDraft {
   return {
     id: character.id,
     name: character.name,
+    kanjiName: character.kanjiName ?? "",
+    statusTagsText: (character.statusTags ?? []).join("\n"),
+    classification: character.classification ?? "",
     subtitle: character.subtitle,
     quote: character.quote,
     palette: character.palette,
@@ -140,9 +148,12 @@ function draftToCharacter(
   return {
     id,
     name,
+    kanjiName: draft.kanjiName.trim(),
+    statusTags: linesToList(draft.statusTagsText),
+    classification: draft.classification.trim(),
     subtitle: draft.subtitle.trim(),
     quote: draft.quote.trim(),
-    palette: draft.palette.trim() || "from-red-600 via-zinc-900 to-black",
+    palette: draft.palette.trim() || "from-zinc-950 via-black to-zinc-900",
     profile: {
       age: draft.age.trim(),
       height: draft.height.trim(),
@@ -318,6 +329,9 @@ export default function AdminPage() {
           return {
             ...data,
             id: data.id || characterDoc.id,
+            kanjiName: data.kanjiName ?? "",
+            statusTags: Array.isArray(data.statusTags) ? data.statusTags : [],
+            classification: data.classification ?? "",
             works: normalizeWorks(data.works),
             settings: Array.isArray(data.settings) ? data.settings : [],
             relationships: Array.isArray(data.relationships) ? data.relationships : [],
@@ -955,7 +969,7 @@ export default function AdminPage() {
       ...current,
       ...allowedFiles.map((file, index) => ({
         id: `${file.name}-${file.lastModified}-${index}-${crypto.randomUUID()}`,
-        displayName: fileNameWithoutExtension(file.name),
+        displayName: "",
         file,
         previewUrl: URL.createObjectURL(file),
         thumbX: 50,
@@ -1031,7 +1045,7 @@ export default function AdminPage() {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("characterId", activeCharacter.id);
-        formData.append("displayName", fileNameWithoutExtension(file.name));
+        formData.append("displayName", "");
         if (worldId) {
           formData.append("worldId", worldId);
         }
@@ -1055,7 +1069,7 @@ export default function AdminPage() {
         return {
           id: result.key ?? `${file.name}-${file.lastModified}`,
           category: "illustration" as const,
-          name: result.name ?? fileNameWithoutExtension(file.name),
+          name: result.name ?? "",
           url: result.url,
           size: result.size ?? file.size,
         };
@@ -1077,7 +1091,7 @@ export default function AdminPage() {
           const formData = new FormData();
           formData.append("file", upload.file);
           formData.append("characterId", activeCharacter.id);
-          formData.append("displayName", upload.displayName.trim() || fileNameWithoutExtension(upload.file.name));
+          formData.append("displayName", upload.displayName.trim());
           if (imageUploadWorldId) {
             formData.append("worldId", imageUploadWorldId);
           }
@@ -1101,7 +1115,7 @@ export default function AdminPage() {
           return {
             id: result.key ?? `${upload.file.name}-${upload.file.lastModified}`,
             category: imageUploadCategory,
-            name: result.name ?? upload.file.name,
+            name: result.name ?? "",
             url: result.url,
             size: result.size ?? upload.file.size,
             thumbX: upload.thumbX,
@@ -1389,7 +1403,7 @@ export default function AdminPage() {
               <button disabled={isAuthLoading} className="bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
                 {isAuthLoading ? "로그인 중..." : "로그인"}
               </button>
-              {authNotice && <p className="border border-red-600/40 bg-red-950/30 p-3 text-sm text-red-100">{authNotice}</p>}
+              {authNotice && <p className="border border-stone-400/25 bg-stone-900/25 p-3 text-sm text-stone-200">{authNotice}</p>}
             </form>
           </section>
         ) : (
@@ -1432,7 +1446,7 @@ export default function AdminPage() {
                           setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
                         }}
                         className={`border p-3 text-left text-sm ${
-                          activeCharacter?.id === character.id ? "border-red-500 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                          activeCharacter?.id === character.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
                         }`}
                       >
                         <span className="block text-lg font-semibold">{character.name}</span>
@@ -1458,7 +1472,7 @@ export default function AdminPage() {
                         type="button"
                         onClick={() => setActiveCategory(category.id)}
                         className={`border p-3 text-left text-sm ${
-                          activeCategory === category.id ? "border-red-500 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                          activeCategory === category.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
                         }`}
                       >
                         <span className="block text-lg font-semibold">{category.title}</span>
@@ -1484,7 +1498,7 @@ export default function AdminPage() {
                               setDiaryDraft(entry);
                             }}
                             className={`border p-3 text-left text-sm ${
-                              activeDiaryId === entry.id ? "border-red-500 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                              activeDiaryId === entry.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
                             }`}
                           >
                             <span className="block text-base font-semibold">{entry.title}</span>
@@ -1517,7 +1531,7 @@ export default function AdminPage() {
                               setWorldDraft(worldToDraft(world));
                             }}
                             className={`border p-3 text-left text-sm ${
-                              activeWorldId === world.id ? "border-red-500 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                              activeWorldId === world.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
                             }`}
                           >
                             <span className="block text-base font-semibold">{world.title}</span>
@@ -1630,7 +1644,7 @@ export default function AdminPage() {
                           type="button"
                           onClick={() => deleteDiaryEntry(diaryDraft)}
                           disabled={isSaving}
-                          className="border border-red-500/60 px-4 py-2 text-sm text-red-100 disabled:opacity-60"
+                          className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
                         >
                           현재 일기 삭제
                         </button>
@@ -1684,7 +1698,7 @@ export default function AdminPage() {
                                 type="button"
                                 onClick={() => deleteGuestbookEntry(entry)}
                                 disabled={isSaving}
-                                className="shrink-0 border border-red-500/60 px-3 py-2 text-xs text-red-100 disabled:opacity-60"
+                                className="shrink-0 border border-stone-400/35 px-3 py-2 text-xs text-stone-200 disabled:opacity-60"
                               >
                                 삭제
                               </button>
@@ -1728,7 +1742,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => deleteWorld(worldDraft.id)}
                             disabled={isSaving}
-                            className="border border-red-500/60 px-4 py-2 text-sm text-red-100 disabled:opacity-60"
+                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
                           >
                             현재 세계관 삭제
                           </button>
@@ -1804,7 +1818,7 @@ export default function AdminPage() {
                       type="button"
                       onClick={() => deleteCharacter(activeCharacter)}
                       disabled={isSaving}
-                      className="border border-red-500/60 px-4 py-2 text-sm text-red-100 disabled:opacity-60"
+                      className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
                     >
                       현재 자캐 삭제
                     </button>
@@ -1818,6 +1832,10 @@ export default function AdminPage() {
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     자캐 이름
                     <input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="자캐 이름" className="auth-input" />
+                  </label>
+                  <label className="grid gap-2 text-sm text-emerald-100/75">
+                    한자 이름
+                    <input value={draft.kanjiName} onChange={(event) => setDraft((current) => ({ ...current, kanjiName: event.target.value }))} placeholder="예: 芥川" className="auth-input" />
                   </label>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -1834,6 +1852,21 @@ export default function AdminPage() {
                     </select>
                     <div className={`h-7 border border-emerald-100/10 bg-gradient-to-r ${draft.palette}`} />
                   </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <label className="grid gap-2 text-sm text-emerald-100/75">
+                    기록 상태
+                    <textarea
+                      value={draft.statusTagsText}
+                      onChange={(event) => setDraft((current) => ({ ...current, statusTagsText: event.target.value }))}
+                      placeholder={"예: 관찰중\n기록 불완전\n비공개 기록"}
+                      className="auth-input min-h-24"
+                    />
+                  </label>
+                  <label className="grid gap-2 text-sm text-emerald-100/75">
+                    기록 분류
+                    <input value={draft.classification} onChange={(event) => setDraft((current) => ({ ...current, classification: event.target.value }))} placeholder="예: 개인 기록 / 세계관 관련 / 비밀 파일" className="auth-input" />
+                  </label>
                 </div>
                 <label className="grid gap-2 text-sm text-emerald-100/75">
                   대표 대사
@@ -1894,7 +1927,7 @@ export default function AdminPage() {
 
                   {activeCharacterWorldId ? (
                     <div className="grid gap-5">
-                      <div className="flex flex-col gap-3 border border-red-600/25 bg-red-950/10 p-4 md:flex-row md:items-center md:justify-between">
+                      <div className="flex flex-col gap-3 border border-stone-400/15 bg-stone-900/10 p-4 md:flex-row md:items-center md:justify-between">
                         <div>
                           <h3 className="text-sm font-semibold text-emerald-50">참가 기록 관리</h3>
                           <p className="mt-1 text-xs text-emerald-100/55">이 자캐를 선택한 세계관에서 제거합니다. 세계관 전용 그림도 R2와 Firestore에서 함께 삭제돼요.</p>
@@ -1903,7 +1936,7 @@ export default function AdminPage() {
                           type="button"
                           onClick={deleteCharacterWorldEntry}
                           disabled={isSaving || !activeCharacterWorldEntry}
-                          className="border border-red-500/60 px-4 py-2 text-sm text-red-100 disabled:opacity-60"
+                          className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
                         >
                           참가 자캐 삭제
                         </button>
@@ -1949,7 +1982,7 @@ export default function AdminPage() {
                                   정보 저장
                                 </button>
                               </form>
-                              <button type="button" onClick={() => deleteWorldImage(image.id)} disabled={isSaving} className="mt-3 border border-red-500/50 px-3 py-2 text-xs text-red-100 disabled:opacity-60">
+                              <button type="button" onClick={() => deleteWorldImage(image.id)} disabled={isSaving} className="mt-3 border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60">
                                 기록 삭제
                               </button>
                             </div>
@@ -1996,14 +2029,14 @@ export default function AdminPage() {
                                 <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
                                 <h3 className="mt-1 font-semibold">{work.title}</h3>
                               </div>
-                              <button type="button" onClick={() => deleteWorldWork(index)} disabled={isSaving} className="border border-red-500/50 px-3 py-2 text-xs text-red-100 disabled:opacity-60">
+                              <button type="button" onClick={() => deleteWorldWork(index)} disabled={isSaving} className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60">
                                 삭제
                               </button>
                             </div>
                             {(work.images?.length ?? 0) > 0 && (
                               <div className="mt-3 grid grid-cols-4 gap-2">
                                 {work.images?.map((image) => (
-                                  <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                  <div key={image.id} className="aspect-square overflow-hidden border border-stone-400/15 bg-black">
                                     {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
                                     <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
                                   </div>
@@ -2066,7 +2099,7 @@ export default function AdminPage() {
                           {pendingUploads.map((upload) => (
                             <article key={upload.id} className="grid gap-4 border border-emerald-100/10 bg-black/40 p-4">
                               <div
-                                className="aspect-[3/2] cursor-move touch-none overflow-hidden border border-red-500/40 bg-black"
+                                className="aspect-[3/2] cursor-move touch-none overflow-hidden border border-stone-400/25 bg-black"
                                 onPointerDown={(event) => startThumbnailDrag(upload, event)}
                                 onPointerMove={(event) => moveThumbnailDrag(upload.id, event)}
                                 onPointerUp={stopThumbnailDrag}
@@ -2097,7 +2130,7 @@ export default function AdminPage() {
                                   <button
                                     type="button"
                                     onClick={() => removePendingUpload(upload.id)}
-                                    className="border border-red-500/50 px-3 py-2 text-xs text-red-100"
+                                    className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200"
                                   >
                                     선택 취소
                                   </button>
@@ -2174,7 +2207,7 @@ export default function AdminPage() {
                                 정보 저장
                               </button>
                             </form>
-                            <button type="button" onClick={() => deleteImage(image.id)} disabled={isSaving} className="mt-3 border border-red-500/50 px-3 py-2 text-xs text-red-100 disabled:opacity-60">
+                            <button type="button" onClick={() => deleteImage(image.id)} disabled={isSaving} className="mt-3 border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60">
                               기록 삭제
                             </button>
                           </div>
@@ -2217,14 +2250,14 @@ export default function AdminPage() {
                               <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
                               <h3 className="mt-1 font-semibold">{work.title}</h3>
                             </div>
-                            <button type="button" onClick={() => deleteWork(index)} disabled={isSaving} className="border border-red-500/50 px-3 py-2 text-xs text-red-100 disabled:opacity-60">
+                            <button type="button" onClick={() => deleteWork(index)} disabled={isSaving} className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60">
                               삭제
                             </button>
                           </div>
                           {(work.images?.length ?? 0) > 0 && (
                             <div className="mt-3 grid grid-cols-4 gap-2">
                               {work.images?.map((image) => (
-                                <div key={image.id} className="aspect-square overflow-hidden border border-red-600/25 bg-black">
+                                <div key={image.id} className="aspect-square overflow-hidden border border-stone-400/15 bg-black">
                                   {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
                                   <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
                                 </div>
@@ -2239,7 +2272,7 @@ export default function AdminPage() {
                 </section>
               )}
 
-              {notice && <p className="glass-card p-4 text-sm leading-6 text-red-100">{notice}</p>}
+              {notice && <p className="glass-card p-4 text-sm leading-6 text-stone-200">{notice}</p>}
             </section>
           </div>
         )}

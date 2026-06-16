@@ -97,7 +97,7 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     key,
-    name: displayName || file.name.replace(/\.[^/.]+$/, ""),
+    name: displayName,
     size: file.size,
     url: getPublicUrl(key),
   });
