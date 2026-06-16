@@ -1,11 +1,15 @@
 "use client";
 
 import { type FormEvent, useMemo } from "react";
+import { Explora } from "next/font/google";
 import { cn } from "@/utils/cn";
 import { thumbnailStyle } from "@/lib/image-helpers";
 import { characterPaletteStyle } from "@/lib/character-palette";
 import { emptyCharacter } from "@/constants/home";
 import { TextGlitch } from "@/components/TextGlitch";
+import { GlitchedText } from "@/components/GlitchedText";
+import { glitchConfigSignature, settingSectionGlitchPath } from "@/lib/glitch-fields";
+import { ArchiveMotion } from "@/components/home/ArchiveMotion";
 import { normalizeWorldEntries } from "@/utils/normalizers";
 import type { Character, UploadedImage, World } from "@/lib/types";
 import type {
@@ -29,6 +33,12 @@ const TAB_CODES: Record<CharacterDetailTab, string> = {
   works: "FILE-03",
   worlds: "FILE-04",
 };
+
+const caseFileHeroMarkFont = Explora({
+  subsets: ["latin"],
+  weight: "400",
+});
+
 const PROFILE_LABELS: Record<keyof Character["profile"], string> = {
   age: "나이",
   height: "신장",
@@ -159,7 +169,11 @@ export function CharactersSection({
             아직 등록된 자캐가 없어요. 관리자 로그인 후 `새 자캐 만들기`로 첫 카드를 추가해주세요.
           </div>
         ) : (
-          <div className="character-index-grid">
+          <ArchiveMotion
+            variant="stagger"
+            motionKey="character-index"
+            className="character-index-grid"
+          >
             {characters.map((character) => {
               const cardImage =
                 (character.images ?? []).find((image) => image.category !== "standing") ??
@@ -194,27 +208,43 @@ export function CharactersSection({
                       <TextGlitch text={character.id} />
                     </p>
                     <h4 className="archive-character-card-name">
-                      <TextGlitch text={character.name} />
+                      <GlitchedText
+                        text={character.name}
+                        glitch={character.textGlitch?.name}
+                        useCssGlitchFallback
+                      />
                       {character.kanjiName && (
                         <span className="kanji-name ml-2 align-baseline text-[0.58em] text-stone-300/55">
-                          <TextGlitch text={character.kanjiName} />
+                          <GlitchedText
+                            text={character.kanjiName}
+                            glitch={character.textGlitch?.kanjiName}
+                            useCssGlitchFallback
+                          />
                         </span>
                       )}
                     </h4>
                     <p className="archive-character-card-subtitle">
-                      <TextGlitch text={character.subtitle} />
+                      <GlitchedText
+                        text={character.subtitle}
+                        glitch={character.textGlitch?.subtitle}
+                        useCssGlitchFallback
+                      />
                     </p>
                   </div>
                 </button>
               );
             })}
-          </div>
+          </ArchiveMotion>
         )}
       </section>
       )}
 
       {activeCharacterId && (
-      <section className="glass-card case-file-detail dossier-viewer overflow-hidden">
+      <ArchiveMotion
+        as="section"
+        motionKey={activeCharacterId}
+        className="glass-card case-file-detail dossier-viewer overflow-hidden"
+      >
         <div className="case-file-hero" data-character-id={heroCharacterId}>
           <div
             className="character-palette-surface absolute inset-0"
@@ -245,15 +275,27 @@ export function CharactersSection({
               <TextGlitch text="Private Archive / Case File" />
             </p>
             <h3 className="case-file-name">
-              <TextGlitch text={activeCharacter.name} />
+              <GlitchedText
+                text={activeCharacter.name}
+                glitch={activeCharacter.textGlitch?.name}
+                useCssGlitchFallback
+              />
               {activeCharacter.kanjiName && (
                   <span className="kanji-name ml-3 align-baseline text-[0.34em] text-stone-300/55">
-                  <TextGlitch text={activeCharacter.kanjiName} />
+                  <GlitchedText
+                    text={activeCharacter.kanjiName}
+                    glitch={activeCharacter.textGlitch?.kanjiName}
+                    useCssGlitchFallback
+                  />
                 </span>
               )}
             </h3>
             <p className="case-file-subtitle">
-              <TextGlitch text={activeCharacter.subtitle} />
+              <GlitchedText
+                text={activeCharacter.subtitle}
+                glitch={activeCharacter.textGlitch?.subtitle}
+                useCssGlitchFallback
+              />
             </p>
           </div>
           <button
@@ -272,25 +314,56 @@ export function CharactersSection({
           >
             목록으로
           </button>
+          <span
+            className={cn("case-file-hero-mark", caseFileHeroMarkFont.className)}
+            aria-hidden="true"
+          >
+            {heroCharacterId}
+          </span>
         </div>
         <div className="dossier-body p-6 md:p-8">
           <div className="case-file-meta">
             <span>NO. {activeCharacter.id || "UNREGISTERED"}</span>
-            {activeCharacter.classification && <span>분류: {activeCharacter.classification}</span>}
-            {(activeCharacter.statusTags ?? []).slice(0, 4).map((tag) => (
-              <span key={tag}>{tag}</span>
-            ))}
+            {activeCharacter.classification && (
+              <span>
+                분류:{" "}
+                <GlitchedText
+                  text={activeCharacter.classification}
+                  glitch={activeCharacter.textGlitch?.classification}
+                />
+              </span>
+            )}
+            {(activeCharacter.statusTags ?? []).length > 0 && (
+              <span>
+                상태:{" "}
+                <GlitchedText
+                  text={(activeCharacter.statusTags ?? []).join("\n")}
+                  glitch={activeCharacter.textGlitch?.statusTags}
+                  preserveWhitespace
+                />
+              </span>
+            )}
           </div>
 
           <blockquote className="case-file-quote">
-            “{activeCharacter.quote}”
+            “
+            <GlitchedText
+              text={activeCharacter.quote}
+              glitch={activeCharacter.textGlitch?.quote}
+            />
+            ”
           </blockquote>
 
           <dl className="case-profile-grid">
             {Object.entries(activeCharacter.profile).map(([key, value]) => (
               <div key={key} className="case-profile-cell">
                 <dt>{PROFILE_LABELS[key as keyof Character["profile"]]}</dt>
-                <dd>{value || "-"}</dd>
+                <dd>
+                  <GlitchedText
+                    text={value || "-"}
+                    glitch={activeCharacter.textGlitch?.[`profile.${key}`]}
+                  />
+                </dd>
               </div>
             ))}
           </dl>
@@ -321,7 +394,13 @@ export function CharactersSection({
                       activeSettingSections.map((section, index) => (
                         <article key={section.id || `${section.title}-${index}`} className="static-record-panel">
                           <span className="block text-xs tracking-[0.25em] text-emerald-100/45 uppercase mb-2">{section.title || `RECORD ${String(index + 1).padStart(2, "0")}`}</span>
-                          <p className="whitespace-pre-line text-sm leading-7 text-emerald-50/80">{section.body || "-"}</p>
+                          <p className="whitespace-pre-line text-sm leading-7 text-emerald-50/80">
+                            <GlitchedText
+                              text={section.body || "-"}
+                              glitch={activeCharacter.textGlitch?.[settingSectionGlitchPath(section.id)]}
+                              preserveWhitespace
+                            />
+                          </p>
                         </article>
                       ))
                     ) : activeCharacter.settings.length > 0 ? (
@@ -412,9 +491,14 @@ export function CharactersSection({
                     <p className="text-xs text-emerald-100/45 uppercase">관계</p>
                     <ul className="mt-3 space-y-2 text-sm text-emerald-50/80">
                       {activeCharacter.relationships.length > 0 ? (
-                        activeCharacter.relationships.map((relationship) => (
-                          <li key={relationship}>{relationship}</li>
-                        ))
+                        <li>
+                          <GlitchedText
+                            text={activeCharacter.relationships.join("\n")}
+                            glitch={activeCharacter.textGlitch?.relationships}
+                            preserveWhitespace
+                            className="whitespace-pre-line"
+                          />
+                        </li>
                       ) : (
                         <li className="text-emerald-100/50">등록된 관계가 없어요.</li>
                       )}
@@ -696,7 +780,7 @@ export function CharactersSection({
             )}
           </div>
         </div>
-      </section>
+      </ArchiveMotion>
       )}
     </section>
   );

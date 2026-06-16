@@ -25,7 +25,12 @@ const emit = (next: User | null) => {
 
 const start = () => {
   if (unsubscribe) return;
-  unsubscribe = onAuthStateChanged(getFirebaseAuth(), (user) => emit(user));
+
+  try {
+    unsubscribe = onAuthStateChanged(getFirebaseAuth(), (user) => emit(user));
+  } catch {
+    emit(null);
+  }
 };
 
 const stop = () => {

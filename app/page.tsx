@@ -28,6 +28,7 @@ import { useHomeModals } from "@/hooks/useHomeModals";
 import { useWorldUnlock } from "@/hooks/useWorldUnlock";
 import { defaultArchiveContent, defaultHomeContent, type SectionId } from "@/constants/home";
 import type { CharacterDetailTab } from "@/types/home.types";
+import { resolveCharacterBgmUrl } from "@/lib/bgm-playlist";
 
 dayjs.locale("ko");
 
@@ -65,6 +66,12 @@ export default function Home() {
 
   const isAdmin = auth.authUser?.email === ADMIN_AUTH_EMAIL;
   const activeWorld = worlds.find((world) => world.id === effectiveActiveWorldId) ?? worlds[0];
+  const activeCharacter =
+    activeSection === "characters" && activeCharacterId
+      ? characters.find((character) => character.id === activeCharacterId)
+      : undefined;
+  const characterBgmUrl =
+    activeCharacter ? resolveCharacterBgmUrl(activeCharacter.bgmUrl) : null;
 
   // 구독 에러는 사용자 액션 알림(authNotice)이 비어 있을 때만 폴백으로 표시합니다.
   const subscriptionError =
@@ -144,7 +151,7 @@ export default function Home() {
         body
           *:not(i):not([class*="icon"]):not(.material-icons):not(.fa):not(.fas):not(.far):not(
             .fab
-          ):not(.auth-input) {
+          ):not(.auth-input):not(.case-file-hero-mark) {
           font-family: "KbizHanmaumMyungjo", "Zen Old Mincho", serif !important;
         }
       `}</style>
@@ -232,7 +239,7 @@ export default function Home() {
         <aside className="space-y-3">
           <CalendarWidget />
 
-          <BgmPlayer />
+          <BgmPlayer characterBgmUrl={characterBgmUrl} />
         </aside>
       </section>
 

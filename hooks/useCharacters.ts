@@ -4,6 +4,8 @@ import { useSyncExternalStore } from "react";
 import { collection, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase";
 import type { Character } from "@/lib/types";
+import { resolveCharacterBgmUrl } from "@/lib/bgm-playlist";
+import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
 import { normalizeWorldEntries, normalizeWorks } from "@/utils/normalizers";
 
 type CharactersState = {
@@ -26,10 +28,12 @@ const emit = (next: CharactersState) => {
 
 const start = () => {
   if (unsubscribe) return;
-  const db = getFirebaseDb();
-  unsubscribe = onSnapshot(
-    collection(db, "characters"),
-    (snapshot) => {
+
+  try {
+    const db = getFirebaseDb();
+    unsubscribe = onSnapshot(
+      collection(db, "characters"),
+      (snapshot) => {
       const nextData = snapshot.docs.map((characterDoc) => {
         const data = characterDoc.data() as Character;
         return {
@@ -41,6 +45,8 @@ const start = () => {
           relationships: Array.isArray(data.relationships) ? data.relationships : [],
           images: Array.isArray(data.images) ? data.images : [],
           worldEntries: normalizeWorldEntries(data.worldEntries),
+          textGlitch: normalizeTextGlitch(data.textGlitch),
+          bgmUrl: resolveCharacterBgmUrl(data.bgmUrl) ?? undefined,
         };
       });
       emit({ data: nextData, error: null });
@@ -49,6 +55,12 @@ const start = () => {
       emit({ data: state.data, error: `Firestore 불러오기 실패: ${firestoreError.message}` });
     },
   );
+  } catch (error) {
+    emit({
+      data: [],
+      error: error instanceof Error ? error.message : "Firebase 연결에 실패했어요.",
+    });
+  }
 };
 
 const stop = () => {

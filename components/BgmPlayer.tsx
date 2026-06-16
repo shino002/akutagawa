@@ -1,13 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { SITE_BGM_PLAYLIST } from "@/lib/bgm-playlist";
 
-const BGM_PLAYLIST = [
-  "/audio/les-murmures-des-flots-lullaby.mp3",
-  "/audio/compass.mp3",
-  "/audio/old-doll.mp3",
-  "/audio/fontaine-musicbox.mp3",
-];
 const PROGRESS_INTERVAL_MS = 1000;
 const ERROR_TITLE_CHARS = [
   "E",
@@ -34,6 +29,11 @@ const INITIAL_TRACK = {
   title: "@/1_SIGNAL_LOST",
 };
 
+interface BgmPlayerProps {
+  /** 캐릭터 상세 보기일 때 재생할 전용 트랙 URL */
+  characterBgmUrl?: string | null;
+}
+
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return "0:00";
 
@@ -52,22 +52,41 @@ function createErrorTitle(trackIndex: number) {
   return `@/${trackIndex + 1}_${body}`;
 }
 
-function getRandomTrackIndex() {
-  return Math.floor(Math.random() * BGM_PLAYLIST.length);
+function getRandomTrackIndex(playlistLength: number) {
+  return Math.floor(Math.random() * playlistLength);
 }
 
-export function BgmPlayer() {
+export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressTimerRef = useRef<number | null>(null);
   const trackIndexRef = useRef(0);
   const autoPlayAttemptedRef = useRef(false);
+  const loadedSrcRef = useRef<string | null>(null);
+  const playlistRef = useRef<string[]>([...SITE_BGM_PLAYLIST]);
+  const loopPlaylistRef = useRef(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [track, setTrack] = useState(INITIAL_TRACK);
-  const [volume, setVolume] = useState(0.55);
+  const [volume, setVolume] = useState(0.2);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [notice, setNotice] = useState("");
+
+  const focusedBgmUrl = characterBgmUrl?.trim() || null;
+  const playlist = useMemo(
+    () => (focusedBgmUrl ? [focusedBgmUrl] : [...SITE_BGM_PLAYLIST]),
+    [focusedBgmUrl],
+  );
+  const isCharacterMode = Boolean(focusedBgmUrl);
+
+  useEffect(() => {
+    playlistRef.current = playlist;
+    loopPlaylistRef.current = isCharacterMode;
+
+    if (audioRef.current) {
+      audioRef.current.loop = isCharacterMode;
+    }
+  }, [isCharacterMode, playlist]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -105,6 +124,7 @@ export function BgmPlayer() {
         audioRef.current.src = "";
         audioRef.current.load();
         audioRef.current = null;
+        loadedSrcRef.current = null;
       }
     };
   }, []);
@@ -119,18 +139,59 @@ export function BgmPlayer() {
     setDuration(0);
   }
 
+  async function playWhenReady(audio: HTMLAudioElement) {
+    if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      await audio.play();
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      function cleanup() {
+        audio.removeEventListener("canplay", onReady);
+        audio.removeEventListener("error", onError);
+      }
+
+      function onReady() {
+        cleanup();
+        resolve();
+      }
+
+      function onError() {
+        cleanup();
+        reject(new Error("BGM load failed"));
+      }
+
+      audio.addEventListener("canplay", onReady, { once: true });
+      audio.addEventListener("error", onError, { once: true });
+    });
+
+    await audio.play();
+  }
+
   function getAudio() {
     if (audioRef.current) return audioRef.current;
 
-    const audio = new Audio(BGM_PLAYLIST[track.index]);
-    audio.loop = false;
+    const currentPlaylist = playlistRef.current;
+    const initialSrc = currentPlaylist[trackIndexRef.current] ?? currentPlaylist[0];
+    const audio = new Audio(encodeURI(initialSrc));
+    audio.loop = loopPlaylistRef.current;
     audio.preload = "none";
     audio.volume = volume;
     audio.addEventListener("loadedmetadata", () => {
       setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
     });
     audio.addEventListener("ended", () => {
-      void playTrack((trackIndexRef.current + 1) % BGM_PLAYLIST.length, true);
+      if (loopPlaylistRef.current) {
+        audio.currentTime = 0;
+        void audio.play().catch(() => {
+          setIsPlaying(false);
+          setNotice("Click anywhere");
+        });
+        return;
+      }
+
+      const nextIndex = (trackIndexRef.current + 1) % playlistRef.current.length;
+      void playTrack(nextIndex, true);
     });
     audio.addEventListener("error", () => {
       setNotice("BGM Load Failed");
@@ -141,16 +202,34 @@ export function BgmPlayer() {
   }
 
   async function playTrack(nextTrackIndex: number, shouldAutoPlay = isPlaying) {
+    const currentPlaylist = playlistRef.current;
+    const safeIndex =
+      currentPlaylist.length > 0 ? nextTrackIndex % currentPlaylist.length : 0;
+    const nextSrc = currentPlaylist[safeIndex];
+
+    if (!nextSrc) {
+      setNotice("BGM Load Failed");
+      setIsPlaying(false);
+      return;
+    }
+
+    updateTrackDisplay(safeIndex);
+
     const audio = getAudio();
-    updateTrackDisplay(nextTrackIndex);
-    audio.src = BGM_PLAYLIST[nextTrackIndex];
-    audio.currentTime = 0;
-    audio.load();
+    audio.loop = loopPlaylistRef.current;
+
+    if (loadedSrcRef.current !== nextSrc) {
+      audio.pause();
+      audio.src = encodeURI(nextSrc);
+      audio.currentTime = 0;
+      loadedSrcRef.current = nextSrc;
+      audio.load();
+    }
 
     if (!shouldAutoPlay) return;
 
     try {
-      await audio.play();
+      await playWhenReady(audio);
       setIsPlaying(true);
       setNotice("");
     } catch {
@@ -207,12 +286,21 @@ export function BgmPlayer() {
     if (autoPlayAttemptedRef.current) return;
 
     autoPlayAttemptedRef.current = true;
-    const initialTrackIndex = getRandomTrackIndex();
-    trackIndexRef.current = initialTrackIndex;
+    const initialTrackIndex = getRandomTrackIndex(playlistRef.current.length);
     void playTrack(initialTrackIndex, true);
-    // 첫 렌더는 고정 제목으로 맞추고, 접속 후 클라이언트에서만 랜덤 첫 곡을 정합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!autoPlayAttemptedRef.current) {
+      return;
+    }
+
+    const shouldAutoPlay = isPlaying || isCharacterMode;
+    const nextIndex = isCharacterMode ? 0 : getRandomTrackIndex(playlistRef.current.length);
+    void playTrack(nextIndex, shouldAutoPlay);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedBgmUrl]);
 
   useEffect(() => {
     function startAfterUserGesture() {
@@ -222,16 +310,15 @@ export function BgmPlayer() {
       void playTrack(trackIndexRef.current, true);
     }
 
-    window.addEventListener("pointerdown", startAfterUserGesture, { capture: true, once: true });
-    window.addEventListener("keydown", startAfterUserGesture, { once: true });
+    window.addEventListener("pointerdown", startAfterUserGesture, { capture: true });
+    window.addEventListener("keydown", startAfterUserGesture);
 
     return () => {
       window.removeEventListener("pointerdown", startAfterUserGesture, { capture: true });
       window.removeEventListener("keydown", startAfterUserGesture);
     };
-    // 자동재생이 막힌 브라우저에서 첫 사용자 입력으로만 재생을 재시도합니다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [focusedBgmUrl]);
 
   return (
     <aside
@@ -261,7 +348,7 @@ export function BgmPlayer() {
 
         <div className="min-w-0 self-center">
           <div className="flex items-center justify-between gap-3">
-            <p className="archive-kicker">BGM Player</p>
+            <p className="archive-kicker">{isCharacterMode ? "Character BGM" : "BGM Player"}</p>
             <button
               type="button"
               onClick={collapsePlayer}
@@ -272,7 +359,9 @@ export function BgmPlayer() {
             </button>
           </div>
           <h2 className="mt-1 truncate text-sm font-semibold text-emerald-50">{track.title}</h2>
-          <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-stone-300/55">{isPlaying ? "playing" : "paused"}</p>
+          <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-stone-300/55">
+            {isCharacterMode ? "character theme" : isPlaying ? "playing" : "paused"}
+          </p>
           {notice && <p className="mt-1 text-xs text-stone-300/70">{notice}</p>}
         </div>
       </div>

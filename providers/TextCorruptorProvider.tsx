@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect, useRef } from "react";
 
 interface TextCorruptorProviderProps {
@@ -161,9 +162,17 @@ function applyCorruption(candidates: CorruptCandidate[]) {
 }
 
 export function TextCorruptorProvider({ children }: TextCorruptorProviderProps) {
+  const pathname = usePathname();
+  const enabled = !pathname.startsWith("/admin");
   const restoreActionsRef = useRef<RestoreAction[]>([]);
 
   useEffect(() => {
+    if (!enabled) {
+      restoreActionsRef.current.forEach((restore) => restore());
+      restoreActionsRef.current = [];
+      return;
+    }
+
     let corruptTimer: number | undefined;
     let clearTimer: number | undefined;
 
@@ -194,7 +203,7 @@ export function TextCorruptorProvider({ children }: TextCorruptorProviderProps) 
       if (clearTimer) window.clearTimeout(clearTimer);
       restoreTexts();
     };
-  }, []);
+  }, [enabled]);
 
   return <>{children}</>;
 }

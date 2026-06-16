@@ -1036,18 +1036,31 @@ select {
 }
 
 .case-file-hero::after {
-  content: attr(data-character-id);
+  content: none;
+  display: none;
+}
+
+.case-file-hero-mark {
   position: absolute;
-  right: 1.2rem;
-  bottom: 0.7rem;
+  right: 0.65rem;
+  bottom: 0.35rem;
+  left: auto;
+  top: auto;
   z-index: 3;
+  display: block;
+  width: max-content;
+  max-width: calc(100% - 1.3rem);
+  margin: 0;
+  padding: 0;
   color: rgba(255, 222, 222, 0.09);
-  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
-  font-size: clamp(2.6rem, 7vw, 5.5rem);
-  font-weight: 900;
-  letter-spacing: -0.08em;
-  line-height: 0.8;
+  font-size: clamp(3.8rem, 10vw, 8rem);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
   pointer-events: none;
+  user-select: none;
 }
 
 .case-file-hero-image {
@@ -2294,6 +2307,7 @@ main::after {
 .case-file-hero,
 .case-file-hero::before,
 .case-file-hero::after,
+.case-file-hero-mark,
 .case-file-hero-grid,
 .case-evidence-stamp,
 .case-file-meta span {
@@ -2881,7 +2895,7 @@ main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6
   box-shadow: none !important;
 }
 
-main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6):not(.image-credit-label):not(.case-file-meta span):not(.case-evidence-stamp) {
+main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6):not(.image-credit-label):not(.case-file-meta span):not(.case-evidence-stamp):not(.glitch-zone-mark):not(.glitch-zone-mark *) {
   background: transparent !important;
 }
 
@@ -3280,10 +3294,24 @@ main :where(
 }
 
 .case-file-hero::after {
-  content: attr(data-character-id) !important;
+  content: none !important;
+  display: none !important;
+}
+
+.case-file-hero-mark {
+  position: absolute !important;
+  right: 0.65rem !important;
+  bottom: 0.35rem !important;
+  left: auto !important;
+  top: auto !important;
+  z-index: 3 !important;
+  display: block !important;
+  font-size: clamp(3.8rem, 10vw, 8rem) !important;
   color: rgba(111, 143, 215, 0.18) !important;
   background: transparent !important;
   opacity: 1 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1 !important;
   animation: current-heading-glitch 2.4s steps(1, end) infinite;
 }
 
@@ -3410,5 +3438,109 @@ html body main .static-record-panel:hover {
   outline-color: rgba(111, 143, 215, 0.24) !important;
   padding: 1rem;
   transform: none !important;
+}
+
+/* OC / World interaction motion: WAAPI(ArchiveMotion) + 호버/클릭 피드백 */
+.archive-motion-host[data-motion-pending="true"],
+.archive-motion-stagger[data-motion-pending="true"] > * {
+  opacity: 0 !important;
+}
+
+.archive-motion-host[data-motion-pending="true"] {
+  transform: translate3d(0, 18px, 0) !important;
+}
+
+.archive-motion-stagger[data-motion-pending="true"] > * {
+  transform: translate3d(0, 16px, 0) !important;
+}
+
+.archive-motion-host,
+.archive-motion-stagger > * {
+  opacity: 1;
+}
+
+html body main .character-index-panel .archive-character-card,
+html body main .dossier-viewer .case-tab-button,
+html body main .dossier-viewer .case-side-record,
+html body main .dossier-viewer .case-setting-note,
+html body main .dossier-viewer .case-evidence-preview,
+html body main .dossier-viewer .gallery-tile button,
+html body main .world-archive-section .archive-row,
+html body main .world-archive-section .case-setting-note,
+html body main .world-archive-section .case-side-record,
+html body main .world-archive-section .gallery-tile button,
+html body main .world-archive-section .archive-submit-button,
+html body main .world-archive-section .world-profile-banner {
+  transition:
+    border-color 360ms ease,
+    background 360ms ease,
+    transform 340ms ease,
+    opacity 340ms ease,
+    box-shadow 340ms ease !important;
+}
+
+html body main .character-index-panel .archive-character-card:active,
+html body main .dossier-viewer .case-tab-button:active,
+html body main .dossier-viewer .case-side-record:active,
+html body main .dossier-viewer .case-setting-note:active,
+html body main .dossier-viewer .case-evidence-preview:active,
+html body main .world-archive-section .archive-row:active,
+html body main .world-archive-section .case-setting-note:active,
+html body main .world-archive-section .case-side-record:active,
+html body main .world-archive-section .archive-submit-button:active {
+  transform: translate3d(0, 1px, 0) scale(0.992) !important;
+}
+
+html body main .character-index-panel .archive-character-card:hover,
+html body main .world-archive-section .archive-row:hover {
+  transform: translate3d(0, -3px, 0) !important;
+  border-color: rgba(111, 143, 215, 0.55) !important;
+}
+
+html body main .dossier-viewer .gallery-tile img,
+html body main .dossier-viewer .case-evidence-preview img,
+html body main .dossier-viewer .world-profile-card img,
+html body main .world-archive-section .gallery-tile img {
+  transition:
+    transform 520ms ease,
+    opacity 440ms ease !important;
+}
+
+html body main .dossier-viewer .gallery-tile:hover img,
+html body main .dossier-viewer .case-evidence-preview:hover img,
+html body main .dossier-viewer .world-profile-card:hover img,
+html body main .world-archive-section .gallery-tile:hover img,
+html body main .dossier-viewer .group:hover img {
+  transform: scale(1.05) !important;
+  opacity: 1 !important;
+}
+
+html body main .dossier-viewer .case-tab-button.is-active {
+  box-shadow: inset 0 -2px 0 rgba(111, 143, 215, 0.55) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body main .character-index-panel .archive-character-card:hover,
+  html body main .world-archive-section .archive-row:hover,
+  html body main .dossier-viewer .gallery-tile:hover img,
+  html body main .world-archive-section .gallery-tile:hover img {
+    transform: none !important;
+  }
+}
+
+.glitch-zone-mark {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  background: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border: none !important;
+  font: inherit;
+  animation: none !important;
+  transform: none !important;
+  filter: none !important;
 }
 

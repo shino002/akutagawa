@@ -1,14 +1,44 @@
 "use client";
 
-import { ChangeEvent, FormEvent, PointerEvent, WheelEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent, MouseEvent, PointerEvent, SyntheticEvent, WheelEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId } from "@/lib/auth-helpers";
+import { CHARACTER_ONLY_BGM_OPTIONS, SITE_BGM_OPTIONS, resolveCharacterBgmUrl } from "@/lib/bgm-playlist";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { characterPaletteStyle } from "@/lib/character-palette";
 import { clamp, thumbnailStyle } from "@/lib/image-helpers";
 import type { Character, CharacterWorldEntry, DiaryEntry, GuestbookEntry, HomeContent, SettingSection, UploadedImage, Work, World } from "@/lib/types";
+import type { CharacterDraft } from "@/lib/character-draft";
+import {
+  compactDraftTextGlitch,
+  buildGlitchFieldOptions,
+  getCharacterDraftFieldValue,
+  getGlitchFieldLabel,
+  pruneDraftTextGlitch,
+  settingSectionGlitchPath,
+  updateDraftFieldValue,
+  updateDraftGlitchPath,
+} from "@/lib/glitch-fields";
+import { TextScrambleTool } from "@/components/admin/TextScrambleTool";
+import { AdminCollapsiblePanel } from "@/components/admin/AdminCollapsiblePanel";
+import {
+  CharacterEditSectionNav,
+  type CharacterEditSection,
+} from "@/components/admin/CharacterEditSectionNav";
+import { omitUndefined } from "@/lib/firestore-helpers";
+import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
+import {
+  buildTextGlitchFirestorePatch,
+  countRemovedGlitchPaths,
+} from "@/lib/text-glitch-persistence";
+import { readGlitchTextSelection, type GlitchTextSelection } from "@/lib/glitch-selection";
+import {
+  legacySettingsToSections,
+  normalizeSettingSections,
+  resolveDraftSettingSections,
+} from "@/lib/setting-sections";
 
 // 관리자 페이지에서만 쓰는 업로드 대기/폼 입력 타입입니다.
 type PendingUpload = {
@@ -27,24 +57,6 @@ type ThumbnailDragState = {
   startPointerY: number;
   startThumbX: number;
   startThumbY: number;
-};
-
-type CharacterDraft = {
-  id: string;
-  name: string;
-  kanjiName: string;
-  statusTagsText: string;
-  classification: string;
-  subtitle: string;
-  quote: string;
-  palette: string;
-  age: string;
-  height: string;
-  role: string;
-  keyword: string;
-  settingsText: string;
-  settingSections: SettingSection[];
-  relationshipsText: string;
 };
 
 type PaletteOption = {
@@ -185,6 +197,10 @@ function createImagePaletteOptions(file: File): Promise<PaletteOption[]> {
   });
 }
 
+function glitchFieldClass(path: string, activePath: string | null, baseClass = "auth-input") {
+  return activePath === path ? `${baseClass} border-amber-300/50 ring-1 ring-amber-300/40` : baseClass;
+}
+
 function slugifyId(value: string) {
   return value
     .trim()
@@ -201,16 +217,38 @@ function linesToList(value: string) {
     .filter(Boolean);
 }
 
-function normalizeSettingSections(sections: SettingSection[] | undefined): SettingSection[] {
-  return Array.isArray(sections)
-    ? sections
-        .map((section, index) => ({
-          id: section.id || `setting-section-${index}`,
-          title: section.title?.trim() ?? "",
-          body: section.body?.trim() ?? "",
-        }))
-        .filter((section) => section.title || section.body)
-    : [];
+function characterToDraft(character: Character): CharacterDraft {
+  const { settingSections, settingsText } = resolveDraftSettingSections(
+    character.settingSections,
+    character.settings,
+  );
+
+  return {
+    id: character.id,
+    name: character.name,
+    kanjiName: character.kanjiName ?? "",
+    statusTagsText: (character.statusTags ?? []).join("\n"),
+    classification: character.classification ?? "",
+    subtitle: character.subtitle,
+    quote: character.quote,
+    palette: character.palette,
+    age: character.profile.age,
+    height: character.profile.height,
+    role: character.profile.role,
+    keyword: character.profile.keyword,
+    settingsText,
+    settingSections,
+    relationshipsText: character.relationships.join("\n"),
+    textGlitch: normalizeTextGlitch(character.textGlitch),
+    bgmUrl: character.bgmUrl ?? "",
+  };
+}
+
+function getLegacySettingsMigrationNotice(character: Character) {
+  const resolved = resolveDraftSettingSections(character.settingSections, character.settings);
+  return resolved.migratedFromLegacy
+    ? "예전 상세 설정을 레코드 박스로 불러왔어요. 아래 내용을 확인한 뒤 「본 페이지에 저장」을 눌러주세요."
+    : null;
 }
 
 // Firestore 문서와 관리자 입력 폼 사이를 오가는 변환 함수들입니다.
@@ -231,26 +269,8 @@ function createBlankDraft(): CharacterDraft {
     settingsText: "",
     settingSections: [],
     relationshipsText: "",
-  };
-}
-
-function characterToDraft(character: Character): CharacterDraft {
-  return {
-    id: character.id,
-    name: character.name,
-    kanjiName: character.kanjiName ?? "",
-    statusTagsText: (character.statusTags ?? []).join("\n"),
-    classification: character.classification ?? "",
-    subtitle: character.subtitle,
-    quote: character.quote,
-    palette: character.palette,
-    age: character.profile.age,
-    height: character.profile.height,
-    role: character.profile.role,
-    keyword: character.profile.keyword,
-    settingsText: character.settings.join("\n"),
-    settingSections: normalizeSettingSections(character.settingSections),
-    relationshipsText: character.relationships.join("\n"),
+    textGlitch: {},
+    bgmUrl: "",
   };
 }
 
@@ -263,7 +283,10 @@ function draftToCharacter(
   const name = draft.name.trim();
   const id = slugifyId(draft.id || name);
 
-  return {
+  const textGlitch = compactDraftTextGlitch(draft.textGlitch, draft);
+  const bgmUrl = resolveCharacterBgmUrl(draft.bgmUrl);
+
+  const characterBase: Character = {
     id,
     name,
     kanjiName: draft.kanjiName.trim(),
@@ -285,6 +308,14 @@ function draftToCharacter(
     works: currentWorks,
     worldEntries: currentWorldEntries,
   };
+
+  const character: Character = {
+    ...characterBase,
+    ...(bgmUrl ? { bgmUrl } : {}),
+    ...(textGlitch ? { textGlitch } : {}),
+  };
+
+  return character;
 }
 
 function createBlankDiaryEntry(): DiaryEntry {
@@ -410,6 +441,9 @@ export default function AdminPage() {
   const [activeDiaryId, setActiveDiaryId] = useState("");
   const [diaryDraft, setDiaryDraft] = useState<DiaryEntry>(() => createBlankDiaryEntry());
   const [adminPanel, setAdminPanel] = useState<"categories" | "characters">("categories");
+  const [characterEditSection, setCharacterEditSection] = useState<CharacterEditSection>("basics");
+  const [activeGlitchFieldPath, setActiveGlitchFieldPath] = useState<string | null>(null);
+  const [glitchFieldSelection, setGlitchFieldSelection] = useState<GlitchTextSelection | null>(null);
   const [activeCategory, setActiveCategory] = useState<"home" | "archive" | "diary" | "guestbook" | "worlds">("home");
 
   const isAdmin = authUser?.email === ADMIN_AUTH_EMAIL;
@@ -417,6 +451,12 @@ export default function AdminPage() {
     () => characters.find((character) => character.id === activeCharacterId) ?? characters[0],
     [activeCharacterId, characters],
   );
+  const glitchFieldOptions = useMemo(
+    () => buildGlitchFieldOptions(draft, draft.textGlitch),
+    [draft],
+  );
+  const activeGlitchLabel = activeGlitchFieldPath ? getGlitchFieldLabel(activeGlitchFieldPath) : null;
+  const glitchFieldCount = Object.keys(draft.textGlitch).length;
   const activeCharacterWorldEntry = useMemo(
     () => normalizeWorldEntries(activeCharacter?.worldEntries).find((entry) => entry.worldId === activeCharacterWorldId),
     [activeCharacter, activeCharacterWorldId],
@@ -448,6 +488,60 @@ export default function AdminPage() {
   }, [thumbnailDrag]);
 
   useEffect(() => {
+    setGlitchFieldSelection(null);
+  }, [activeGlitchFieldPath]);
+
+  useEffect(() => {
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
+        return;
+      }
+
+      const path = target.dataset.glitchField;
+      if (!path || !target.closest(".admin-page") || target.closest("[data-text-scramble-tool]")) {
+        return;
+      }
+
+      setActiveGlitchFieldPath(path);
+    };
+
+    document.addEventListener("focusin", handleFocusIn);
+    return () => document.removeEventListener("focusin", handleFocusIn);
+  }, []);
+
+  const captureGlitchFieldSelection = useCallback(
+    (element: HTMLInputElement | HTMLTextAreaElement) => {
+      const path = element.dataset.glitchField;
+      if (!path || element.closest("[data-text-scramble-tool]")) {
+        return;
+      }
+
+      setActiveGlitchFieldPath(path);
+      setGlitchFieldSelection(readGlitchTextSelection(element));
+    },
+    [],
+  );
+
+  const bindGlitchField = useCallback(
+    (path: string) => ({
+      "data-glitch-field": path,
+      onFocus: () => setActiveGlitchFieldPath(path),
+      onClick: () => setActiveGlitchFieldPath(path),
+      onSelect: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        captureGlitchFieldSelection(event.currentTarget);
+      },
+      onKeyUp: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        captureGlitchFieldSelection(event.currentTarget);
+      },
+      onMouseUp: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        captureGlitchFieldSelection(event.currentTarget);
+      },
+    }),
+    [captureGlitchFieldSelection],
+  );
+
+  useEffect(() => {
     const db = getFirebaseDb();
     return onSnapshot(
       collection(db, "characters"),
@@ -466,6 +560,8 @@ export default function AdminPage() {
             relationships: Array.isArray(data.relationships) ? data.relationships : [],
             images: Array.isArray(data.images) ? data.images : [],
             worldEntries: normalizeWorldEntries(data.worldEntries),
+            textGlitch: normalizeTextGlitch(data.textGlitch),
+            bgmUrl: resolveCharacterBgmUrl(data.bgmUrl) ?? undefined,
           };
         });
 
@@ -474,7 +570,7 @@ export default function AdminPage() {
           if (current) return current;
           const firstCharacter = nextCharacters[0];
           if (firstCharacter) {
-            setDraft(characterToDraft(firstCharacter));
+            loadCharacterDraft(firstCharacter);
           }
           return firstCharacter?.id || "";
         });
@@ -641,6 +737,7 @@ export default function AdminPage() {
   function startNewCharacter() {
     setActiveCharacterId("");
     setActiveCharacterWorldId("");
+    setCharacterEditSection("basics");
     setDraft(createBlankDraft());
     setWorkDraft({ title: "", kind: "새 연성", date: "", body: "" });
     setPendingUploads((current) => {
@@ -803,25 +900,60 @@ export default function AdminPage() {
     }
 
     const existingCharacter = characters.find((character) => character.id === draft.id);
-    const character = draftToCharacter(draft, existingCharacter?.works, existingCharacter?.images, normalizeWorldEntries(existingCharacter?.worldEntries));
+    const prunedDraft: CharacterDraft = {
+      ...draft,
+      textGlitch: pruneDraftTextGlitch(draft.textGlitch, draft),
+    };
+    const character = draftToCharacter(
+      prunedDraft,
+      existingCharacter?.works,
+      existingCharacter?.images,
+      normalizeWorldEntries(existingCharacter?.worldEntries),
+    );
 
     if (!character.id || !character.name) {
       setNotice("자캐 이름은 꼭 입력해주세요.");
       return;
     }
 
+    const storedGlitch = existingCharacter?.textGlitch;
+    const textGlitchPatch = buildTextGlitchFirestorePatch(character.textGlitch, storedGlitch);
+    const removedGlitchPathCount = countRemovedGlitchPaths(character.textGlitch, storedGlitch);
+    const hadGlitchDraft = Object.keys(prunedDraft.textGlitch).length > 0;
+    const hadStoredGlitch = Boolean(storedGlitch && Object.keys(storedGlitch).length > 0);
+    const resolvedBgmUrl = resolveCharacterBgmUrl(prunedDraft.bgmUrl);
+    const { textGlitch: _textGlitch, ...characterBody } = character;
+
     try {
       setIsSaving(true);
       await setDoc(
         doc(getFirebaseDb(), "characters", character.id),
-        {
-          ...character,
+        omitUndefined({
+          ...characterBody,
+          ...textGlitchPatch,
+          ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setActiveCharacterId(character.id);
-      setNotice("본 페이지에 반영되도록 저장했어요.");
+      setDraft({
+        ...characterToDraft(character),
+        textGlitch: character.textGlitch ?? prunedDraft.textGlitch,
+      });
+      if (hadGlitchDraft && !character.textGlitch) {
+        setNotice("자캐는 저장됐지만, 오류 구간이 텍스트와 맞지 않아 오류 설정은 빠졌어요. 구간을 다시 지정해주세요.");
+      } else if (!character.textGlitch && hadStoredGlitch) {
+        setNotice("본 페이지에 반영되도록 저장했어요. 오류 구간은 모두 제거됐습니다.");
+      } else if (character.textGlitch && removedGlitchPathCount > 0) {
+        setNotice("본 페이지에 반영되도록 저장했어요. 제거한 오류 구간도 반영됐습니다.");
+      } else {
+        setNotice(
+          character.textGlitch
+            ? "본 페이지에 반영되도록 저장했어요. 오류 구간도 함께 저장됐습니다."
+            : "본 페이지에 반영되도록 저장했어요.",
+        );
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "자캐 저장에 실패했어요.");
     } finally {
@@ -857,6 +989,28 @@ export default function AdminPage() {
       ...current,
       settingSections: current.settingSections.filter((section) => section.id !== id),
     }));
+  }
+
+  function loadCharacterDraft(character: Character) {
+    setDraft(characterToDraft(character));
+    const migrationNotice = getLegacySettingsMigrationNotice(character);
+    if (migrationNotice) {
+      setNotice(migrationNotice);
+    }
+  }
+
+  function importLegacySettingsToSections() {
+    const legacyLines = linesToList(draft.settingsText);
+    if (legacyLines.length === 0) {
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      settingsText: "",
+      settingSections: [...current.settingSections, ...legacySettingsToSections(legacyLines)],
+    }));
+    setNotice("예전 상세 설정을 레코드 박스로 옮겼어요. 「본 페이지에 저장」을 눌러주세요.");
   }
 
   async function saveHomeContent(event: FormEvent<HTMLFormElement>) {
@@ -1605,7 +1759,8 @@ export default function AdminPage() {
                         type="button"
                         onClick={() => {
                           setActiveCharacterId(character.id);
-                          setDraft(characterToDraft(character));
+                          setCharacterEditSection("basics");
+                          loadCharacterDraft(character);
                           setActiveCharacterWorldId("");
                           setWorldSettingsText("");
                           setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
@@ -1975,9 +2130,19 @@ export default function AdminPage() {
               )}
 
               {adminPanel === "characters" && (
+              <>
+                <CharacterEditSectionNav
+                  active={characterEditSection}
+                  onChange={setCharacterEditSection}
+                  characterName={draft.name || activeCharacter?.name || ""}
+                  glitchFieldCount={glitchFieldCount}
+                  activeGlitchLabel={activeGlitchLabel}
+                />
               <form onSubmit={saveCharacter} className="glass-card grid gap-3 p-5 md:p-6">
+                {characterEditSection === "basics" && (
+                <>
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <h2 className="board-title">자캐 카드 정보</h2>
+                  <h2 className="board-title">자캐 카드 · 레코드</h2>
                   {activeCharacter && (
                     <button
                       type="button"
@@ -1996,17 +2161,35 @@ export default function AdminPage() {
                   </label>
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     자캐 이름
-                    <input value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="자캐 이름" className="auth-input" />
+                    <input
+                      value={draft.name}
+                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "name", event.target.value))}
+                      {...bindGlitchField("name")}
+                      placeholder="자캐 이름"
+                      className={glitchFieldClass("name", activeGlitchFieldPath)}
+                    />
                   </label>
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     한자 이름
-                    <input value={draft.kanjiName} onChange={(event) => setDraft((current) => ({ ...current, kanjiName: event.target.value }))} placeholder="예: 芥川" className="auth-input" />
+                    <input
+                      value={draft.kanjiName}
+                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "kanjiName", event.target.value))}
+                      {...bindGlitchField("kanjiName")}
+                      placeholder="예: 芥川"
+                      className={glitchFieldClass("kanjiName", activeGlitchFieldPath)}
+                    />
                   </label>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     한 줄 소개
-                    <input value={draft.subtitle} onChange={(event) => setDraft((current) => ({ ...current, subtitle: event.target.value }))} placeholder="카드에 보일 짧은 소개" className="auth-input" />
+                    <input
+                      value={draft.subtitle}
+                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "subtitle", event.target.value))}
+                      {...bindGlitchField("subtitle")}
+                      placeholder="카드에 보일 짧은 소개"
+                      className={glitchFieldClass("subtitle", activeGlitchFieldPath)}
+                    />
                   </label>
                   <div className="grid gap-2">
                     <label className="text-sm text-emerald-100/75" htmlFor="admin-palette">색 분위기</label>
@@ -2022,125 +2205,315 @@ export default function AdminPage() {
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-3">
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    기록 상태
-                    <textarea
-                      value={draft.statusTagsText}
-                      onChange={(event) => setDraft((current) => ({ ...current, statusTagsText: event.target.value }))}
-                      placeholder={"예: 관찰중\n기록 불완전\n비공개 기록"}
-                      className="auth-input min-h-24"
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    기록 분류
-                    <input value={draft.classification} onChange={(event) => setDraft((current) => ({ ...current, classification: event.target.value }))} placeholder="예: 개인 기록 / 세계관 관련 / 비밀 파일" className="auth-input" />
-                  </label>
+                  <AdminCollapsiblePanel
+                    title="기록 상태 · 분류"
+                    description="카드에 보이는 기록 태그와 분류입니다. 자주 안 쓰면 접어두세요."
+                  >
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        기록 상태
+                        <textarea
+                          value={draft.statusTagsText}
+                          onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "statusTags", event.target.value))}
+                          {...bindGlitchField("statusTags")}
+                          placeholder={"예: 관찰중\n기록 불완전\n비공개 기록"}
+                          className={glitchFieldClass("statusTags", activeGlitchFieldPath, "auth-input min-h-24")}
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        기록 분류
+                        <input
+                          value={draft.classification}
+                          onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "classification", event.target.value))}
+                          {...bindGlitchField("classification")}
+                          placeholder="예: 개인 기록 / 세계관 관련 / 비밀 파일"
+                          className={glitchFieldClass("classification", activeGlitchFieldPath)}
+                        />
+                      </label>
+                    </div>
+                  </AdminCollapsiblePanel>
                 </div>
                 <label className="grid gap-2 text-sm text-emerald-100/75">
                   대표 대사
-                  <textarea value={draft.quote} onChange={(event) => setDraft((current) => ({ ...current, quote: event.target.value }))} placeholder="캐릭터 상세에 보일 대표 문장" className="auth-input min-h-20" />
+                  <textarea
+                    value={draft.quote}
+                    onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "quote", event.target.value))}
+                    {...bindGlitchField("quote")}
+                    placeholder="캐릭터 상세에 보일 대표 문장"
+                    className={glitchFieldClass("quote", activeGlitchFieldPath, "auth-input min-h-20")}
+                  />
+                </label>
+                <label className="grid gap-2 text-sm text-emerald-100/75">
+                  상세 보기 BGM
+                  <select
+                    value={draft.bgmUrl}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bgmUrl: event.target.value,
+                      }))
+                    }
+                    className="auth-input"
+                  >
+                    <option value="">사이트 기본 BGM (상세에서도 기본 목록)</option>
+                    <optgroup label="사이트 기본 목록">
+                      {SITE_BGM_OPTIONS.map((option) => (
+                        <option key={option.url} value={option.url}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="캐릭터 전용">
+                      {CHARACTER_ONLY_BGM_OPTIONS.map((option) => (
+                        <option key={option.url} value={option.url}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  <span className="text-xs leading-5 text-emerald-100/50">
+                    OC 상세 보기에서만 재생됩니다. 「사이트 기본 목록」은 기본 플레이어와 같고, 「캐릭터 전용」은
+                    Izumi Theme처럼 상세에서만 쓰는 곡입니다.
+                  </span>
                 </label>
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     나이
-                    <input value={draft.age} onChange={(event) => setDraft((current) => ({ ...current, age: event.target.value }))} placeholder="나이" className="auth-input" />
+                    <input
+                      value={draft.age}
+                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "profile.age", event.target.value))}
+                      {...bindGlitchField("profile.age")}
+                      placeholder="나이"
+                      className={glitchFieldClass("profile.age", activeGlitchFieldPath)}
+                    />
                   </label>
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     키
-                    <input value={draft.height} onChange={(event) => setDraft((current) => ({ ...current, height: event.target.value }))} placeholder="키" className="auth-input" />
+                    <input
+                      value={draft.height}
+                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "profile.height", event.target.value))}
+                      {...bindGlitchField("profile.height")}
+                      placeholder="키"
+                      className={glitchFieldClass("profile.height", activeGlitchFieldPath)}
+                    />
                   </label>
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     역할/직업
-                    <input value={draft.role} onChange={(event) => setDraft((current) => ({ ...current, role: event.target.value }))} placeholder="역할/직업" className="auth-input" />
+                    <input
+                      value={draft.role}
+                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "profile.role", event.target.value))}
+                      {...bindGlitchField("profile.role")}
+                      placeholder="역할/직업"
+                      className={glitchFieldClass("profile.role", activeGlitchFieldPath)}
+                    />
                   </label>
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     키워드
-                    <input value={draft.keyword} onChange={(event) => setDraft((current) => ({ ...current, keyword: event.target.value }))} placeholder="키워드" className="auth-input" />
+                    <input
+                      value={draft.keyword}
+                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "profile.keyword", event.target.value))}
+                      {...bindGlitchField("profile.keyword")}
+                      placeholder="키워드"
+                      className={glitchFieldClass("profile.keyword", activeGlitchFieldPath)}
+                    />
                   </label>
                 </div>
-                <div className="grid gap-4 xl:grid-cols-2">
-                  <section className="grid gap-3 border border-emerald-100/10 bg-black/30 p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-emerald-50">상세 설정 박스</p>
-                        <p className="mt-1 text-xs text-emerald-100/55">
-                          성격, 외형처럼 제목을 만들고 아래에 내용을 적어주세요.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={addSettingSection}
-                        className="shrink-0 border border-stone-400/35 px-3 py-2 text-xs text-stone-200"
-                      >
-                        항목 추가
-                      </button>
+
+                <section
+                  id="admin-record-boxes"
+                  className="mt-2 grid gap-3 border border-emerald-200/20 bg-emerald-950/15 p-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-emerald-50">레코드 박스</p>
+                      <p className="mt-1 text-xs text-emerald-100/55">
+                        본 페이지 Record 탭에 나오는 상세 설정 박스입니다. 성격, 외형 등을 추가하세요.
+                      </p>
                     </div>
-                    <div className="grid gap-3">
-                      {draft.settingSections.map((section, index) => (
-                        <article
-                          key={section.id}
-                          className="grid gap-2 border border-emerald-100/10 bg-black/35 p-3"
+                    <button
+                      type="button"
+                      onClick={addSettingSection}
+                      className="shrink-0 border border-stone-400/35 px-3 py-2 text-xs text-stone-200"
+                    >
+                      레코드 박스 추가
+                    </button>
+                  </div>
+                  <div className="grid gap-3">
+                    {linesToList(draft.settingsText).length > 0 && (
+                      <div className="grid gap-2 border border-amber-300/30 bg-amber-950/20 p-3 text-xs leading-6 text-amber-100">
+                        <p>
+                          예전 형식으로 저장된 상세 설정이 {linesToList(draft.settingsText).length}줄 있습니다. 레코드
+                          박스로 옮기면 아래에서 바로 편집할 수 있어요.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={importLegacySettingsToSections}
+                          className="w-fit border border-amber-200/35 px-3 py-2 text-xs font-semibold text-amber-50"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-xs tracking-[0.22em] text-emerald-100/45 uppercase">
-                              Box {String(index + 1).padStart(2, "0")}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => removeSettingSection(section.id)}
-                              className="text-xs text-stone-300/70"
-                            >
-                              삭제
-                            </button>
-                          </div>
-                          <input
-                            value={section.title}
-                            onChange={(event) =>
-                              updateSettingSection(section.id, { title: event.target.value })
-                            }
-                            placeholder="예: 성격"
-                            className="auth-input"
-                          />
-                          <textarea
-                            value={section.body}
-                            onChange={(event) =>
-                              updateSettingSection(section.id, { body: event.target.value })
-                            }
-                            placeholder="이 박스 안에 들어갈 내용을 입력"
-                            className="auth-input min-h-24"
-                          />
-                        </article>
-                      ))}
-                      {draft.settingSections.length === 0 && (
-                        <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
-                          항목을 추가하면 공개 페이지 Record 탭에 박스로 표시됩니다.
-                        </p>
-                      )}
-                    </div>
+                          레코드 박스로 가져오기
+                        </button>
+                      </div>
+                    )}
+                    {draft.settingSections.map((section, index) => (
+                      <article
+                        key={section.id}
+                        className="grid gap-2 border border-emerald-100/10 bg-black/35 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs tracking-[0.22em] text-emerald-100/45 uppercase">
+                            레코드 박스 {String(index + 1).padStart(2, "0")}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => removeSettingSection(section.id)}
+                            className="text-xs text-stone-300/70"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                        <input
+                          value={section.title}
+                          onChange={(event) =>
+                            updateSettingSection(section.id, { title: event.target.value })
+                          }
+                          placeholder="예: 성격"
+                          className="auth-input"
+                        />
+                        <textarea
+                          value={section.body}
+                          onChange={(event) =>
+                            setDraft((current) =>
+                              updateDraftFieldValue(
+                                current,
+                                settingSectionGlitchPath(section.id),
+                                event.target.value,
+                              ),
+                            )
+                          }
+                          {...bindGlitchField(settingSectionGlitchPath(section.id))}
+                          placeholder="이 박스 안에 들어갈 내용을 입력"
+                          className={glitchFieldClass(
+                            settingSectionGlitchPath(section.id),
+                            activeGlitchFieldPath,
+                            "auth-input min-h-24",
+                          )}
+                        />
+                      </article>
+                    ))}
+                    {draft.settingSections.length === 0 && linesToList(draft.settingsText).length === 0 && (
+                      <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
+                        「레코드 박스 추가」를 누르면 여기에 박스가 생깁니다.
+                      </p>
+                    )}
+                  </div>
+                  <AdminCollapsiblePanel
+                    title="기존 한 줄 상세 설정"
+                    description={
+                      draft.settingsText.trim()
+                        ? "예전 방식으로 저장된 내용이 있습니다. 위 「가져오기」로 레코드 박스로 옮길 수 있어요."
+                        : "예전 방식 기록만 유지할 때 펼쳐서 사용하세요."
+                    }
+                    defaultOpen={Boolean(draft.settingsText.trim())}
+                  >
                     <label className="grid gap-2 text-xs text-emerald-100/55">
                       기존 한 줄 상세 설정
                       <textarea
                         value={draft.settingsText}
                         onChange={(event) =>
-                          setDraft((current) => ({ ...current, settingsText: event.target.value }))
+                          setDraft((current) => updateDraftFieldValue(current, "settingsText", event.target.value))
                         }
+                        {...bindGlitchField("settingsText")}
                         placeholder="이전 방식 기록을 유지하고 싶을 때만 사용"
-                        className="auth-input min-h-20"
+                        className={glitchFieldClass("settingsText", activeGlitchFieldPath, "auth-input min-h-20")}
                       />
                     </label>
-                  </section>
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    관계
-                    <textarea value={draft.relationshipsText} onChange={(event) => setDraft((current) => ({ ...current, relationshipsText: event.target.value }))} placeholder={"한 줄에 하나씩 입력"} className="auth-input min-h-32" />
-                  </label>
+                  </AdminCollapsiblePanel>
+                </section>
+
+                <label className="grid gap-2 text-sm text-emerald-100/75">
+                  관계
+                  <textarea
+                    value={draft.relationshipsText}
+                    onChange={(event) =>
+                      setDraft((current) => updateDraftFieldValue(current, "relationships", event.target.value))
+                    }
+                    {...bindGlitchField("relationships")}
+                    placeholder={"한 줄에 하나씩 입력"}
+                    className={glitchFieldClass("relationships", activeGlitchFieldPath, "auth-input min-h-32")}
+                  />
+                </label>
+                </>
+                )}
+
+                {characterEditSection === "glitch" && (
+                <>
+                <div>
+                  <h2 className="board-title">텍스트 오류 · 서식</h2>
+                  <p className="mt-1 text-xs leading-5 text-emerald-100/55">
+                    1. 필드 선택 → 2. 참조 단어 입력 → 3. 「전체에 바로 적용」 또는 문구 찾기
+                  </p>
                 </div>
-                <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
-                  {isSaving ? "저장 중..." : "본 페이지에 저장"}
-                </button>
+                <label className="grid gap-2 text-sm text-emerald-100/75">
+                  오류 넣을 필드
+                  <select
+                    value={activeGlitchFieldPath ?? ""}
+                    onChange={(event) => {
+                      const path = event.target.value;
+                      setActiveGlitchFieldPath(path || null);
+                      setGlitchFieldSelection(null);
+                    }}
+                    className="auth-input"
+                  >
+                    <option value="">필드를 선택하세요</option>
+                    {glitchFieldOptions.map((option) => (
+                      <option key={option.path} value={option.path}>
+                        {option.label}
+                        {option.hasGlitch ? " · 적용됨" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <TextScrambleTool
+                  activeFieldPath={activeGlitchFieldPath}
+                  fieldValue={
+                    activeGlitchFieldPath ? getCharacterDraftFieldValue(draft, activeGlitchFieldPath) : ""
+                  }
+                  externalSelection={glitchFieldSelection}
+                  onExternalSelectionClear={() => setGlitchFieldSelection(null)}
+                  onFieldValueChange={(value) => {
+                    if (!activeGlitchFieldPath) {
+                      return;
+                    }
+
+                    setDraft((current) => updateDraftFieldValue(current, activeGlitchFieldPath, value));
+                  }}
+                  glitchConfig={
+                    activeGlitchFieldPath ? draft.textGlitch[activeGlitchFieldPath] : undefined
+                  }
+                  onGlitchChange={(config) => {
+                    if (!activeGlitchFieldPath) {
+                      return;
+                    }
+
+                    setDraft((current) => updateDraftGlitchPath(current, activeGlitchFieldPath, config));
+                  }}
+                  onNotice={setNotice}
+                />
+                </>
+                )}
+
+                {(characterEditSection === "basics" || characterEditSection === "glitch") && (
+                <div className="sticky bottom-3 z-10 -mx-1 border border-emerald-200/20 bg-black/85 p-3 backdrop-blur-sm">
+                  <button disabled={isSaving} className="w-full bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60 md:ml-auto md:w-auto">
+                    {isSaving ? "저장 중..." : "본 페이지에 저장"}
+                  </button>
+                </div>
+                )}
               </form>
+              </>
               )}
 
-              {adminPanel === "characters" && activeCharacter && (
+              {adminPanel === "characters" && activeCharacter && characterEditSection === "world" && (
                 <section className="glass-card grid gap-4 p-5 md:p-6">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -2288,7 +2661,7 @@ export default function AdminPage() {
                 </section>
               )}
 
-              {adminPanel === "characters" && activeCharacter && (
+              {adminPanel === "characters" && activeCharacter && characterEditSection === "images" && (
                 <section className="grid gap-6 xl:grid-cols-2">
                   <div className="glass-card p-5">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

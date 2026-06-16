@@ -2,6 +2,7 @@
 
 import { type FormEvent, useMemo } from "react";
 import { cn } from "@/utils/cn";
+import { ArchiveMotion } from "@/components/home/ArchiveMotion";
 import { characterPaletteStyle } from "@/lib/character-palette";
 import { thumbnailStyle } from "@/lib/image-helpers";
 import { normalizeWorldEntries } from "@/utils/normalizers";
@@ -68,6 +69,163 @@ export function WorldsSection({
     activeWorld && (!activeWorldPassword || unlockedWorldIds[activeWorld.id]),
   );
 
+  const participantListContent = activeWorld ? (
+    <>
+      {activeWorldParticipants.map(({ character, entry }) => {
+        const worldIllustrations = entry.images.filter((image) => image.category !== "standing");
+        const worldStandings = entry.images.filter((image) => image.category === "standing");
+        const worldMainIllustration = worldIllustrations[0] ?? entry.images[0];
+
+        return (
+          <article key={`${activeWorld.id}-${character.id}`} className="world-participant-entry">
+            <section className="case-setting-note">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="archive-kicker">{character.id}</p>
+                  <h4 className="mt-2 text-2xl font-semibold">{character.name}</h4>
+                  <p className="mt-1 text-sm text-emerald-100/60">{character.subtitle}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onViewParticipant(character.id, entry.worldId)}
+                  className="archive-submit-button px-4 py-2 text-sm"
+                >
+                  자캐 상세로 보기
+                </button>
+              </div>
+
+              <div className="mt-7">
+                <div className="grid items-start gap-4 xl:grid-cols-[0.9fr_1fr]">
+                  <div className="space-y-3">
+                    {entry.settings.length > 0 ? (
+                      entry.settings.map((setting) => (
+                        <p
+                          key={setting}
+                          className="border border-stone-400/20 bg-black/35 p-4 text-sm leading-8 text-emerald-50/75"
+                        >
+                          {setting}
+                        </p>
+                      ))
+                    ) : (
+                      <p className="case-empty-note">등록된 세계관 설정이 없어요.</p>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        worldMainIllustration &&
+                        onOpenGallery({ image: worldMainIllustration, character })
+                      }
+                      className="gallery-tile group block w-full text-left"
+                      disabled={!worldMainIllustration}
+                    >
+                      <div className="relative h-96 overflow-hidden md:h-[520px]">
+                        {worldMainIllustration ? (
+                          /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
+                          <img
+                            src={worldMainIllustration.url}
+                            alt={`${character.name} ${activeWorld.title} 일러스트`}
+                            className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
+                            style={thumbnailStyle(worldMainIllustration)}
+                          />
+                        ) : (
+                          <div
+                            className="character-palette-surface h-full w-full"
+                            style={characterPaletteStyle(character.palette)}
+                          />
+                        )}
+                        {worldMainIllustration && imageCreditName(worldMainIllustration) && (
+                          <span className="image-credit-label image-credit-label-large">
+                            {imageCreditName(worldMainIllustration)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="truncate p-3 text-xs text-emerald-50">세계관 일러스트</p>
+                    </button>
+
+                    {worldStandings.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenExpression({ character, images: worldStandings })}
+                        className="case-side-record text-left transition hover:border-stone-400/35"
+                      >
+                        <p className="text-xs tracking-[0.25em] text-stone-300/55 uppercase">
+                          World Standing Expressions
+                        </p>
+                        <div className="mt-3 grid grid-cols-4 gap-2">
+                          {worldStandings.slice(0, 4).map((image) => (
+                            <div
+                              key={image.id}
+                              className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                              <img
+                                src={image.url}
+                                alt="스탠딩 이미지"
+                                className="h-full w-full object-cover"
+                                style={thumbnailStyle(image)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                        <p className="mt-3 text-sm text-emerald-50/75">
+                          세계관 스탠딩 표정 {worldStandings.length}장 보기
+                        </p>
+                      </button>
+                    )}
+                    <div className="space-y-3">
+                      {entry.works.map((work, index) => (
+                        <button
+                          key={`${work.title}-${work.date}-${index}`}
+                          type="button"
+                          onClick={() => onOpenReader({ character, work })}
+                          className="case-setting-note text-left hover:border-stone-400/35"
+                        >
+                          <p className="text-xs text-emerald-100/45">
+                            {work.kind} / {work.date}
+                          </p>
+                          <h5 className="mt-2 text-lg font-semibold">{work.title}</h5>
+                          {(work.images?.length ?? 0) > 0 && (
+                            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+                              {work.images?.slice(0, 5).map((image) => (
+                                <div
+                                  key={image.id}
+                                  className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                                  <img
+                                    src={image.url}
+                                    alt="첨부 이미지"
+                                    className="h-full w-full object-cover opacity-90"
+                                    style={thumbnailStyle(image)}
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <p className="mt-2 line-clamp-2 text-sm leading-7 text-emerald-50/70">
+                            {work.body}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </article>
+        );
+      })}
+      {activeWorldParticipants.length === 0 && (
+        <p className="archive-panel p-5 text-sm text-emerald-100/60">
+          이 세계관에 연결된 자캐 자료가 아직 없어요.
+        </p>
+      )}
+    </>
+  ) : null;
+
   return (
     <section className={cn("world-archive-section space-y-5", className)}>
       <section className="glass-card p-6 md:p-8">
@@ -76,8 +234,11 @@ export function WorldsSection({
         <p className="mt-3 max-w-2xl text-sm leading-7 text-emerald-100/65">
           어떤 세계가 있는지는 볼 수 있지만, 세계관 기록은 비밀번호를 입력해야 열립니다.
         </p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {worlds.map((world) => (
+        <ArchiveMotion
+          variant="stagger"
+          motionKey="world-list"
+          className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        >          {worlds.map((world) => (
             <button
               key={world.id}
               type="button"
@@ -98,7 +259,7 @@ export function WorldsSection({
               )}
             </button>
           ))}
-        </div>
+        </ArchiveMotion>
         {worlds.length === 0 && (
           <p className="archive-panel mt-6 p-5 text-sm text-emerald-100/60">
             아직 등록된 세계관이 없어요.
@@ -153,171 +314,7 @@ export function WorldsSection({
               </div>
             </form>
           ) : (
-            <div className="world-participant-list mt-6 grid gap-5">
-              {activeWorldParticipants.map(({ character, entry }) => {
-                const worldIllustrations = entry.images.filter(
-                  (image) => image.category !== "standing",
-                );
-                const worldStandings = entry.images.filter(
-                  (image) => image.category === "standing",
-                );
-                const worldMainIllustration = worldIllustrations[0] ?? entry.images[0];
-
-                return (
-                  <article
-                    key={`${activeWorld.id}-${character.id}`}
-                    className="world-participant-entry"
-                  >
-                    <section className="case-setting-note">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <p className="archive-kicker">
-                            {character.id}
-                          </p>
-                          <h4 className="mt-2 text-2xl font-semibold">{character.name}</h4>
-                          <p className="mt-1 text-sm text-emerald-100/60">{character.subtitle}</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => onViewParticipant(character.id, entry.worldId)}
-                          className="archive-submit-button px-4 py-2 text-sm"
-                        >
-                          자캐 상세로 보기
-                        </button>
-                      </div>
-
-                      <div className="mt-7">
-                        <div className="grid items-start gap-4 xl:grid-cols-[0.9fr_1fr]">
-                          <div className="space-y-3">
-                            {entry.settings.length > 0 ? (
-                              entry.settings.map((setting) => (
-                                <p
-                                  key={setting}
-                                  className="border border-stone-400/20 bg-black/35 p-4 text-sm leading-8 text-emerald-50/75"
-                                >
-                                  {setting}
-                                </p>
-                              ))
-                            ) : (
-                              <p className="case-empty-note">
-                                등록된 세계관 설정이 없어요.
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="space-y-4">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                worldMainIllustration &&
-                                onOpenGallery({ image: worldMainIllustration, character })
-                              }
-                              className="gallery-tile group block w-full text-left"
-                              disabled={!worldMainIllustration}
-                            >
-                              <div className="relative h-96 overflow-hidden md:h-[520px]">
-                                {worldMainIllustration ? (
-                                  /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
-                                  <img
-                                    src={worldMainIllustration.url}
-                                    alt={`${character.name} ${activeWorld.title} 일러스트`}
-                                    className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
-                                    style={thumbnailStyle(worldMainIllustration)}
-                                  />
-                                ) : (
-                                  <div
-                                    className="character-palette-surface h-full w-full"
-                                    style={characterPaletteStyle(character.palette)}
-                                  />
-                                )}
-                                {worldMainIllustration && imageCreditName(worldMainIllustration) && (
-                                  <span className="image-credit-label image-credit-label-large">
-                                    {imageCreditName(worldMainIllustration)}
-                                  </span>
-                                )}
-                              </div>
-                              <p className="truncate p-3 text-xs text-emerald-50">세계관 일러스트</p>
-                            </button>
-
-                            {worldStandings.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => onOpenExpression({ character, images: worldStandings })}
-                                className="case-side-record text-left transition hover:border-stone-400/35"
-                              >
-                                <p className="text-xs tracking-[0.25em] text-stone-300/55 uppercase">
-                                  World Standing Expressions
-                                </p>
-                                <div className="mt-3 grid grid-cols-4 gap-2">
-                                  {worldStandings.slice(0, 4).map((image) => (
-                                    <div
-                                      key={image.id}
-                                      className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
-                                    >
-                                      {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                      <img
-                                        src={image.url}
-                                        alt="스탠딩 이미지"
-                                        className="h-full w-full object-cover"
-                                        style={thumbnailStyle(image)}
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                                <p className="mt-3 text-sm text-emerald-50/75">
-                                  세계관 스탠딩 표정 {worldStandings.length}장 보기
-                                </p>
-                              </button>
-                            )}
-                            <div className="space-y-3">
-                              {entry.works.map((work, index) => (
-                                <button
-                                  key={`${work.title}-${work.date}-${index}`}
-                                  type="button"
-                                  onClick={() => onOpenReader({ character, work })}
-                                  className="case-setting-note text-left hover:border-stone-400/35"
-                                >
-                                  <p className="text-xs text-emerald-100/45">
-                                    {work.kind} / {work.date}
-                                  </p>
-                                  <h5 className="mt-2 text-lg font-semibold">{work.title}</h5>
-                                  {(work.images?.length ?? 0) > 0 && (
-                                    <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
-                                      {work.images?.slice(0, 5).map((image) => (
-                                        <div
-                                          key={image.id}
-                                          className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
-                                        >
-                                          {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                          <img
-                                            src={image.url}
-                                            alt="첨부 이미지"
-                                            className="h-full w-full object-cover opacity-90"
-                                            style={thumbnailStyle(image)}
-                                          />
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                  <p className="mt-2 line-clamp-2 text-sm leading-7 text-emerald-50/70">
-                                    {work.body}
-                                  </p>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                  </article>
-                );
-              })}
-              {activeWorldParticipants.length === 0 && (
-                <p className="archive-panel p-5 text-sm text-emerald-100/60">
-                  이 세계관에 연결된 자캐 자료가 아직 없어요.
-                </p>
-              )}
-            </div>
+            <div className="world-participant-list mt-6 grid gap-5">{participantListContent}</div>
           )}
         </section>
       )}

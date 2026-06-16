@@ -38,6 +38,39 @@ export type SettingSection = {
   body: string;
 };
 
+export type GlitchMarkdown = {
+  bold?: boolean;
+  italic?: boolean;
+};
+
+export type GlitchZoneStyle = {
+  textColor?: string;
+  markdown?: GlitchMarkdown;
+};
+
+export type GlitchScrambleMode = "referenceOnly" | "referenceWithBuiltin";
+
+export type GlitchErrorMessageSource = "auto" | "custom" | "none";
+
+export type GlitchZone = {
+  id: string;
+  start: number;
+  end: number;
+  original: string;
+  style?: GlitchZoneStyle;
+  errorMessage?: string;
+  errorMessageSource?: GlitchErrorMessageSource;
+};
+
+export type FieldGlitchConfig = {
+  wordPool: string;
+  scrambleMode?: GlitchScrambleMode;
+  builtinScramble?: boolean;
+  zones: GlitchZone[];
+  tickMs?: number;
+  defaultStyle?: GlitchZoneStyle;
+};
+
 export type Character = {
   id: string;
   name: string;
@@ -59,6 +92,9 @@ export type Character = {
   images?: UploadedImage[];
   works: Work[];
   worldEntries?: CharacterWorldEntry[];
+  textGlitch?: Record<string, FieldGlitchConfig>;
+  /** 캐릭터 상세 보기에서 재생할 BGM (`/audio/...`) */
+  bgmUrl?: string;
 };
 
 export type HomeContent = {
