@@ -1,0 +1,71 @@
+---
+description: Security guidelines to prevent common vulnerabilities. Use when writing or reviewing code that handles secrets, user input, authentication, API routes, file uploads, or external requests.
+alwaysApply: true
+---
+
+# Security guidelines
+
+Behavioral guidelines to prevent common security mistakes in a Next.js + Firebase + R2/S3 codebase. Apply on every change that touches secrets, auth, user input, or external I/O.
+
+**Tradeoff:** These guidelines bias toward safety over convenience. When in doubt, choose the more restrictive option and surface the tradeoff.
+
+## 1. Secrets Never Leak
+
+**Treat every secret as radioactive. Server-only, always.**
+
+- Never hardcode API keys, tokens, service accounts, or credentials. Use environment variables.
+- Never expose server secrets to the client. Only `NEXT_PUBLIC_*` variables are safe to reference in client code.
+- Never commit `.env*`, service account JSON, or credential files. Verify `.gitignore` before adding new secret files.
+- If a secret was ever committed, treat it as compromised. Rotate immediately.
+
+**Do not add server-side logging for security events** — logging to Firestore/DB is a cost burden in this project. Rely on validation and fail-closed behavior instead.
+
+Before merging: grep the diff for `key`, `secret`, `token`, `password`, `AKIA`, `sk_`, `Bearer ` — confirm no real values.
+
+## 2. Trust No Input
+
+**Validate, then use. Never the other way around.**
+
+For any value crossing a trust boundary (request body, query, params, headers, cookies, uploaded files, third-party responses):
+
+- Validate type, shape, length, and allowed values explicitly. Reject unknown fields.
+- Never interpolate user input into queries, paths, shell commands, HTML, or `dangerouslySetInnerHTML`.
+- For file uploads: validate MIME type, extension, and size on the server. Don't trust the client-reported type.
+- For redirects: only allow paths/origins from an explicit allowlist.
+
+Default stance: input is hostile until proven otherwise.
+
+## 3. Authorize Every Request
+
+**Authentication is not authorization. Check both, every time.**
+
+For every API route (`app/api/**`) and server action:
+
+- Verify the caller's identity (Firebase ID token, session) on the server. Don't trust client-sent user IDs.
+- Verify the caller has permission for the specific resource — not just that they're logged in.
+- Default to deny. Only allow what's explicitly permitted.
+- Apply the same checks to `firestore.rules` and storage rules — client-side checks are not enough.
+
+The test: if an attacker swaps the user ID, resource ID, or path, does the request still fail?
+
+## 4. Safe Defaults for External I/O
+
+**Network and storage calls are attack surface. Lock them down.**
+
+- R2/S3: never expose bucket credentials to the client. Generate presigned URLs server-side with the shortest viable expiry and the narrowest scope (specific key, specific method).
+- Outbound `fetch`: validate URLs against an allowlist when the target is user-influenced. Set timeouts. Don't forward request headers blindly.
+- CORS: don't use `*` for routes that return user data or accept mutations. List exact origins.
+- Cookies/sessions: set `HttpOnly`, `Secure`, `SameSite=Lax` (or stricter) for anything auth-related.
+
+## 5. Fail Closed
+
+**Errors must not leak internals. Deny on uncertainty.**
+
+- Return generic error messages to clients (`"Invalid request"`, `"Not found"`). Don't expose stack traces or DB errors.
+- Don't differentiate "user not found" vs "wrong password" in auth responses.
+- On unexpected errors, deny the action — don't proceed with partial state.
+- Do not persist security events to Firestore or any DB for audit purposes; cost outweighs benefit on this project.
+
+---
+
+**These guidelines are working if:** no secrets appear in client bundles, every API route has explicit auth + authz checks, and every user input is validated before use.
