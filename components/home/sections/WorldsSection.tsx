@@ -2,10 +2,13 @@
 
 import { type FormEvent, useMemo } from "react";
 import { cn } from "@/utils/cn";
+import { characterPaletteStyle } from "@/lib/character-palette";
 import { thumbnailStyle } from "@/lib/image-helpers";
 import { normalizeWorldEntries } from "@/utils/normalizers";
-import type { Character, CharacterWorldEntry, World } from "@/lib/types";
+import type { Character, CharacterWorldEntry, UploadedImage, World } from "@/lib/types";
 import type { ExpressionModalItem, GalleryModalItem, ReaderModalItem } from "@/types/home.types";
+
+const imageCreditName = (image: UploadedImage) => image.name?.trim() ?? "";
 
 interface WorldsSectionProps {
   worlds: World[];
@@ -212,7 +215,7 @@ export function WorldsSection({
                               className="gallery-tile group block w-full text-left"
                               disabled={!worldMainIllustration}
                             >
-                              <div className="h-96 overflow-hidden md:h-[520px]">
+                              <div className="relative h-96 overflow-hidden md:h-[520px]">
                                 {worldMainIllustration ? (
                                   /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
                                   <img
@@ -223,8 +226,14 @@ export function WorldsSection({
                                   />
                                 ) : (
                                   <div
-                                    className={`h-full w-full bg-gradient-to-r ${character.palette}`}
+                                    className="character-palette-surface h-full w-full"
+                                    style={characterPaletteStyle(character.palette)}
                                   />
+                                )}
+                                {worldMainIllustration && imageCreditName(worldMainIllustration) && (
+                                  <span className="image-credit-label image-credit-label-large">
+                                    {imageCreditName(worldMainIllustration)}
+                                  </span>
                                 )}
                               </div>
                               <p className="truncate p-3 text-xs text-emerald-50">세계관 일러스트</p>

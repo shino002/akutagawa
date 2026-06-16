@@ -90,7 +90,7 @@ export function SideMenu({
           <p className="archive-kicker">
             {archiveContent.eyebrow}
           </p>
-          <h1 className="archive-title mt-2 font-serif text-3xl">{archiveContent.title}</h1>
+          <h1 className="archive-title site-logo-title mt-2 text-3xl">{archiveContent.title}</h1>
           <p className="mt-2 text-xs leading-5 text-emerald-100/60">{archiveContent.body}</p>
         </div>
 

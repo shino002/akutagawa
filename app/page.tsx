@@ -31,13 +31,19 @@ import type { CharacterDetailTab } from "@/types/home.types";
 
 dayjs.locale("ko");
 
+const getInitialMenuOpen = () => {
+  if (typeof window === "undefined") return true;
+
+  return window.matchMedia("(min-width: 768px)").matches;
+};
+
 export default function Home() {
   const [activeSection, setActiveSection] = useState<SectionId>("home");
   const [activeCharacterId, setActiveCharacterId] = useState("");
   const [activeWorldId, setActiveWorldId] = useState("");
   const [activeCharacterWorldId, setActiveCharacterWorldId] = useState("");
   const [activeTab, setActiveTab] = useState<CharacterDetailTab>("settings");
-  const [menuOpen, setMenuOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(getInitialMenuOpen);
   const [authNotice, setAuthNotice] = useState("");
   const [guestDraft, setGuestDraft] = useState({ name: "", body: "" });
 

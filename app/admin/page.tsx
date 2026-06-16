@@ -6,6 +6,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } fr
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId } from "@/lib/auth-helpers";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import { characterPaletteStyle } from "@/lib/character-palette";
 import { clamp, thumbnailStyle } from "@/lib/image-helpers";
 import type { Character, CharacterWorldEntry, DiaryEntry, GuestbookEntry, HomeContent, UploadedImage, Work, World } from "@/lib/types";
 
@@ -45,6 +46,11 @@ type CharacterDraft = {
   relationshipsText: string;
 };
 
+type PaletteOption = {
+  label: string;
+  value: string;
+};
+
 type WorldDraft = {
   id: string;
   title: string;
@@ -55,7 +61,7 @@ type WorldDraft = {
 
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
-const paletteOptions = [
+const paletteOptions: PaletteOption[] = [
   { label: "꺼진 화면", value: "from-zinc-950 via-black to-zinc-900" },
   { label: "잿빛 흑백", value: "from-zinc-200 via-zinc-800 to-black" },
   { label: "낡은 필름", value: "from-stone-300 via-zinc-800 to-black" },
@@ -79,6 +85,103 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+}
+
+const rgbToHex = (red: number, green: number, blue: number) =>
+  `#${[red, green, blue].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+
+function createImagePaletteOptions(file: File): Promise<PaletteOption[]> {
+  return new Promise((resolve) => {
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      const sampleSize = 48;
+      const scale = Math.min(sampleSize / image.width, sampleSize / image.height, 1);
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+
+      if (!context) {
+        URL.revokeObjectURL(objectUrl);
+        resolve([]);
+        return;
+      }
+
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      const buckets = new Map<string, { count: number; red: number; green: number; blue: number }>();
+
+      for (let index = 0; index < pixels.length; index += 4) {
+        const alpha = pixels[index + 3];
+        if (alpha < 180) continue;
+
+        const red = pixels[index];
+        const green = pixels[index + 1];
+        const blue = pixels[index + 2];
+        const brightness = (red + green + blue) / 3;
+
+        if (brightness < 18 || brightness > 242) continue;
+
+        const key = `${Math.round(red / 32)}-${Math.round(green / 32)}-${Math.round(blue / 32)}`;
+        const bucket = buckets.get(key) ?? { count: 0, red: 0, green: 0, blue: 0 };
+        bucket.count += 1;
+        bucket.red += red;
+        bucket.green += green;
+        bucket.blue += blue;
+        buckets.set(key, bucket);
+      }
+
+      const colors = [...buckets.values()]
+        .sort((left, right) => right.count - left.count)
+        .slice(0, 5)
+        .map((bucket) => ({
+          red: Math.round(bucket.red / bucket.count),
+          green: Math.round(bucket.green / bucket.count),
+          blue: Math.round(bucket.blue / bucket.count),
+        }));
+
+      URL.revokeObjectURL(objectUrl);
+
+      if (colors.length === 0) {
+        resolve([]);
+        return;
+      }
+
+      const darkColor = colors.reduce((darkest, color) =>
+        color.red + color.green + color.blue < darkest.red + darkest.green + darkest.blue
+          ? color
+          : darkest,
+      );
+      const lightColor = colors.reduce((lightest, color) =>
+        color.red + color.green + color.blue > lightest.red + lightest.green + lightest.blue
+          ? color
+          : lightest,
+      );
+      const accentColor = colors[Math.min(1, colors.length - 1)];
+      const shadow = "#020208";
+      const gradients = [
+        `linear-gradient(90deg, ${rgbToHex(lightColor.red, lightColor.green, lightColor.blue)} 0%, ${rgbToHex(accentColor.red, accentColor.green, accentColor.blue)} 48%, ${shadow} 100%)`,
+        `linear-gradient(90deg, ${rgbToHex(accentColor.red, accentColor.green, accentColor.blue)} 0%, ${rgbToHex(darkColor.red, darkColor.green, darkColor.blue)} 54%, ${shadow} 100%)`,
+        `linear-gradient(135deg, ${rgbToHex(lightColor.red, lightColor.green, lightColor.blue)} 0%, ${rgbToHex(darkColor.red, darkColor.green, darkColor.blue)} 58%, ${shadow} 100%)`,
+      ];
+
+      resolve(
+        [...new Set(gradients)].map((value, index) => ({
+          label: `일러스트 기반 ${index + 1}`,
+          value,
+        })),
+      );
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve([]);
+    };
+
+    image.src = objectUrl;
+  });
 }
 
 function slugifyId(value: string) {
@@ -281,6 +384,7 @@ export default function AdminPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
+  const [illustrationPaletteOptions, setIllustrationPaletteOptions] = useState<PaletteOption[]>([]);
   const [thumbnailDrag, setThumbnailDrag] = useState<ThumbnailDragState | null>(null);
   const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
@@ -301,6 +405,14 @@ export default function AdminPage() {
     () => normalizeWorldEntries(activeCharacter?.worldEntries).find((entry) => entry.worldId === activeCharacterWorldId),
     [activeCharacter, activeCharacterWorldId],
   );
+  const resolvedPaletteOptions = useMemo(() => {
+    const options = [...paletteOptions, ...illustrationPaletteOptions];
+    const hasCurrentPalette = options.some((option) => option.value === draft.palette);
+
+    return hasCurrentPalette || !draft.palette
+      ? options
+      : [{ label: "저장된 사용자 팔레트", value: draft.palette }, ...options];
+  }, [draft.palette, illustrationPaletteOptions]);
 
   // Auth, 썸네일 드래그, Firestore 컬렉션 구독을 담당하는 효과들입니다.
   useEffect(() => {
@@ -943,7 +1055,7 @@ export default function AdminPage() {
     }
   }
 
-  function selectPendingImages(event: ChangeEvent<HTMLInputElement>) {
+  async function selectPendingImages(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     if (!files.length || !activeCharacter) return;
 
@@ -963,6 +1075,12 @@ export default function AdminPage() {
     if (!allowedFiles.length) {
       event.target.value = "";
       return;
+    }
+
+    const nextPaletteOptions = await createImagePaletteOptions(allowedFiles[0]);
+    if (nextPaletteOptions.length > 0) {
+      setIllustrationPaletteOptions(nextPaletteOptions);
+      setDraft((current) => ({ ...current, palette: nextPaletteOptions[0].value }));
     }
 
     setPendingUploads((current) => [
@@ -1846,11 +1964,14 @@ export default function AdminPage() {
                   <div className="grid gap-2">
                     <label className="text-sm text-emerald-100/75" htmlFor="admin-palette">색 분위기</label>
                     <select id="admin-palette" value={draft.palette} onChange={(event) => setDraft((current) => ({ ...current, palette: event.target.value }))} className="auth-input">
-                      {paletteOptions.map((option) => (
+                      {resolvedPaletteOptions.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
                       ))}
                     </select>
-                    <div className={`h-7 border border-emerald-100/10 bg-gradient-to-r ${draft.palette}`} />
+                    <div
+                      className="character-palette-surface h-7 border border-emerald-100/10"
+                      style={characterPaletteStyle(draft.palette)}
+                    />
                   </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-3">

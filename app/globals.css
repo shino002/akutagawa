@@ -1423,7 +1423,16 @@ select {
 
 .kanji-name {
   display: inline-block;
+  font-family: var(--font-shippori-mincho), "Shippori Mincho", "Yu Mincho", serif !important;
+  font-weight: 600;
   transform: translateY(0.04em);
+}
+
+.site-logo-title,
+.site-logo-title * {
+  font-family: var(--font-yuji-mai), "Yuji Mai", "Yu Mincho", serif !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.02em;
 }
 
 button,
@@ -2276,9 +2285,7 @@ main::after {
   outline-color: rgba(150, 145, 126, 0.3) !important;
 }
 
-.case-file-hero > [class*="bg-gradient"],
-.archive-character-card-image[class*="bg-gradient"],
-[class*="bg-gradient-to"] {
+:not(.character-palette-surface)[class*="bg-gradient-to"] {
   background:
     radial-gradient(circle at 50% 0%, rgba(210, 202, 175, 0.045), transparent 40%),
     linear-gradient(135deg, #111 0%, #050505 62%, #010101 100%) !important;
@@ -3377,4 +3384,15 @@ html body main .bgm-player p {
 
 html body main .character-index-blue-text {
   color: #f7f1dc !important;
+}
+
+html body main .image-credit-label {
+  border: 1px solid rgba(56, 189, 248, 0.46) !important;
+  background: rgba(7, 15, 32, 0.82) !important;
+  color: #f7f1dc !important;
+}
+
+html body main .character-palette-surface {
+  background: var(--character-palette-background) !important;
+  background-image: var(--character-palette-background) !important;
 }

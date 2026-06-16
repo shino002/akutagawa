@@ -66,7 +66,7 @@ export function HomeSection({
         <p className="archive-kicker">
           <TextGlitch text={homeContent.eyebrow} />
         </p>
-        <h2 className="archive-title mt-4 font-serif text-5xl md:text-7xl">
+        <h2 className="archive-title site-logo-title mt-4 text-3xl md:text-5xl">
           <TextGlitch text={homeContent.title} />
         </h2>
         <p className="mt-5 max-w-3xl border-l border-stone-400/25 bg-black/25 px-4 py-3 text-sm leading-8 whitespace-pre-line text-emerald-50/82 md:text-base">

@@ -3,6 +3,7 @@
 import { type FormEvent, useMemo } from "react";
 import { cn } from "@/utils/cn";
 import { thumbnailStyle } from "@/lib/image-helpers";
+import { characterPaletteStyle } from "@/lib/character-palette";
 import { emptyCharacter } from "@/constants/home";
 import { TextGlitch } from "@/components/TextGlitch";
 import { normalizeWorldEntries } from "@/utils/normalizers";
@@ -174,7 +175,8 @@ export function CharactersSection({
                   className={`archive-character-card text-left ${activeCharacterId === character.id ? "is-active" : ""}`}
                 >
                   <div
-                    className={`archive-character-card-image bg-gradient-to-br ${character.palette}`}
+                    className="archive-character-card-image character-palette-surface"
+                    style={characterPaletteStyle(character.palette)}
                   >
                     {cardImage && (
                       /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
@@ -213,7 +215,10 @@ export function CharactersSection({
       {activeCharacterId && (
       <section className="glass-card case-file-detail dossier-viewer overflow-hidden">
         <div className="case-file-hero" data-character-id={heroCharacterId}>
-          <div className={`absolute inset-0 bg-gradient-to-br ${activeCharacter.palette}`} />
+          <div
+            className="character-palette-surface absolute inset-0"
+            style={characterPaletteStyle(activeCharacter.palette)}
+          />
           {activeMainIllustration && (
             /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
             <img
@@ -343,11 +348,17 @@ export function CharactersSection({
                           style={thumbnailStyle(activeMainIllustration)}
                         />
                       ) : (
-                        <div
-                          className={`h-full w-full bg-gradient-to-r ${activeCharacter.palette}`}
-                        />
+                          <div
+                            className="character-palette-surface h-full w-full"
+                            style={characterPaletteStyle(activeCharacter.palette)}
+                          />
                       )}
                       <span className="case-evidence-stamp">VISUAL RECORD</span>
+                      {activeMainIllustration && imageCreditName(activeMainIllustration) && (
+                        <span className="image-credit-label image-credit-label-large">
+                          {imageCreditName(activeMainIllustration)}
+                        </span>
+                      )}
                     </div>
                   </button>
 
@@ -388,7 +399,7 @@ export function CharactersSection({
                   )}
 
                   <div className="case-side-record">
-                    <p className="text-xs text-emerald-100/45 uppercase">Relationship</p>
+                    <p className="text-xs text-emerald-100/45 uppercase">관계</p>
                     <ul className="mt-3 space-y-2 text-sm text-emerald-50/80">
                       {activeCharacter.relationships.length > 0 ? (
                         activeCharacter.relationships.map((relationship) => (
@@ -632,7 +643,8 @@ export function CharactersSection({
                                       />
                                     ) : (
                                       <div
-                                        className={`h-full w-full bg-gradient-to-r ${activeCharacter.palette}`}
+                                        className="character-palette-surface h-full w-full"
+                                        style={characterPaletteStyle(activeCharacter.palette)}
                                       />
                                     )}
                                     {activeWorldMainIllustration &&
