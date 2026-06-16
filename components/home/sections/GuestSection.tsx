@@ -3,6 +3,7 @@
 import { type FormEvent } from "react";
 import type { User } from "firebase/auth";
 import { cn } from "@/utils/cn";
+import { ArchiveMotion } from "@/components/home/ArchiveMotion";
 import type { GuestbookEntry } from "@/lib/types";
 
 type GuestDraft = {
@@ -28,13 +29,15 @@ export function GuestSection({
   className,
 }: GuestSectionProps) {
   return (
-    <section className={cn("glass-card p-6 md:p-8", className)}>
+    <ArchiveMotion
+      as="section"
+      variant="scan"
+      motionKey="guest"
+      className={cn("glass-card p-6 md:p-8", className)}
+    >
       <p className="archive-kicker">Visitor Log</p>
       <h3 className="archive-title mt-2 font-serif text-5xl">방명록</h3>
-      <form
-        onSubmit={onSubmit}
-        className="archive-panel mt-5 grid gap-3 p-4"
-      >
+      <form onSubmit={onSubmit} className="archive-panel mt-5 grid gap-3 p-4">
         <input
           value={guestDraft.name}
           onChange={(event) => onDraftChange({ ...guestDraft, name: event.target.value })}
@@ -61,12 +64,13 @@ export function GuestSection({
           남기기
         </button>
       </form>
-      <div className="mt-6 space-y-4">
+      <ArchiveMotion
+        variant="stagger"
+        motionKey={`guest-entries-${guestbook.length}`}
+        className="mt-6 space-y-4"
+      >
         {guestbook.map((guest, index) => (
-          <article
-            key={guest.id}
-            className="archive-panel p-5"
-          >
+          <article key={guest.id} className="archive-panel p-5">
             <p className="archive-kicker">
               No.{guestbook.length - index} {guest.name}
             </p>
@@ -83,7 +87,7 @@ export function GuestSection({
             아직 남겨진 방명록이 없어요.
           </p>
         )}
-      </div>
-    </section>
+      </ArchiveMotion>
+    </ArchiveMotion>
   );
 }

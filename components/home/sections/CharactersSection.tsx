@@ -383,6 +383,10 @@ export function CharactersSection({
           </div>
 
           <div className="case-tab-panel">
+            <ArchiveMotion
+              motionKey={`${activeCharacterId}-${activeTab}`}
+              variant="scan"
+            >
             {activeTab === "settings" && (
               <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
                 <section className="static-record-panel">
@@ -644,6 +648,10 @@ export function CharactersSection({
                         );
                       })}
                     </div>
+                    <ArchiveMotion
+                      motionKey={`${activeCharacterId}-${activeCharacterWorldEntry?.worldId ?? "none"}-${isActiveCharacterWorldUnlocked ? "open" : "locked"}`}
+                      variant="enter"
+                    >
                     {activeCharacterWorldEntry &&
                       (!isActiveCharacterWorldUnlocked ? (
                         <article className="case-side-record grid gap-4">
@@ -770,6 +778,7 @@ export function CharactersSection({
                           </div>
                         </article>
                       ))}
+                    </ArchiveMotion>
                   </>
                 ) : (
                   <p className="plain-empty-note">
@@ -778,6 +787,7 @@ export function CharactersSection({
                 )}
               </div>
             )}
+            </ArchiveMotion>
           </div>
         </div>
       </ArchiveMotion>

@@ -268,7 +268,12 @@ export function WorldsSection({
       </section>
 
       {activeWorld && (
-        <section className="glass-card p-6 md:p-8">
+        <ArchiveMotion
+          as="section"
+          motionKey={activeWorld.id}
+          variant="scan"
+          className="glass-card p-6 md:p-8"
+        >
           <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px] md:items-start">
             <div>
               <p className="archive-kicker">
@@ -314,9 +319,15 @@ export function WorldsSection({
               </div>
             </form>
           ) : (
-            <div className="world-participant-list mt-6 grid gap-5">{participantListContent}</div>
+            <ArchiveMotion
+              variant="stagger"
+              motionKey={`${activeWorld.id}-participants`}
+              className="world-participant-list mt-6 grid gap-5"
+            >
+              {participantListContent}
+            </ArchiveMotion>
           )}
-        </section>
+        </ArchiveMotion>
       )}
     </section>
   );

@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { cn } from "@/utils/cn";
+import { ArchiveMotion } from "@/components/home/ArchiveMotion";
 import { TextGlitch } from "@/components/TextGlitch";
 import type { Character, GuestbookEntry, HomeContent } from "@/lib/types";
 
@@ -62,7 +63,12 @@ export function HomeSection({
 
   return (
     <div className={cn("space-y-4", className)}>
-      <section className="glass-card p-5 md:p-7">
+      <ArchiveMotion
+        as="section"
+        variant="enter"
+        motionKey="home-intro"
+        className="glass-card p-5 md:p-7"
+      >
         <p className="archive-kicker">
           <TextGlitch text={homeContent.eyebrow} />
         </p>
@@ -72,14 +78,23 @@ export function HomeSection({
         <p className="mt-5 max-w-3xl border-l border-stone-400/25 bg-black/25 px-4 py-3 text-sm leading-8 whitespace-pre-line text-emerald-50/82 md:text-base">
           {homeContent.body}
         </p>
-      </section>
+      </ArchiveMotion>
 
-      <section className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <ArchiveMotion
+        as="section"
+        variant="stagger"
+        motionKey="home-boards"
+        className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]"
+      >
         <div className="glass-card p-5">
           <h3 className="board-title">
             <TextGlitch text="최근 갱신된 글" />
           </h3>
-          <div className="mt-4 space-y-2">
+          <ArchiveMotion
+            variant="stagger"
+            motionKey={`home-recent-${recentItems.length}`}
+            className="mt-4 space-y-2"
+          >
             {recentItems.slice(0, 6).map((item) => (
               <button
                 key={`${item.title}-${item.date}`}
@@ -100,14 +115,18 @@ export function HomeSection({
                 <TextGlitch className="text-xs text-emerald-100/60" text={item.date} />
               </button>
             ))}
-          </div>
+          </ArchiveMotion>
         </div>
 
         <div className="glass-card p-5">
           <h3 className="board-title">
             <TextGlitch text="OC Files" />
           </h3>
-          <div className="mt-4 grid gap-2">
+          <ArchiveMotion
+            variant="stagger"
+            motionKey={`home-oc-${characters.length}`}
+            className="mt-4 grid gap-2"
+          >
             {characters.map((character) => (
               <button
                 key={character.id}
@@ -122,9 +141,9 @@ export function HomeSection({
                 />
               </button>
             ))}
-          </div>
+          </ArchiveMotion>
         </div>
-      </section>
+      </ArchiveMotion>
     </div>
   );
 }

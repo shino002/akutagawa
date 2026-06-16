@@ -49,6 +49,36 @@ function hiddenStyle(variant: ArchiveMotionVariant): CSSProperties {
       };
 }
 
+function applyHiddenState(node: HTMLElement, variant: ArchiveMotionVariant) {
+  if (variant !== "stagger") {
+    Object.assign(node.style, hiddenStyle(variant));
+    return;
+  }
+
+  Array.from(node.children)
+    .filter((child): child is HTMLElement => child instanceof HTMLElement)
+    .forEach((child) => {
+      child.style.opacity = "0";
+      child.style.transform = `translate3d(0, ${MOTION_TIMING.stagger.offsetY}px, 0)`;
+    });
+}
+
+function applyVisibleState(node: HTMLElement, variant: ArchiveMotionVariant) {
+  if (variant !== "stagger") {
+    node.style.opacity = "1";
+    node.style.transform = "translate3d(0, 0, 0)";
+    node.style.clipPath = "";
+    return;
+  }
+
+  Array.from(node.children)
+    .filter((child): child is HTMLElement => child instanceof HTMLElement)
+    .forEach((child) => {
+      child.style.opacity = "1";
+      child.style.transform = "translate3d(0, 0, 0)";
+    });
+}
+
 function playEnterAnimation(node: HTMLElement, variant: ArchiveMotionVariant) {
   if (prefersReducedMotion()) return [];
 
@@ -127,74 +157,54 @@ export function ArchiveMotion<T extends ElementType = "div">({
   const Tag = (as ?? "div") as ElementType;
   const nodeRef = useRef<HTMLElement | null>(null);
   const motionToken = motionKey ?? "static";
-  const reduceMotion = prefersReducedMotion();
 
   useLayoutEffect(() => {
     const node = nodeRef.current;
     if (!node) return;
 
+    const reduceMotion = prefersReducedMotion();
+
     if (reduceMotion) {
-      node.removeAttribute("data-motion-pending");
+      applyVisibleState(node, variant);
       return;
     }
 
-    node.setAttribute("data-motion-pending", "true");
-
-    if (variant !== "stagger") {
-      Object.assign(node.style, hiddenStyle(variant));
-    } else {
-      Array.from(node.children)
-        .filter((child): child is HTMLElement => child instanceof HTMLElement)
-        .forEach((child) => {
-          child.style.opacity = "0";
-          child.style.transform = `translate3d(0, ${MOTION_TIMING.stagger.offsetY}px, 0)`;
-        });
-    }
+    applyHiddenState(node, variant);
 
     const animations = playEnterAnimation(node, variant);
 
     if (animations.length === 0) {
-      node.removeAttribute("data-motion-pending");
+      applyVisibleState(node, variant);
       return;
     }
 
+    let cancelled = false;
+
     void Promise.all(animations.map((animation) => animation.finished))
       .then(() => {
-        node.removeAttribute("data-motion-pending");
-        if (variant !== "stagger") {
-          node.style.opacity = "";
-          node.style.transform = "";
-          node.style.clipPath = "";
-        } else {
-          Array.from(node.children)
-            .filter((child): child is HTMLElement => child instanceof HTMLElement)
-            .forEach((child) => {
-              child.style.opacity = "";
-              child.style.transform = "";
-            });
-        }
+        if (cancelled) return;
+        applyVisibleState(node, variant);
       })
       .catch(() => {
-        node.removeAttribute("data-motion-pending");
+        if (cancelled) return;
+        applyVisibleState(node, variant);
       });
 
     return () => {
+      cancelled = true;
       animations.forEach((animation) => animation.cancel());
+      applyVisibleState(node, variant);
     };
-  }, [motionToken, reduceMotion, variant]);
+  }, [motionToken, variant]);
 
   return (
     <Tag
       ref={nodeRef as never}
-      data-motion-pending={reduceMotion ? undefined : "true"}
       className={cn(
         variant === "stagger" ? "archive-motion-stagger" : "archive-motion-host",
         className,
       )}
-      style={{
-        ...(reduceMotion || variant === "stagger" ? undefined : hiddenStyle(variant)),
-        ...style,
-      }}
+      style={style}
       {...rest}
     >
       {children}

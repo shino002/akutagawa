@@ -3441,24 +3441,6 @@ html body main .static-record-panel:hover {
 }
 
 /* OC / World interaction motion: WAAPI(ArchiveMotion) + 호버/클릭 피드백 */
-.archive-motion-host[data-motion-pending="true"],
-.archive-motion-stagger[data-motion-pending="true"] > * {
-  opacity: 0 !important;
-}
-
-.archive-motion-host[data-motion-pending="true"] {
-  transform: translate3d(0, 18px, 0) !important;
-}
-
-.archive-motion-stagger[data-motion-pending="true"] > * {
-  transform: translate3d(0, 16px, 0) !important;
-}
-
-.archive-motion-host,
-.archive-motion-stagger > * {
-  opacity: 1;
-}
-
 html body main .character-index-panel .archive-character-card,
 html body main .dossier-viewer .case-tab-button,
 html body main .dossier-viewer .case-side-record,
