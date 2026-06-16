@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 const GLITCH_CHARS = ["�", "█", "▓", "▒", "░", "?", "/", "\\", "#"];
-const EXCLUDED_SELECTOR = "script, style, textarea, input, select, option, [contenteditable='true'], [aria-hidden='true'], .auth-input, .bgm-player";
+const EXCLUDED_SELECTOR =
+  "script, style, textarea, input, select, option, [contenteditable='true'], [aria-hidden='true'], .auth-input, .bgm-player";
 const CORRUPTION_DURATION_MS = 500;
 const MIN_CORRUPTION_INTERVAL_MS = 4000;
 const MAX_CORRUPTION_INTERVAL_MS = 8000;
 const MAX_CORRUPTED_NODES = 5;
 
-// 화면에 보이는 텍스트 일부를 잠깐 깨뜨렸다가 되돌리는 전역 글리치 효과입니다.
 type CorruptedTextNode = {
   corruptedText: string;
   node: Text;
@@ -21,7 +21,7 @@ type WindowWithTextCorruptor = Window &
     __textCorruptorCleanup?: () => void;
   };
 
-function canCorruptTextNode(node: Text) {
+const canCorruptTextNode = (node: Text): boolean => {
   const parent = node.parentElement;
   if (!parent || parent.closest(EXCLUDED_SELECTOR)) return false;
 
@@ -29,17 +29,22 @@ function canCorruptTextNode(node: Text) {
   if (!text.trim() || text.trim().length < 2) return false;
 
   return true;
-}
+};
 
-function isTextNodeInViewport(node: Text) {
+const isTextNodeInViewport = (node: Text): boolean => {
   const parent = node.parentElement;
   if (!parent) return false;
 
   const rect = parent.getBoundingClientRect();
-  return rect.bottom > 0 && rect.right > 0 && rect.top < window.innerHeight && rect.left < window.innerWidth;
-}
+  return (
+    rect.bottom > 0 &&
+    rect.right > 0 &&
+    rect.top < window.innerHeight &&
+    rect.left < window.innerWidth
+  );
+};
 
-function pickRandomNodes(nodes: Text[], count: number) {
+const pickRandomNodes = (nodes: Text[], count: number): Text[] => {
   const selectedNodes: Text[] = [];
   const usedIndexes = new Set<number>();
 
@@ -53,13 +58,16 @@ function pickRandomNodes(nodes: Text[], count: number) {
   }
 
   return selectedNodes;
-}
+};
 
-function getNextCorruptionDelay() {
-  return MIN_CORRUPTION_INTERVAL_MS + Math.random() * (MAX_CORRUPTION_INTERVAL_MS - MIN_CORRUPTION_INTERVAL_MS);
-}
+const getNextCorruptionDelay = (): number => {
+  return (
+    MIN_CORRUPTION_INTERVAL_MS +
+    Math.random() * (MAX_CORRUPTION_INTERVAL_MS - MIN_CORRUPTION_INTERVAL_MS)
+  );
+};
 
-function corruptText(text: string) {
+const corruptText = (text: string): string => {
   const chars = Array.from(text);
   const visibleIndexes = chars
     .map((char, index) => ({ char, index }))
@@ -76,9 +84,17 @@ function corruptText(text: string) {
   }
 
   return chars.join("");
+};
+
+interface TextCorruptorProviderProps {
+  children: ReactNode;
 }
 
-export default function TextCorruptor() {
+/**
+ * 화면에 보이는 텍스트 일부를 잠깐 깨뜨렸다가 되돌리는 전역 글리치 효과를 적용합니다.
+ * 자식 트리를 그대로 렌더링하며, 페이지의 <main> 안 텍스트 노드를 주기적으로 변형합니다.
+ */
+export function TextCorruptorProvider({ children }: TextCorruptorProviderProps) {
   const corruptedNodesRef = useRef<CorruptedTextNode[]>([]);
   const isCorruptingRef = useRef(false);
   const nextRunTimeoutRef = useRef<number | null>(null);
@@ -94,7 +110,9 @@ export default function TextCorruptor() {
 
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
         acceptNode(node) {
-          return canCorruptTextNode(node as Text) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          return canCorruptTextNode(node as Text)
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT;
         },
       });
 
@@ -129,7 +147,9 @@ export default function TextCorruptor() {
         return;
       }
 
-      const nodes = textNodesRef.current.filter((node) => canCorruptTextNode(node) && isTextNodeInViewport(node));
+      const nodes = textNodesRef.current.filter(
+        (node) => canCorruptTextNode(node) && isTextNodeInViewport(node),
+      );
       if (nodes.length === 0) {
         scheduleNextCorruption();
         return;
@@ -198,5 +218,5 @@ export default function TextCorruptor() {
     return cleanup;
   }, []);
 
-  return null;
+  return <>{children}</>;
 }

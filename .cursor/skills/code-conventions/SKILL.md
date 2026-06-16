@@ -138,7 +138,83 @@ export function WorkCard({ work }: { work: Work }) { ... }
 - props가 여러 컴포넌트에서 공유되는 경우에만 `types/`로 분리한다.
 - 한 파일에 여러 컴포넌트가 있으면 각 컴포넌트 바로 위에 각자의 `*Props` interface를 둔다.
 
-## 4. 일반 컨벤션 (표준)
+## 4. 컴포넌트 위치 스타일은 외부에서 주입 (필수)
+
+**컴포넌트의 위치/배치 관련 클래스는 외부에서 `className` prop으로 주입한다. 내부에는 컴포넌트 고유의 모양/크기/색만 둔다.**
+
+이 규칙으로 같은 컴포넌트를 여러 위치에서 재사용할 수 있고, 호출하는 쪽이 레이아웃을 통제한다.
+
+### 외부에서 주입 (외부 제어)
+
+- 위치: `absolute`, `fixed`, `relative`, `sticky`, `top-*`, `left-*`, `right-*`, `bottom-*`, `inset-*`, `z-*`
+- 외부 여백: `m-*`, `mt-*`, `mb-*`, `ml-*`, `mr-*`, `mx-*`, `my-*`
+- 그리드/플렉스에서의 자기 배치: `col-span-*`, `row-span-*`, `justify-self-*`, `self-*`, `order-*`
+- 외부에서 결정되는 너비/높이: 컨테이너에 맞춘 `w-full`, `h-full`, `flex-1` 등 부모 컨텍스트에 의존하는 값
+
+### 내부에서 정의 (컴포넌트 책임)
+
+- 자기 자신의 패딩: `p-*`, `px-*`, `py-*`
+- 자기 자신의 크기 (절대값): `w-64`, `h-24` 등 컴포넌트 정체성과 직결되는 크기
+- 시각 스타일: `bg-*`, `text-*`, `border-*`, `rounded-*`, `shadow-*`, `font-*`
+- 내부 레이아웃: `flex`, `grid`, `gap-*`, `items-*`, `justify-*`
+
+### `cn` 유틸로 병합
+
+`utils/cn.ts`의 `cn()`은 `clsx` + `tailwind-merge` 기반 shadcn 스타일 유틸이다. 충돌하는 Tailwind 클래스를 뒤에 오는 클래스가 자연스럽게 덮어쓴다.
+
+```tsx
+import { cn } from "@/utils/cn";
+
+interface CardProps {
+  title: string;
+  className?: string;
+}
+
+export function Card({ title, className }: CardProps) {
+  return (
+    <article className={cn("rounded-2xl border border-emerald-100/10 bg-black/30 p-6", className)}>
+      <h3 className="text-xl font-semibold">{title}</h3>
+    </article>
+  );
+}
+```
+
+호출하는 쪽에서 위치 관련 클래스를 자유롭게 주입:
+
+```tsx
+<Card title="홈" className="absolute left-4 top-4" />
+<Card title="갤러리" className="mt-8 col-span-2" />
+```
+
+### 잘못된 예시
+
+```tsx
+// 1. 위치 관련 클래스가 내부에 박혀 있음 — 재사용 불가
+export function Card({ title }: CardProps) {
+  return (
+    <article className="absolute left-4 top-4 mt-8 rounded-2xl border p-6">
+      ...
+    </article>
+  );
+}
+
+// 2. className prop 자체가 없음 — 외부 제어 불가
+export function Card({ title }: { title: string }) {
+  return <article className="rounded-2xl border p-6">...</article>;
+}
+
+// 3. cn 없이 단순 문자열 합성 — Tailwind 충돌 시 우선순위가 깨짐
+export function Card({ title, className }: CardProps) {
+  return <article className={`rounded-2xl border p-6 ${className ?? ""}`}>...</article>;
+}
+```
+
+### 예외
+
+- **라우트의 최상위 페이지 컴포넌트** (`page.tsx`의 export default): 라우트가 전체 화면을 차지하므로 외부 className 주입 받지 않음.
+- **모달/오버레이 컴포넌트** 중 컴포넌트 자체가 위치(`fixed inset-0` 등)를 정의하는 경우: 그것이 컴포넌트의 본질이라면 내부에 두되, 그래도 추가 className은 받을 수 있게 한다.
+
+## 5. 일반 컨벤션 (표준)
 
 프로젝트 고유 규칙이 아닌 커뮤니티 기본값을 따른다. 대부분 ESLint와 Prettier가 자동으로 처리한다.
 
@@ -149,7 +225,7 @@ export function WorkCard({ work }: { work: Work }) { ... }
 - **`any` 금지** — `unknown`으로 받고 narrowing하거나 타입을 정의할 것. `@typescript-eslint/no-explicit-any`로 강제됨.
 - **import 순서**: 외부 패키지 → `@/` 별칭 → 상대 경로. Prettier/ESLint가 설정되어 있으면 자동 정렬.
 
-## 5. ESLint 강제
+## 6. ESLint 강제
 
 함수 스타일 규칙은 `eslint.config.mjs`에 다음과 같이 설정되어 있다:
 

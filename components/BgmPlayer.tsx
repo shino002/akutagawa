@@ -9,7 +9,26 @@ const BGM_PLAYLIST = [
   "/audio/fontaine-musicbox.mp3",
 ];
 const PROGRESS_INTERVAL_MS = 1000;
-const ERROR_TITLE_CHARS = ["E", "R", "O", "M", "S", "G", "0", "1", "@", "/", "\\", "_", "-", "#", "?", "!", ".", ":"];
+const ERROR_TITLE_CHARS = [
+  "E",
+  "R",
+  "O",
+  "M",
+  "S",
+  "G",
+  "0",
+  "1",
+  "@",
+  "/",
+  "\\",
+  "_",
+  "-",
+  "#",
+  "?",
+  "!",
+  ".",
+  ":",
+];
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds)) return "0:00";
@@ -21,12 +40,15 @@ function formatTime(seconds: number) {
 
 function createErrorTitle(trackIndex: number) {
   const length = 8 + Math.floor(Math.random() * 14);
-  const body = Array.from({ length }, () => ERROR_TITLE_CHARS[Math.floor(Math.random() * ERROR_TITLE_CHARS.length)]).join("");
+  const body = Array.from(
+    { length },
+    () => ERROR_TITLE_CHARS[Math.floor(Math.random() * ERROR_TITLE_CHARS.length)],
+  ).join("");
 
   return `@/${trackIndex + 1}_${body}`;
 }
 
-export default function BgmPlayer() {
+export function BgmPlayer() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressTimerRef = useRef<number | null>(null);
   const trackIndexRef = useRef(0);
@@ -173,7 +195,7 @@ export default function BgmPlayer() {
 
   return (
     <aside
-      className={`bgm-player relative w-full select-none rounded-2xl border border-red-600/70 px-3 pb-3 pt-2 text-emerald-50 shadow-[0_0_24px_rgba(0,0,0,0.9)] backdrop-blur-sm ${isCollapsed ? "is-collapsed" : ""}`}
+      className={`bgm-player relative w-full rounded-2xl border border-red-600/70 px-3 pt-2 pb-3 text-emerald-50 shadow-[0_0_24px_rgba(0,0,0,0.9)] backdrop-blur-sm select-none ${isCollapsed ? "is-collapsed" : ""}`}
       onClick={isCollapsed ? expandPlayer : undefined}
       aria-label={isCollapsed ? "BGM 플레이어 펼치기" : undefined}
     >
@@ -190,14 +212,16 @@ export default function BgmPlayer() {
           className="bgm-record-button grid shrink-0 place-items-center rounded-full"
           aria-label={isPlaying ? "BGM 일시정지" : "BGM 재생"}
         >
-          <span className={`bgm-record-disc grid place-items-center rounded-full ${isPlaying ? "is-playing" : ""}`}>
+          <span
+            className={`bgm-record-disc grid place-items-center rounded-full ${isPlaying ? "is-playing" : ""}`}
+          >
             <span className="bgm-record-hole" aria-hidden="true" />
           </span>
         </button>
 
         <div className="min-w-0 self-center">
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] uppercase tracking-[0.35em] text-red-200/70">BGM Player</p>
+            <p className="text-[10px] tracking-[0.35em] text-red-200/70 uppercase">BGM Player</p>
             <button
               type="button"
               onClick={collapsePlayer}
@@ -207,15 +231,26 @@ export default function BgmPlayer() {
               ×
             </button>
           </div>
-          <h2 className="mt-1 truncate text-sm font-semibold text-emerald-50">{displayTitle}</h2>
-          <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-red-100/55">{isPlaying ? "playing" : "paused"}</p>
+          {/* displayTitle은 Math.random 기반의 글리치 텍스트라서 서버와 클라이언트가 서로 다른 값을 만들어요.
+              의도된 비결정적 표현이므로 suppressHydrationWarning으로 미스매치 경고만 막습니다. */}
+          <h2
+            className="mt-1 truncate text-sm font-semibold text-emerald-50"
+            suppressHydrationWarning
+          >
+            {displayTitle}
+          </h2>
+          <p className="mt-2 text-[10px] tracking-[0.22em] text-red-100/55 uppercase">
+            {isPlaying ? "playing" : "paused"}
+          </p>
           {notice && <p className="mt-1 text-xs text-red-100/70">{notice}</p>}
         </div>
       </div>
 
       <div className="bgm-expanded-content mt-3 grid gap-2 border-t border-red-600/20 pt-2.5">
-        <label className="grid gap-1.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100/50">
-          <span>{formatTime((progress / 100) * duration)} / {formatTime(duration)}</span>
+        <label className="grid gap-1.5 text-[10px] tracking-[0.18em] text-emerald-100/50 uppercase">
+          <span>
+            {formatTime((progress / 100) * duration)} / {formatTime(duration)}
+          </span>
           <input
             type="range"
             min="0"
@@ -226,7 +261,7 @@ export default function BgmPlayer() {
             className="accent-red-700"
           />
         </label>
-        <label className="grid gap-1.5 text-[10px] uppercase tracking-[0.18em] text-emerald-100/50">
+        <label className="grid gap-1.5 text-[10px] tracking-[0.18em] text-emerald-100/50 uppercase">
           <span>Volume {Math.round(volume * 100)}%</span>
           <input
             type="range"

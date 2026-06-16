@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import ClickSound from "./components/ClickSound";
-import TextCorruptor from "./components/TextCorruptor";
+import { ClickSoundProvider } from "@/providers/ClickSoundProvider";
+import { TextCorruptorProvider } from "@/providers/TextCorruptorProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,14 +25,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="ko"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
-        <ClickSound />
-        <TextCorruptor />
-        {children}
+    <html lang="ko" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+      <body className="flex min-h-full flex-col" suppressHydrationWarning>
+        <ClickSoundProvider>
+          <TextCorruptorProvider>{children}</TextCorruptorProvider>
+        </ClickSoundProvider>
       </body>
     </html>
   );

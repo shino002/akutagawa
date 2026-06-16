@@ -1,18 +1,26 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 
 type WindowWithWebkitAudioContext = Window &
   typeof globalThis & {
     webkitAudioContext?: typeof AudioContext;
   };
 
-function isClickableElement(target: EventTarget | null) {
+const isClickableElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof Element)) return false;
   return Boolean(target.closest("button, a, label, input[type='button'], input[type='submit']"));
+};
+
+interface ClickSoundProviderProps {
+  children: ReactNode;
 }
 
-export default function ClickSound() {
+/**
+ * 클릭 가능한 요소를 누를 때마다 짧은 글리치 사운드를 재생합니다.
+ * 자식 트리를 그대로 렌더링하며, 전역 pointerdown 리스너만 추가합니다.
+ */
+export function ClickSoundProvider({ children }: ClickSoundProviderProps) {
   const audioContextRef = useRef<AudioContext | null>(null);
 
   useEffect(() => {
@@ -59,5 +67,5 @@ export default function ClickSound() {
     };
   }, []);
 
-  return null;
+  return <>{children}</>;
 }
