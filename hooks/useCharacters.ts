@@ -37,6 +37,7 @@ const start = () => {
           id: data.id || characterDoc.id,
           works: normalizeWorks(data.works),
           settings: Array.isArray(data.settings) ? data.settings : [],
+          settingSections: Array.isArray(data.settingSections) ? data.settingSections : [],
           relationships: Array.isArray(data.relationships) ? data.relationships : [],
           images: Array.isArray(data.images) ? data.images : [],
           worldEntries: normalizeWorldEntries(data.worldEntries),

@@ -8,7 +8,7 @@ import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { characterPaletteStyle } from "@/lib/character-palette";
 import { clamp, thumbnailStyle } from "@/lib/image-helpers";
-import type { Character, CharacterWorldEntry, DiaryEntry, GuestbookEntry, HomeContent, UploadedImage, Work, World } from "@/lib/types";
+import type { Character, CharacterWorldEntry, DiaryEntry, GuestbookEntry, HomeContent, SettingSection, UploadedImage, Work, World } from "@/lib/types";
 
 // 관리자 페이지에서만 쓰는 업로드 대기/폼 입력 타입입니다.
 type PendingUpload = {
@@ -43,6 +43,7 @@ type CharacterDraft = {
   role: string;
   keyword: string;
   settingsText: string;
+  settingSections: SettingSection[];
   relationshipsText: string;
 };
 
@@ -200,6 +201,18 @@ function linesToList(value: string) {
     .filter(Boolean);
 }
 
+function normalizeSettingSections(sections: SettingSection[] | undefined): SettingSection[] {
+  return Array.isArray(sections)
+    ? sections
+        .map((section, index) => ({
+          id: section.id || `setting-section-${index}`,
+          title: section.title?.trim() ?? "",
+          body: section.body?.trim() ?? "",
+        }))
+        .filter((section) => section.title || section.body)
+    : [];
+}
+
 // Firestore 문서와 관리자 입력 폼 사이를 오가는 변환 함수들입니다.
 function createBlankDraft(): CharacterDraft {
   return {
@@ -216,6 +229,7 @@ function createBlankDraft(): CharacterDraft {
     role: "",
     keyword: "",
     settingsText: "",
+    settingSections: [],
     relationshipsText: "",
   };
 }
@@ -235,6 +249,7 @@ function characterToDraft(character: Character): CharacterDraft {
     role: character.profile.role,
     keyword: character.profile.keyword,
     settingsText: character.settings.join("\n"),
+    settingSections: normalizeSettingSections(character.settingSections),
     relationshipsText: character.relationships.join("\n"),
   };
 }
@@ -264,6 +279,7 @@ function draftToCharacter(
       keyword: draft.keyword.trim(),
     },
     settings: linesToList(draft.settingsText),
+    settingSections: normalizeSettingSections(draft.settingSections),
     relationships: linesToList(draft.relationshipsText),
     images: currentImages,
     works: currentWorks,
@@ -446,6 +462,7 @@ export default function AdminPage() {
             classification: data.classification ?? "",
             works: normalizeWorks(data.works),
             settings: Array.isArray(data.settings) ? data.settings : [],
+            settingSections: normalizeSettingSections(data.settingSections),
             relationships: Array.isArray(data.relationships) ? data.relationships : [],
             images: Array.isArray(data.images) ? data.images : [],
             worldEntries: normalizeWorldEntries(data.worldEntries),
@@ -810,6 +827,36 @@ export default function AdminPage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function addSettingSection() {
+    setDraft((current) => ({
+      ...current,
+      settingSections: [
+        ...current.settingSections,
+        {
+          id: crypto.randomUUID(),
+          title: "",
+          body: "",
+        },
+      ],
+    }));
+  }
+
+  function updateSettingSection(id: string, updates: Partial<Pick<SettingSection, "title" | "body">>) {
+    setDraft((current) => ({
+      ...current,
+      settingSections: current.settingSections.map((section) =>
+        section.id === id ? { ...section, ...updates } : section,
+      ),
+    }));
+  }
+
+  function removeSettingSection(id: string) {
+    setDraft((current) => ({
+      ...current,
+      settingSections: current.settingSections.filter((section) => section.id !== id),
+    }));
   }
 
   async function saveHomeContent(event: FormEvent<HTMLFormElement>) {
@@ -2012,10 +2059,76 @@ export default function AdminPage() {
                   </label>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    상세 설정
-                    <textarea value={draft.settingsText} onChange={(event) => setDraft((current) => ({ ...current, settingsText: event.target.value }))} placeholder={"한 줄에 하나씩 입력"} className="auth-input min-h-32" />
-                  </label>
+                  <section className="grid gap-3 border border-emerald-100/10 bg-black/30 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-50">상세 설정 박스</p>
+                        <p className="mt-1 text-xs text-emerald-100/55">
+                          성격, 외형처럼 제목을 만들고 아래에 내용을 적어주세요.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={addSettingSection}
+                        className="shrink-0 border border-stone-400/35 px-3 py-2 text-xs text-stone-200"
+                      >
+                        항목 추가
+                      </button>
+                    </div>
+                    <div className="grid gap-3">
+                      {draft.settingSections.map((section, index) => (
+                        <article
+                          key={section.id}
+                          className="grid gap-2 border border-emerald-100/10 bg-black/35 p-3"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-xs tracking-[0.22em] text-emerald-100/45 uppercase">
+                              Box {String(index + 1).padStart(2, "0")}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => removeSettingSection(section.id)}
+                              className="text-xs text-stone-300/70"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                          <input
+                            value={section.title}
+                            onChange={(event) =>
+                              updateSettingSection(section.id, { title: event.target.value })
+                            }
+                            placeholder="예: 성격"
+                            className="auth-input"
+                          />
+                          <textarea
+                            value={section.body}
+                            onChange={(event) =>
+                              updateSettingSection(section.id, { body: event.target.value })
+                            }
+                            placeholder="이 박스 안에 들어갈 내용을 입력"
+                            className="auth-input min-h-24"
+                          />
+                        </article>
+                      ))}
+                      {draft.settingSections.length === 0 && (
+                        <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
+                          항목을 추가하면 공개 페이지 Record 탭에 박스로 표시됩니다.
+                        </p>
+                      )}
+                    </div>
+                    <label className="grid gap-2 text-xs text-emerald-100/55">
+                      기존 한 줄 상세 설정
+                      <textarea
+                        value={draft.settingsText}
+                        onChange={(event) =>
+                          setDraft((current) => ({ ...current, settingsText: event.target.value }))
+                        }
+                        placeholder="이전 방식 기록을 유지하고 싶을 때만 사용"
+                        className="auth-input min-h-20"
+                      />
+                    </label>
+                  </section>
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     관계
                     <textarea value={draft.relationshipsText} onChange={(event) => setDraft((current) => ({ ...current, relationshipsText: event.target.value }))} placeholder={"한 줄에 하나씩 입력"} className="auth-input min-h-32" />

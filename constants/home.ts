@@ -23,7 +23,7 @@ export const defaultArchiveContent: HomeContent = {
  */
 export const sections = [
   { id: "home", label: "Home" },
-  { id: "characters", label: "Character" },
+  { id: "characters", label: "OC" },
   { id: "worlds", label: "World" },
   { id: "diary", label: "Diary" },
   { id: "guest", label: "Guest" },
@@ -38,7 +38,7 @@ export type SectionId = (typeof sections)[number]["id"];
 export const emptyCharacter: Character = {
   id: "",
   name: "자캐 없음",
-  subtitle: "관리자 로그인 후 Character에서 자캐를 추가해주세요.",
+  subtitle: "관리자 로그인 후 OC에서 자캐를 추가해주세요.",
   quote: "아직 등록된 자캐가 없어요.",
   palette: "from-zinc-700 via-zinc-950 to-black",
   profile: {
@@ -48,6 +48,7 @@ export const emptyCharacter: Character = {
     keyword: "",
   },
   settings: [],
+  settingSections: [],
   relationships: [],
   images: [],
   works: [],

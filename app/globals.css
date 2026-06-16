@@ -3396,3 +3396,19 @@ html body main .character-palette-surface {
   background: var(--character-palette-background) !important;
   background-image: var(--character-palette-background) !important;
 }
+
+html body main .static-record-panel,
+html body main .static-record-panel:hover {
+  align-self: start;
+  display: block;
+  border-style: solid !important;
+  border-width: 1px !important;
+  border-color: rgba(111, 143, 215, 0.32) !important;
+  background: #070708 !important;
+  background-color: #070708 !important;
+  background-image: none !important;
+  outline-color: rgba(111, 143, 215, 0.24) !important;
+  padding: 1rem;
+  transform: none !important;
+}
+

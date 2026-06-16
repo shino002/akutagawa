@@ -16,9 +16,9 @@ import type {
 } from "@/types/home.types";
 
 const TAB_LABELS: Record<CharacterDetailTab, string> = {
-  settings: "기록",
-  images: "그림",
-  works: "연성",
+  settings: "Record",
+  images: "Visual",
+  works: "Works",
   worlds: "World",
 };
 
@@ -138,6 +138,7 @@ export function CharactersSection({
     (!activeCharacterWorldPassword || unlockedWorldIds[activeCharacterWorldEntry.worldId]),
   );
   const heroCharacterId = formatHeroCharacterId(activeCharacter.id);
+  const activeSettingSections = activeCharacter.settingSections ?? [];
 
   return (
     <section className={cn("space-y-6", className)}>
@@ -145,7 +146,7 @@ export function CharactersSection({
       <section className="glass-card character-index-panel p-6 md:p-8">
         <div className="character-index-header">
           <p className="character-index-blue-text text-xs tracking-[0.45em] uppercase">
-            <TextGlitch className="character-index-blue-text" text="Character Files" />
+            <TextGlitch className="character-index-blue-text" text="OC Files" />
           </p>
           <TextGlitch
             className="character-index-blue-text"
@@ -311,23 +312,32 @@ export function CharactersSection({
           <div className="case-tab-panel">
             {activeTab === "settings" && (
               <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                <div className="case-setting-list">
-                  {activeCharacter.settings.length > 0 ? (
-                    activeCharacter.settings.map((setting, index) => (
-                      <p
-                        key={setting}
-                        className="case-setting-note"
-                      >
-                        <span>RECORD {String(index + 1).padStart(2, "0")}</span>
-                        {setting}
+                <section className="static-record-panel">
+                  <p className="text-xs tracking-[0.25em] text-emerald-100/45 uppercase">
+                    Record Box
+                  </p>
+                  <div className="mt-3 grid gap-3">
+                    {activeSettingSections.length > 0 ? (
+                      activeSettingSections.map((section, index) => (
+                        <article key={section.id || `${section.title}-${index}`} className="static-record-panel">
+                          <span className="block text-xs tracking-[0.25em] text-emerald-100/45 uppercase mb-2">{section.title || `RECORD ${String(index + 1).padStart(2, "0")}`}</span>
+                          <p className="whitespace-pre-line text-sm leading-7 text-emerald-50/80">{section.body || "-"}</p>
+                        </article>
+                      ))
+                    ) : activeCharacter.settings.length > 0 ? (
+                      activeCharacter.settings.map((setting, index) => (
+                        <div key={setting} className="static-record-panel">
+                          <span className="block text-xs tracking-[0.25em] text-emerald-100/45 uppercase mb-2">RECORD {String(index + 1).padStart(2, "0")}</span>
+                          <p className="text-sm leading-7 text-emerald-50/80">{setting}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="plain-empty-note">
+                        등록된 상세 설정이 없어요.
                       </p>
-                    ))
-                  ) : (
-                    <p className="plain-empty-note">
-                      등록된 상세 설정이 없어요.
-                    </p>
-                  )}
-                </div>
+                    )}
+                  </div>
+                </section>
                 <div className="grid content-start gap-4">
                   <button
                     type="button"
@@ -398,7 +408,7 @@ export function CharactersSection({
                     </button>
                   )}
 
-                  <div className="case-side-record">
+                  <div className="static-record-panel">
                     <p className="text-xs text-emerald-100/45 uppercase">관계</p>
                     <ul className="mt-3 space-y-2 text-sm text-emerald-50/80">
                       {activeCharacter.relationships.length > 0 ? (

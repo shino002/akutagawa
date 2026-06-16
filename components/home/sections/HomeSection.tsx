@@ -105,7 +105,7 @@ export function HomeSection({
 
         <div className="glass-card p-5">
           <h3 className="board-title">
-            <TextGlitch text="Character Files" />
+            <TextGlitch text="OC Files" />
           </h3>
           <div className="mt-4 grid gap-2">
             {characters.map((character) => (

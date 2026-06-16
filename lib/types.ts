@@ -32,6 +32,12 @@ export type CharacterWorldEntry = {
   works: Work[];
 };
 
+export type SettingSection = {
+  id: string;
+  title: string;
+  body: string;
+};
+
 export type Character = {
   id: string;
   name: string;
@@ -48,6 +54,7 @@ export type Character = {
     keyword: string;
   };
   settings: string[];
+  settingSections?: SettingSection[];
   relationships: string[];
   images?: UploadedImage[];
   works: Work[];
