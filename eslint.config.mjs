@@ -8,6 +8,18 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Disable ESLint rules that conflict with Prettier formatting.
   prettier,
+  {
+    rules: {
+      // Components: function declaration. Non-components: arrow function.
+      "react/function-component-definition": [
+        "error",
+        {
+          namedComponents: "function-declaration",
+          unnamedComponents: "arrow-function",
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:

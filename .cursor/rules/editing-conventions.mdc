@@ -12,14 +12,36 @@ alwaysApply: true
   (Do NOT add narration comments like `// increment counter` that just restate the code.)
 - If you must change a comment's content, ensure its meaning is not lost.
 
-## 2. Preserve Korean Encoding
+## 2. JSDoc Block Comment Style
+
+When writing JSDoc comments (above types, interfaces, functions, etc.), **always use the multi-line form**, even for single-line content.
+
+**Good:**
+
+```ts
+/**
+ * User profile returned by the auth service.
+ */
+type UserProfile = { id: string; name: string };
+```
+
+**Bad:**
+
+```ts
+/** User profile returned by the auth service. */
+type UserProfile = { id: string; name: string };
+```
+
+This applies to all `/** ... */` comments. Regular `//` line comments are unaffected.
+
+## 3. Preserve Korean Encoding
 
 - When moving or editing code, comments, or strings, **never break Korean characters**. Always keep files in UTF-8.
 - After editing, verify no broken characters such as `?`, `��`, or `\uFFFD` were introduced.
 - Do NOT write files via PowerShell `>`, `Out-File`, or `echo` (they save as CP949 and corrupt Korean).
   Always use editing tools (Write / StrReplace) to create or modify files.
 
-## 3. Apply Formatting After Edits
+## 4. Apply Formatting After Edits
 
 After writing or modifying code, apply the following **only to the changed files**:
 
