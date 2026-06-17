@@ -1,23 +1,9 @@
 "use client";
 
-import { AdminInlineGlitchEditor } from "@/components/admin/AdminInlineGlitchEditor";
+import { AdminInlineGlitchEditor, type GlitchFieldBindings } from "@/components/admin/AdminInlineGlitchEditor";
 import type { CaseMetaField, FieldGlitchConfig } from "@/lib/types";
 import { createBlankMetaField, metaFieldGlitchPath } from "@/lib/meta-fields";
-import type {
-  KeyboardEvent,
-  MouseEvent,
-  SyntheticEvent,
-} from "react";
 import { AdminCollapsiblePanel } from "@/components/admin/AdminCollapsiblePanel";
-
-type GlitchFieldBindings = {
-  "data-glitch-field"?: string;
-  onFocus?: () => void;
-  onClick?: () => void;
-  onSelect?: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-  onKeyUp?: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-  onMouseUp?: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-};
 
 interface MetaFieldsEditorProps {
   fields: CaseMetaField[];

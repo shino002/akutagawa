@@ -806,7 +806,7 @@ export default function AdminPage() {
       setWorldGlitchFieldAnchorElement(null);
     };
 
-    const handlePointerDown = (event: PointerEvent) => {
+    const handlePointerDown = (event: globalThis.PointerEvent) => {
       if (isGlitchFloatToolbarTarget(event.target)) {
         document.documentElement.dataset.glitchToolbarActive = "true";
         return;
@@ -854,13 +854,13 @@ export default function AdminPage() {
       "data-glitch-field": path,
       onFocus: () => setActiveGlitchFieldPath(path),
       onClick: () => setActiveGlitchFieldPath(path),
-      onSelect: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
+      onSelect: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
-      onKeyUp: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
+      onKeyUp: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
-      onMouseUp: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
+      onMouseUp: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
     }),
@@ -873,13 +873,13 @@ export default function AdminPage() {
       "data-glitch-scope": "world",
       onFocus: () => setActiveWorldGlitchFieldPath(path),
       onClick: () => setActiveWorldGlitchFieldPath(path),
-      onSelect: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
+      onSelect: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
-      onKeyUp: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
+      onKeyUp: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
-      onMouseUp: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
+      onMouseUp: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
     }),

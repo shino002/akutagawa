@@ -1,12 +1,7 @@
 "use client";
 
-import type {
-  KeyboardEvent,
-  MouseEvent,
-  SyntheticEvent,
-} from "react";
 import { MetaFieldsEditor } from "@/components/admin/MetaFieldsEditor";
-import { AdminInlineGlitchEditor } from "@/components/admin/AdminInlineGlitchEditor";
+import { AdminInlineGlitchEditor, type GlitchFieldBindings } from "@/components/admin/AdminInlineGlitchEditor";
 import { SettingSectionOrderButtons } from "@/components/admin/SettingSectionOrderButtons";
 import { BgmQuickPicker } from "@/components/admin/BgmQuickPicker";
 import { ProfileFieldsEditor } from "@/components/admin/ProfileFieldsEditor";
@@ -44,16 +39,6 @@ import {
   listNavigableSubPages,
   resolveSubPage,
 } from "@/lib/sub-pages";
-
-
-type GlitchFieldBindings = {
-  "data-glitch-field"?: string;
-  onFocus?: () => void;
-  onClick?: () => void;
-  onSelect?: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  onKeyUp?: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  onMouseUp?: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-};
 
 interface SubPageEditorProps {
   subPages: CharacterSubPage[];
@@ -115,9 +100,9 @@ export function SubPageEditor({
     excludeCharacterId: parentCharacterId,
   });
 
-  const bindSubPageField = (fieldPath: string) => {
+  const bindSubPageField = (fieldPath: string): GlitchFieldBindings => {
     if (!activeSubPage) {
-      return {};
+      return { "data-glitch-field": fieldPath };
     }
 
     const path = subPageFieldGlitchPath(activeSubPage.id, fieldPath);

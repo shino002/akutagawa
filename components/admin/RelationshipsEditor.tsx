@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { AdminInlineGlitchEditor } from "@/components/admin/AdminInlineGlitchEditor";
+import { AdminInlineGlitchEditor, type GlitchFieldBindings } from "@/components/admin/AdminInlineGlitchEditor";
 import type { Character, FieldGlitchConfig, RelationshipEntry } from "@/lib/types";
 import {
   createBlankRelationshipEntry,
@@ -10,15 +10,6 @@ import {
   relationshipEntryNameGlitchPath,
 } from "@/lib/relationship-entries";
 import { listNavigableSubPages, type NavigableSubPageOption } from "@/lib/sub-pages";
-
-type GlitchFieldBindings = {
-  "data-glitch-field"?: string;
-  onFocus?: () => void;
-  onClick?: () => void;
-  onSelect?: (event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-  onKeyUp?: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-  onMouseUp?: (event: React.MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-};
 
 interface RelationshipsEditorProps {
   entries: RelationshipEntry[];

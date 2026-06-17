@@ -1,17 +1,8 @@
 "use client";
 
-import { AdminInlineGlitchEditor } from "@/components/admin/AdminInlineGlitchEditor";
+import { AdminInlineGlitchEditor, type GlitchFieldBindings } from "@/components/admin/AdminInlineGlitchEditor";
 import type { FieldGlitchConfig, ProfileField } from "@/lib/types";
 import { createProfileFieldId, profileFieldGlitchPath } from "@/lib/profile-fields";
-
-type GlitchFieldBindings = {
-  "data-glitch-field"?: string;
-  onFocus?: () => void;
-  onClick?: () => void;
-  onSelect?: (event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-  onKeyUp?: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-  onMouseUp?: (event: React.MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-};
 
 interface ProfileFieldsEditorProps {
   fields: ProfileField[];

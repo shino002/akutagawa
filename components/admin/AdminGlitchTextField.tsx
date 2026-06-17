@@ -1,20 +1,11 @@
 "use client";
 
-import type { KeyboardEvent, MouseEvent, SyntheticEvent } from "react";
+import type { GlitchFieldBindings } from "@/components/admin/AdminInlineGlitchEditor";
 import { GlitchedText } from "@/components/GlitchedText";
 import { StoryFormattedText } from "@/components/StoryFormattedText";
 import { glitchConfigSignature } from "@/lib/glitch-fields";
 import type { FieldGlitchConfig } from "@/lib/types";
 import { cn } from "@/utils/cn";
-
-type GlitchFieldBindings = {
-  "data-glitch-field": string;
-  onFocus?: () => void;
-  onClick?: () => void;
-  onSelect?: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  onKeyUp?: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-  onMouseUp?: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
-};
 
 interface AdminGlitchTextFieldProps {
   value: string;

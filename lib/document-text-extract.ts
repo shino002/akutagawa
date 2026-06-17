@@ -64,7 +64,8 @@ async function extractPdfText(file: File): Promise<string> {
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const content = await page.getTextContent();
-    const pageText = layoutPdfTextContent(content.items);
+    const textItems = content.items.flatMap((item) => ("transform" in item ? [item] : []));
+    const pageText = layoutPdfTextContent(textItems);
 
     if (pageText) {
       pageTexts.push(pageText);

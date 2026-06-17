@@ -6,9 +6,6 @@ import {
   useRef,
   useState,
   type ClipboardEvent,
-  type KeyboardEvent,
-  type MouseEvent,
-  type SyntheticEvent,
 } from "react";
 import {
   buildFormattedEditorHtml,
@@ -21,13 +18,13 @@ import { storyTextHasMarkup } from "@/lib/story-text";
 import type { FieldGlitchConfig } from "@/lib/types";
 import { cn } from "@/utils/cn";
 
-type GlitchFieldBindings = {
+export type GlitchFieldBindings = {
   "data-glitch-field": string;
   onFocus?: () => void;
   onClick?: () => void;
-  onSelect?: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-  onKeyUp?: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
-  onMouseUp?: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
+  onSelect?: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => void;
+  onKeyUp?: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => void;
+  onMouseUp?: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => void;
 };
 
 interface AdminInlineGlitchEditorProps {
@@ -180,9 +177,7 @@ export function AdminInlineGlitchEditor({
     }
 
     scheduleReadContentEditableSelection(editor, () => {
-      glitchBindings.onMouseUp?.({
-        currentTarget: editor,
-      } as MouseEvent<HTMLElement>);
+      glitchBindings.onMouseUp?.({ currentTarget: editor });
     });
   };
 
