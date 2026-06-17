@@ -8,6 +8,8 @@ import { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { normalizeCharacterKind } from "@/lib/character-kind";
 import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
 import { normalizeProfileFields } from "@/lib/profile-fields";
+import { normalizeRelationshipEntries } from "@/lib/relationship-entries";
+import { normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { normalizeSubPages } from "@/lib/sub-pages";
 import { normalizePairMemberIds } from "@/lib/pair-members";
 import { normalizeWorldEntries, normalizeWorks } from "@/utils/normalizers";
@@ -43,7 +45,8 @@ const start = () => {
           profile?: { age?: string; height?: string; role?: string; keyword?: string };
         };
         const resolvedBgmUrl = resolveCharacterBgmUrl(data.bgmUrl);
-        const { bgmUrl: _bgmUrl, profile: legacyProfile, ...rest } = data;
+        const normalizedDetailTheme = normalizeCaseFileDetailTheme(data.detailTheme);
+        const { bgmUrl: _bgmUrl, profile: legacyProfile, detailTheme: _detailTheme, ...rest } = data;
         return {
           ...rest,
           id: data.id || characterDoc.id,
@@ -53,12 +56,14 @@ const start = () => {
           settings: Array.isArray(data.settings) ? data.settings : [],
           settingSections: Array.isArray(data.settingSections) ? data.settingSections : [],
           relationships: Array.isArray(data.relationships) ? data.relationships : [],
+          relationshipEntries: normalizeRelationshipEntries(data.relationshipEntries, data.relationships),
           images: Array.isArray(data.images) ? data.images : [],
           worldEntries: normalizeWorldEntries(data.worldEntries),
           subPages: normalizeSubPages(data.subPages),
           pairMemberIds: normalizePairMemberIds(data.pairMemberIds),
           textGlitch: normalizeTextGlitch(data.textGlitch),
           ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : {}),
+          ...(normalizedDetailTheme ? { detailTheme: normalizedDetailTheme } : {}),
         };
       });
       emit({ data: nextData, error: null });

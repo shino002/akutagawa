@@ -2,12 +2,16 @@ import { GLITCH_TICK_PULSE_MS } from "@/lib/glitch-style";
 
 type GlitchPulseListener = () => void;
 
-let pulse = 0;
 let timerId: number | null = null;
 const listeners = new Set<GlitchPulseListener>();
+let pulseSnapshot = 0;
+
+function touchPulseSnapshot() {
+  pulseSnapshot = typeof window !== "undefined" ? Date.now() : 0;
+}
 
 function runPulse() {
-  pulse += 1;
+  touchPulseSnapshot();
   listeners.forEach((listener) => {
     listener();
   });
@@ -15,6 +19,10 @@ function runPulse() {
 
 export function subscribeGlitchPulse(listener: GlitchPulseListener) {
   listeners.add(listener);
+
+  if (pulseSnapshot === 0) {
+    touchPulseSnapshot();
+  }
 
   if (timerId === null && typeof window !== "undefined") {
     timerId = window.setInterval(runPulse, GLITCH_TICK_PULSE_MS);
@@ -30,8 +38,13 @@ export function subscribeGlitchPulse(listener: GlitchPulseListener) {
   };
 }
 
+/** 구독 틱마다 갱신되는 캐시 값. getSnapshot은 동일 틱 내 항상 같은 참조를 반환해야 합니다. */
 export function getGlitchPulseSnapshot() {
-  return pulse;
+  if (pulseSnapshot === 0) {
+    touchPulseSnapshot();
+  }
+
+  return pulseSnapshot;
 }
 
 export function getGlitchPulseServerSnapshot() {

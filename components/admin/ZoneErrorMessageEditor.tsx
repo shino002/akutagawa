@@ -133,7 +133,7 @@ export function ZoneErrorMessageEditor({
                   다시 뽑기
                 </AdminChoiceButton>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 {candidates.map((candidate, index) => (
                   <AdminChoiceButton
                     key={`${candidate}-${index}`}
@@ -144,12 +144,18 @@ export function ZoneErrorMessageEditor({
                         errorMessage: candidate,
                       })
                     }
-                    className="font-mono"
+                    className="admin-choice-btn-candidate max-w-full whitespace-normal break-all text-left font-mono"
+                    title={candidate}
                   >
                     {candidate}
                   </AdminChoiceButton>
                 ))}
               </div>
+              {candidates.length === 0 ? (
+                <p className="text-[11px] text-emerald-100/50">
+                  참조 단어를 입력하거나 「다시 뽑기」를 눌러주세요.
+                </p>
+              ) : null}
             </div>
           ) : (
             <label className="grid gap-1 text-[11px] text-emerald-100/70">

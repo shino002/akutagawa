@@ -33,7 +33,7 @@ import { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { filterCharactersByKind } from "@/lib/character-kind";
 import type { CharacterKind } from "@/lib/types";
 import type { ZoneLinkTarget } from "@/lib/types";
-import { findSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
+import { resolveSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
 import { characterSectionForId, type CharacterDetailSection } from "@/lib/zone-links";
 
 dayjs.locale("ko");
@@ -85,7 +85,7 @@ export default function Home() {
       : undefined;
   const activeSubPage =
     activeCharacterParent && activeSubPageId
-      ? findSubPage(activeCharacterParent, activeSubPageId)
+      ? resolveSubPage(activeCharacterParent, activeSubPageId, characters)
       : undefined;
   const activeCharacter =
     activeCharacterParent && activeSubPage
@@ -186,8 +186,11 @@ export default function Home() {
     navigateToArchiveCharacter(characterId);
   };
 
-  const navigateToLinkedCharacter = (characterId: string) => {
+  const navigateToLinkedCharacter = (characterId: string, subPageId?: string) => {
     navigateToArchiveCharacter(characterId, { pushStack: true, tab: "settings" });
+    if (subPageId) {
+      setActiveSubPageId(subPageId);
+    }
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }

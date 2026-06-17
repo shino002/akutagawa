@@ -3,7 +3,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { AdminChoiceButton } from "@/components/admin/AdminChoiceButton";
 import { filterCharactersByKind } from "@/lib/character-kind";
-import { normalizeSubPages } from "@/lib/sub-pages";
+import { listNavigableSubPages } from "@/lib/sub-pages";
 import type { Character, ZoneLinkTarget } from "@/lib/types";
 import {
   CHARACTER_DETAIL_SECTION_LABELS,
@@ -42,13 +42,7 @@ function buildDefaultDraft(
   };
 }
 
-function PickerField({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function PickerField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-1 text-[11px] text-sky-100/75" data-admin-interactive>
       <span>{label}</span>
@@ -80,7 +74,7 @@ export function ZoneLinkEditor({
   const selectedCharacter =
     sectionCharacters.find((character) => character.id === draftTarget.characterId) ??
     sectionCharacters[0];
-  const subPages = normalizeSubPages(selectedCharacter?.subPages);
+  const subPages = selectedCharacter ? listNavigableSubPages(selectedCharacter, allCharacters) : [];
   const hasLink = Boolean(target?.characterId);
 
   const publishTarget = (next: ZoneLinkTarget) => {
@@ -103,22 +97,24 @@ export function ZoneLinkEditor({
     );
   };
 
+  const mergeDraft = (current: ZoneLinkTarget, patch: Partial<ZoneLinkTarget>): ZoneLinkTarget => ({
+    section: patch.section ?? current.section,
+    characterId: patch.characterId ?? current.characterId,
+    ...(patch.subPageId !== undefined
+      ? patch.subPageId
+        ? { subPageId: patch.subPageId }
+        : {}
+      : current.subPageId
+        ? { subPageId: current.subPageId }
+        : {}),
+  });
+
   const updateDraft = (patch: Partial<ZoneLinkTarget>) => {
     setDraftTarget((current) => {
-      const next: ZoneLinkTarget = {
-        section: patch.section ?? current.section,
-        characterId: patch.characterId ?? current.characterId,
-        ...(patch.subPageId !== undefined
-          ? patch.subPageId
-            ? { subPageId: patch.subPageId }
-            : {}
-          : current.subPageId
-            ? { subPageId: current.subPageId }
-            : {}),
-      };
+      const next = mergeDraft(current, patch);
 
       if (immediateApply) {
-        publishTarget(next);
+        queueMicrotask(() => publishTarget(next));
       }
 
       return next;

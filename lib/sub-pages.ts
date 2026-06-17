@@ -1,8 +1,42 @@
-import type { Character, CharacterSubPage } from "@/lib/types";
+import type { Character, CharacterSubPage, SubPageSourceRef } from "@/lib/types";
+import { normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
 import { createDefaultProfileFields, normalizeProfileFields } from "@/lib/profile-fields";
 import { normalizeSettingSections } from "@/lib/setting-sections";
+import {
+  normalizeRelationshipEntries,
+  relationshipEntriesToLegacyLines,
+} from "@/lib/relationship-entries";
 import { normalizeWorks } from "@/utils/normalizers";
+
+export type SharedSubPageCatalogItem = {
+  characterId: string;
+  characterName: string;
+  subPageId: string;
+  title: string;
+};
+
+export type NavigableSubPageOption = {
+  id: string;
+  title: string;
+  kind: "owned" | "imported" | "shared";
+};
+
+function normalizeSubPageSourceRef(raw: unknown): SubPageSourceRef | undefined {
+  if (!raw || typeof raw !== "object") {
+    return undefined;
+  }
+
+  const source = raw as Partial<SubPageSourceRef>;
+  const characterId = typeof source.characterId === "string" ? source.characterId.trim() : "";
+  const subPageId = typeof source.subPageId === "string" ? source.subPageId.trim() : "";
+
+  if (!characterId || !subPageId) {
+    return undefined;
+  }
+
+  return { characterId, subPageId };
+}
 
 export function createSubPageId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -24,10 +58,36 @@ export function createBlankSubPage(title = ""): CharacterSubPage {
     profileFields: createDefaultProfileFields(),
     settingSections: [],
     relationships: [],
+    relationshipEntries: [],
+    images: [],
+    works: [],
+    textGlitch: {},
+    isShared: false,
+  };
+}
+
+export function createSharedSubPageRef(source: SubPageSourceRef): CharacterSubPage {
+  return {
+    id: createSubPageId(),
+    sharedFrom: source,
+    displayId: "",
+    title: "",
+    kanjiName: "",
+    subtitle: "",
+    quote: "",
+    palette: "from-zinc-950 via-black to-zinc-900",
+    profileFields: [],
+    settingSections: [],
+    relationships: [],
+    relationshipEntries: [],
     images: [],
     works: [],
     textGlitch: {},
   };
+}
+
+export function isSubPageReference(subPage: CharacterSubPage) {
+  return Boolean(subPage.sharedFrom?.characterId && subPage.sharedFrom?.subPageId);
 }
 
 export function normalizeSubPages(raw: unknown): CharacterSubPage[] {
@@ -46,6 +106,27 @@ export function normalizeSubPages(raw: unknown): CharacterSubPage[] {
       };
       if (typeof source.id !== "string" || !source.id.trim()) {
         return null;
+      }
+
+      const sharedFrom = normalizeSubPageSourceRef(source.sharedFrom);
+      if (sharedFrom) {
+        return {
+          id: source.id.trim(),
+          sharedFrom,
+          displayId: typeof source.displayId === "string" ? source.displayId.trim() : "",
+          title: "",
+          kanjiName: "",
+          subtitle: "",
+          quote: "",
+          palette: "from-zinc-950 via-black to-zinc-900",
+          profileFields: [],
+          settingSections: [],
+          relationships: [],
+          relationshipEntries: [],
+          images: [],
+          works: [],
+          textGlitch: {},
+        } satisfies CharacterSubPage;
       }
 
       const legacyProfile = source.profile;
@@ -69,9 +150,17 @@ export function normalizeSubPages(raw: unknown): CharacterSubPage[] {
         relationships: Array.isArray(source.relationships)
           ? source.relationships.filter((line): line is string => typeof line === "string")
           : [],
+        relationshipEntries: normalizeRelationshipEntries(
+          source.relationshipEntries,
+          source.relationships,
+        ),
         images: Array.isArray(source.images) ? source.images : [],
         works: normalizeWorks(source.works),
         textGlitch: normalizeTextGlitch(source.textGlitch),
+        isShared: source.isShared === true,
+        ...(normalizeCaseFileDetailTheme(source.detailTheme)
+          ? { detailTheme: normalizeCaseFileDetailTheme(source.detailTheme) }
+          : {}),
       };
 
       return next;
@@ -79,8 +168,149 @@ export function normalizeSubPages(raw: unknown): CharacterSubPage[] {
     .filter((entry): entry is CharacterSubPage => entry !== null);
 }
 
+export function compactSubPageForStorage(subPage: CharacterSubPage): CharacterSubPage {
+  if (!isSubPageReference(subPage)) {
+    return {
+      ...subPage,
+      isShared: subPage.isShared === true,
+    };
+  }
+
+  return {
+    id: subPage.id,
+    sharedFrom: subPage.sharedFrom,
+    displayId: subPage.displayId?.trim() ?? "",
+    title: "",
+    kanjiName: "",
+    subtitle: "",
+    quote: "",
+    palette: "from-zinc-950 via-black to-zinc-900",
+    profileFields: [],
+    settingSections: [],
+    relationships: [],
+    relationshipEntries: [],
+    images: [],
+    works: [],
+    textGlitch: {},
+  };
+}
+
 export function findSubPage(character: Character, subPageId: string) {
   return normalizeSubPages(character.subPages).find((subPage) => subPage.id === subPageId);
+}
+
+export function resolveOwnedSubPage(
+  character: Character,
+  subPageId: string,
+  allCharacters: Character[],
+  visited = new Set<string>(),
+): CharacterSubPage | undefined {
+  const visitKey = `${character.id}:${subPageId}`;
+  if (visited.has(visitKey)) {
+    return undefined;
+  }
+  visited.add(visitKey);
+
+  const entry = findSubPage(character, subPageId);
+  if (!entry || isSubPageReference(entry)) {
+    return undefined;
+  }
+
+  return entry;
+}
+
+export function resolveSubPage(
+  character: Character,
+  subPageId: string,
+  allCharacters: Character[],
+): CharacterSubPage | undefined {
+  const entry = findSubPage(character, subPageId);
+  if (!entry) {
+    return undefined;
+  }
+
+  if (!isSubPageReference(entry)) {
+    return entry;
+  }
+
+  const owner = allCharacters.find((candidate) => candidate.id === entry.sharedFrom!.characterId);
+  if (!owner) {
+    return undefined;
+  }
+
+  const source = resolveOwnedSubPage(owner, entry.sharedFrom!.subPageId, allCharacters);
+  if (!source?.isShared) {
+    return undefined;
+  }
+
+  return {
+    ...source,
+    id: entry.id,
+    displayId: entry.displayId?.trim() || source.displayId,
+    sharedFrom: entry.sharedFrom,
+    isShared: false,
+  };
+}
+
+export function collectSharedSubPageCatalog(
+  allCharacters: Character[],
+  options?: { excludeCharacterId?: string },
+): SharedSubPageCatalogItem[] {
+  const items: SharedSubPageCatalogItem[] = [];
+
+  for (const character of allCharacters) {
+    if (options?.excludeCharacterId && character.id === options.excludeCharacterId) {
+      continue;
+    }
+
+    for (const subPage of normalizeSubPages(character.subPages)) {
+      if (isSubPageReference(subPage) || !subPage.isShared) {
+        continue;
+      }
+
+      items.push({
+        characterId: character.id,
+        characterName: character.name || character.id,
+        subPageId: subPage.id,
+        title: subPage.title?.trim() || "제목 없음",
+      });
+    }
+  }
+
+  return items;
+}
+
+export function listNavigableSubPages(
+  character: Character,
+  allCharacters: Character[],
+): NavigableSubPageOption[] {
+  return normalizeSubPages(character.subPages).map((entry) => {
+    if (isSubPageReference(entry)) {
+      const resolved = resolveSubPage(character, entry.id, allCharacters);
+      return {
+        id: entry.id,
+        title: resolved?.title?.trim() ? `${resolved.title} (불러옴)` : "공용 페이지 (불러옴)",
+        kind: "imported" as const,
+      };
+    }
+
+    return {
+      id: entry.id,
+      title: entry.title?.trim() || "제목 없음",
+      kind: entry.isShared ? ("shared" as const) : ("owned" as const),
+    };
+  });
+}
+
+export function characterAlreadyImportsSharedSubPage(
+  character: Character,
+  source: SubPageSourceRef,
+) {
+  return normalizeSubPages(character.subPages).some(
+    (subPage) =>
+      subPage.sharedFrom?.characterId === source.characterId &&
+      subPage.sharedFrom?.subPageId === source.subPageId,
+  );
 }
 
 export function subPageToDisplayCharacter(parent: Character, subPage: CharacterSubPage): Character {
@@ -96,7 +326,8 @@ export function subPageToDisplayCharacter(parent: Character, subPage: CharacterS
     profileFields: subPage.profileFields,
     settings: [],
     settingSections: normalizeSettingSections(subPage.settingSections),
-    relationships: subPage.relationships ?? [],
+    relationships: relationshipEntriesToLegacyLines(subPage.relationshipEntries ?? []),
+    relationshipEntries: subPage.relationshipEntries,
     images: subPage.images ?? [],
     works: subPage.works ?? [],
     worldEntries: [],
@@ -110,11 +341,11 @@ export function upsertSubPage(subPages: CharacterSubPage[], nextSubPage: Charact
   const index = normalized.findIndex((subPage) => subPage.id === nextSubPage.id);
 
   if (index === -1) {
-    return [...normalized, nextSubPage];
+    return [...normalized, compactSubPageForStorage(nextSubPage)];
   }
 
   return normalized.map((subPage, subPageIndex) =>
-    subPageIndex === index ? nextSubPage : subPage,
+    subPageIndex === index ? compactSubPageForStorage(nextSubPage) : subPage,
   );
 }
 

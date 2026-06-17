@@ -2,6 +2,7 @@
 
 import type { GlitchZoneStyle } from "@/lib/types";
 import type { ZoneLinkTarget } from "@/lib/types";
+import { hasCombiningMarks, sanitizeErrorMessageText } from "@/lib/glitch-display";
 import { resolveGlitchZonePresentation } from "@/lib/glitch-style";
 import { cn } from "@/utils/cn";
 
@@ -14,9 +15,11 @@ interface GlitchZoneMarkProps {
   onLinkClick?: (target: ZoneLinkTarget) => void;
 }
 
-function decorationClassName(
-  decoration: { underline: boolean; linkUnderline: boolean; strikethrough: boolean },
-) {
+function decorationClassName(decoration: {
+  underline: boolean;
+  linkUnderline: boolean;
+  strikethrough: boolean;
+}) {
   return cn(
     decoration.underline && "glitch-zone-has-underline",
     decoration.linkUnderline && "glitch-zone-has-link-underline",
@@ -26,18 +29,21 @@ function decorationClassName(
 
 export function GlitchZoneMark({
   text,
-  original,
   zoneStyle,
   className,
   linkTarget,
   onLinkClick,
+  original,
 }: GlitchZoneMarkProps) {
+  const displayText = sanitizeErrorMessageText(text);
+  const isChaos = hasCombiningMarks(displayText);
   const isLink = Boolean(linkTarget && onLinkClick);
   const { inlineStyle, decoration } = resolveGlitchZonePresentation(zoneStyle, {
     linkUnderline: isLink,
   });
   const markClassName = cn(
     "glitch-zone-mark",
+    isChaos && "glitch-zone-chaos",
     decorationClassName(decoration),
     className,
   );
@@ -54,15 +60,21 @@ export function GlitchZoneMark({
         )}
         style={inlineStyle}
         title={`이동: ${original}`}
+        data-text-corruptor-ignore
       >
-        {text}
+        {displayText}
       </button>
     );
   }
 
   return (
-    <span className={markClassName} style={inlineStyle} title={`원문: ${original}`}>
-      {text}
+    <span
+      className={markClassName}
+      style={inlineStyle}
+      title={`원문: ${original}`}
+      data-text-corruptor-ignore
+    >
+      {displayText}
     </span>
   );
 }

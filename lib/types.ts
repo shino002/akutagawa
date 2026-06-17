@@ -39,6 +39,25 @@ export type SettingSection = {
   body: string;
 };
 
+export type RelationshipEntry = {
+  id: string;
+  /** 관계 대상 이름 */
+  name: string;
+  /** 관계 유형 (형제, 라이벌, 연인 등) */
+  label: string;
+  /** 관계 설명 */
+  body: string;
+  /** 연결된 캐릭터 ID (클릭 시 해당 상세로 이동) */
+  linkedCharacterId?: string;
+  /** 연결된 상세 페이지 ID (`linkedCharacterId`가 있으면 그 캐릭터의 하위 페이지, 없으면 현재 캐릭터의 하위 페이지) */
+  linkedSubPageId?: string;
+};
+
+export type SubPageSourceRef = {
+  characterId: string;
+  subPageId: string;
+};
+
 export type GlitchMarkdown = {
   bold?: boolean;
   italic?: boolean;
@@ -95,8 +114,24 @@ export type ProfileField = {
   value: string;
 };
 
+/** 상세 페이지 한 줄 소개·한마디 박스 색 (비우면 기본값) */
+export type CaseFileDetailTheme = {
+  introLabel?: string;
+  introText?: string;
+  introBackground?: string;
+  introBorder?: string;
+  voiceLabel?: string;
+  voiceText?: string;
+  voiceBackground?: string;
+  voiceBorder?: string;
+};
+
 export type CharacterSubPage = {
   id: string;
+  /** 다른 캐릭터의 공용 상세 페이지를 가리킬 때 */
+  sharedFrom?: SubPageSourceRef;
+  /** true면 다른 캐릭터가 이 상세 페이지를 불러올 수 있음 */
+  isShared?: boolean;
   /** 상세 페이지 카드/히어로에 쓰일 표시 ID */
   displayId?: string;
   title: string;
@@ -105,9 +140,11 @@ export type CharacterSubPage = {
   subtitle: string;
   quote: string;
   palette: string;
+  detailTheme?: CaseFileDetailTheme;
   profileFields: ProfileField[];
   settingSections?: SettingSection[];
   relationships?: string[];
+  relationshipEntries?: RelationshipEntry[];
   images?: UploadedImage[];
   works?: Work[];
   textGlitch?: Record<string, FieldGlitchConfig>;
@@ -137,10 +174,12 @@ export type Character = {
   subtitle: string;
   quote: string;
   palette: string;
+  detailTheme?: CaseFileDetailTheme;
   profileFields: ProfileField[];
   settings: string[];
   settingSections?: SettingSection[];
   relationships: string[];
+  relationshipEntries?: RelationshipEntry[];
   images?: UploadedImage[];
   works: Work[];
   worldEntries?: CharacterWorldEntry[];

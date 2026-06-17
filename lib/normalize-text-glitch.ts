@@ -4,8 +4,10 @@ import {
   normalizeErrorMessageSource,
   normalizeErrorDisplayMode,
   normalizeScrambleMode,
+  ensureZoneErrorAlternation,
 } from "@/lib/glitch-scramble-options";
 import { normalizeBuiltinTokens } from "@/lib/text-scramble";
+import { sanitizeErrorMessageText, sanitizePlainText } from "@/lib/glitch-display";
 import {
   clampGlitchTickMs,
   hasGlitchPresentation,
@@ -31,7 +33,8 @@ export function stripUndefinedDeep<T>(value: T): T {
 
 function normalizeZone(zone: GlitchZone, wordPool: string): GlitchZone {
   const style = normalizeGlitchZoneStyle(zone.style);
-  const errorMessage = typeof zone.errorMessage === "string" ? zone.errorMessage.trim() : "";
+  const errorMessage =
+    typeof zone.errorMessage === "string" ? sanitizeErrorMessageText(zone.errorMessage.trim()) : "";
   const explicitSource = normalizeErrorMessageSource(zone.errorMessageSource);
   const linkTarget = normalizeZoneLinkTarget(zone.linkTarget);
   const legacyLinkSubPageId =
@@ -39,8 +42,7 @@ function normalizeZone(zone: GlitchZone, wordPool: string): GlitchZone {
       ? zone.linkSubPageId.trim()
       : undefined;
   const errorMessageSource =
-    explicitSource ??
-    (errorMessage ? "custom" : hasGlitchPresentation(style) ? "none" : "auto");
+    explicitSource ?? (errorMessage ? "custom" : hasGlitchPresentation(style) ? "none" : "auto");
 
   const next: GlitchZone = {
     id: zone.id,
@@ -91,10 +93,16 @@ export function normalizeFieldGlitchConfig(config: unknown): FieldGlitchConfig |
   }
 
   const source = config as FieldGlitchConfig;
-  const wordPool = typeof source.wordPool === "string" ? source.wordPool.trim() : "";
-  const zones = Array.isArray(source.zones) ? source.zones.filter(isGlitchZone).map((zone) => normalizeZone(zone, wordPool)) : [];
+  const wordPool =
+    typeof source.wordPool === "string" ? sanitizePlainText(source.wordPool.trim()) : "";
+  const zones = Array.isArray(source.zones)
+    ? ensureZoneErrorAlternation(
+        source.zones.filter(isGlitchZone).map((zone) => normalizeZone(zone, wordPool)),
+        { wordPool, builtinScramble: source.builtinScramble !== false },
+      )
+    : [];
   const scrambleMode = wordPool
-    ? normalizeScrambleMode(source.scrambleMode) ?? "referenceWithBuiltin"
+    ? (normalizeScrambleMode(source.scrambleMode) ?? "referenceOnly")
     : undefined;
   const builtinScramble = source.builtinScramble !== false;
   const errorDisplayMode = normalizeErrorDisplayMode(source.errorDisplayMode);

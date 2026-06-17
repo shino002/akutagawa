@@ -1,4 +1,4 @@
-import type { SettingSection, ProfileField } from "@/lib/types";
+import type { SettingSection, ProfileField, RelationshipEntry, CaseFileDetailTheme } from "@/lib/types";
 import type { CharacterKind, FieldGlitchConfig, CharacterSubPage } from "@/lib/types";
 
 export type CharacterDraft = {
@@ -11,9 +11,10 @@ export type CharacterDraft = {
   subtitle: string;
   quote: string;
   palette: string;
+  detailTheme?: CaseFileDetailTheme;
   profileFields: ProfileField[];
   settingSections: SettingSection[];
-  relationshipsText: string;
+  relationshipEntries: RelationshipEntry[];
   textGlitch: Record<string, FieldGlitchConfig>;
   subPages: CharacterSubPage[];
   pairMemberIds: string[];

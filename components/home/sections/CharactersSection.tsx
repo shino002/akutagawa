@@ -5,17 +5,22 @@ import { Explora } from "next/font/google";
 import { cn } from "@/utils/cn";
 import { thumbnailStyle } from "@/lib/image-helpers";
 import { characterPaletteStyle } from "@/lib/character-palette";
+import { caseFileDetailThemeStyle } from "@/lib/case-file-theme";
 import { emptyCharacter } from "@/constants/home";
 import { TextGlitch } from "@/components/TextGlitch";
 import { GlitchedText } from "@/components/GlitchedText";
 import { glitchConfigSignature, settingSectionGlitchPath } from "@/lib/glitch-fields";
 import { profileFieldGlitchPath } from "@/lib/profile-fields";
+import {
+  normalizeRelationshipEntries,
+  relationshipEntryGlitchPath,
+} from "@/lib/relationship-entries";
 import { normalizeSettingSections } from "@/lib/setting-sections";
 import { ArchiveMotion } from "@/components/home/ArchiveMotion";
 import { normalizeWorldEntries } from "@/utils/normalizers";
 import type { Character, UploadedImage, World, ZoneLinkTarget } from "@/lib/types";
 import type { CharacterDetailSection } from "@/lib/zone-links";
-import { findSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
+import { findSubPage, listNavigableSubPages, resolveSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
 import {
   formatPairDisplayName,
   formatPairMemberLabel,
@@ -65,7 +70,7 @@ interface CharactersSectionProps {
   setActiveSubPageId?: (id: string) => void;
   parentCharacter?: Character;
   detailSection: CharacterDetailSection;
-  onNavigateToLinkedCharacter?: (characterId: string) => void;
+  onNavigateToLinkedCharacter?: (characterId: string, subPageId?: string) => void;
   onZoneLinkNavigate?: (target: ZoneLinkTarget) => void;
   onDetailNavigateBack?: () => boolean;
   hasDetailNavHistory?: boolean;
@@ -130,8 +135,10 @@ export function CharactersSection({
   );
   const activeSubPage = useMemo(
     () =>
-      activeSubPageId ? findSubPage(resolvedParentCharacter, activeSubPageId) : undefined,
-    [activeSubPageId, resolvedParentCharacter],
+      activeSubPageId
+        ? resolveSubPage(resolvedParentCharacter, activeSubPageId, allCharacters)
+        : undefined,
+    [activeSubPageId, allCharacters, resolvedParentCharacter],
   );
   const isPairView = isPairCharacter(resolvedParentCharacter);
   const linkedPairMembers = useMemo(
@@ -256,7 +263,34 @@ export function CharactersSection({
       ? activeSubPage.displayId?.trim() || activeSubPage.id
       : activeCharacter.id,
   );
+  const detailThemeStyle = useMemo(
+    () =>
+      caseFileDetailThemeStyle(
+        resolvedParentCharacter.detailTheme,
+        activeSubPage?.detailTheme,
+      ),
+    [activeSubPage?.detailTheme, resolvedParentCharacter.detailTheme],
+  );
   const activeSettingSections = normalizeSettingSections(activeCharacter.settingSections);
+  const activeRelationshipEntries = useMemo(
+    () =>
+      normalizeRelationshipEntries(activeCharacter.relationshipEntries, activeCharacter.relationships),
+    [activeCharacter.relationshipEntries, activeCharacter.relationships],
+  );
+  const linkedCharacterNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const character of allCharacters) {
+      map.set(character.id, character.name);
+    }
+    return map;
+  }, [allCharacters]);
+  const ownSubPageTitleById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const subPage of listNavigableSubPages(resolvedParentCharacter, allCharacters)) {
+      map.set(subPage.id, subPage.title);
+    }
+    return map;
+  }, [allCharacters, resolvedParentCharacter]);
 
   return (
     <section className={cn("space-y-6", className)}>
@@ -344,14 +378,13 @@ export function CharactersSection({
                         </span>
                       )}
                     </h4>
-                    <p className="archive-character-card-subtitle">
+                    <div className="archive-card-intro" data-text-corruptor-ignore>
                       <GlitchedText
                         text={cardSubtitle}
                         glitch={character.textGlitch?.subtitle}
-                        useCssGlitchFallback
                         className="block w-full"
                       />
-                    </p>
+                    </div>
                   </div>
                 </button>
               );
@@ -366,6 +399,7 @@ export function CharactersSection({
         as="section"
         motionKey={`${activeCharacterId}-${activeSubPageId || "main"}`}
         className="glass-card case-file-detail dossier-viewer overflow-hidden"
+        style={detailThemeStyle}
       >
         <div className="case-file-hero" data-character-id={heroCharacterId}>
           <div
@@ -382,17 +416,7 @@ export function CharactersSection({
             />
           )}
           <div className="case-file-hero-grid" />
-          <div
-            className="case-file-title-block"
-            style={{
-              position: "absolute",
-              zIndex: 8,
-              top: "auto",
-              right: "auto",
-              bottom: "0.65rem",
-              left: "1rem",
-            }}
-          >
+          <div className="case-file-title-block">
             <p className="case-file-kicker">
               <TextGlitch text="Private Archive / Case File" />
               {isPairView && !isSubPageView && (
@@ -424,14 +448,16 @@ export function CharactersSection({
                 </span>
               )}
             </h3>
-            <p className="case-file-subtitle">
-              <GlitchedText
-                text={activeCharacter.subtitle}
-                glitch={activeCharacter.textGlitch?.subtitle}
-                useCssGlitchFallback
-                {...zoneLinkProps}
-              />
-            </p>
+            <div className="case-file-intro">
+              <p className="case-file-intro-label">한 줄 소개</p>
+              <p className="case-file-intro-text" data-text-corruptor-ignore>
+                <GlitchedText
+                  text={activeCharacter.subtitle}
+                  glitch={activeCharacter.textGlitch?.subtitle}
+                  {...zoneLinkProps}
+                />
+              </p>
+            </div>
           </div>
           <button
             type="button"
@@ -503,15 +529,18 @@ export function CharactersSection({
             )}
           </div>
 
-          <blockquote className="case-file-quote">
-            “
-            <GlitchedText
-              text={activeCharacter.quote}
-              glitch={activeCharacter.textGlitch?.quote}
-              {...zoneLinkProps}
-            />
-            ”
-          </blockquote>
+          {activeCharacter.quote.trim() ? (
+            <figure className="case-file-voice">
+              <figcaption className="case-file-voice-label">한마디</figcaption>
+              <blockquote className="case-file-voice-text" data-text-corruptor-ignore>
+                <GlitchedText
+                  text={activeCharacter.quote}
+                  glitch={activeCharacter.textGlitch?.quote}
+                  {...zoneLinkProps}
+                />
+              </blockquote>
+            </figure>
+          ) : null}
 
           <dl className="case-profile-grid">
             {activeCharacter.profileFields.map((field) => (
@@ -548,7 +577,8 @@ export function CharactersSection({
               variant="scan"
             >
             {activeTab === "settings" && (
-              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+              <>
+              <div className="grid min-w-0 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
                 <section className="static-record-panel">
                   <p className="text-xs tracking-[0.25em] text-emerald-100/45 uppercase">
                     Record Box
@@ -651,27 +681,80 @@ export function CharactersSection({
                       </p>
                     </button>
                   )}
-
-                  <div className="static-record-panel">
-                    <p className="text-xs text-emerald-100/45 uppercase">관계</p>
-                    <ul className="mt-3 space-y-2 text-sm text-emerald-50/80">
-                      {activeCharacter.relationships.length > 0 ? (
-                        <li>
-                          <GlitchedText
-                            text={activeCharacter.relationships.join("\n")}
-                            glitch={activeCharacter.textGlitch?.relationships}
-                            preserveWhitespace
-                            className="whitespace-pre-line"
-                            {...zoneLinkProps}
-                          />
-                        </li>
-                      ) : (
-                        <li className="text-emerald-100/50">등록된 관계가 없어요.</li>
-                      )}
-                    </ul>
-                  </div>
                 </div>
               </div>
+
+              {activeRelationshipEntries.length > 0 && (
+                <section className="relationship-map-panel static-record-panel mt-4">
+                  <div className="flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                      <p className="text-xs tracking-[0.25em] text-emerald-100/45 uppercase">Relation Map</p>
+                      <p className="mt-1 text-sm text-emerald-50/70">관계 기록</p>
+                    </div>
+                    <p className="text-xs text-emerald-100/45">{activeRelationshipEntries.length} links</p>
+                  </div>
+                  <div className="relationship-map-grid mt-4">
+                    {activeRelationshipEntries.map((entry, index) => (
+                      <article key={entry.id} className="relationship-card">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] tracking-[0.22em] text-emerald-100/45 uppercase">
+                              LINK {String(index + 1).padStart(2, "0")}
+                            </p>
+                            <h3 className="mt-1 text-base font-semibold text-emerald-50">
+                              {entry.name || "이름 없음"}
+                            </h3>
+                          </div>
+                          {entry.label && (
+                            <span className="relationship-card-badge">{entry.label}</span>
+                          )}
+                        </div>
+                        {entry.body && (
+                          <p className="mt-3 whitespace-pre-line text-sm leading-7 text-emerald-50/80">
+                            <GlitchedText
+                              text={entry.body}
+                              glitch={activeCharacter.textGlitch?.[relationshipEntryGlitchPath(entry.id)]}
+                              preserveWhitespace
+                              {...zoneLinkProps}
+                            />
+                          </p>
+                        )}
+                        {entry.linkedCharacterId && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onNavigateToLinkedCharacter?.(
+                                entry.linkedCharacterId!,
+                                entry.linkedSubPageId,
+                              )
+                            }
+                            className="relationship-card-link"
+                          >
+                            {linkedCharacterNameById.get(entry.linkedCharacterId) || entry.linkedCharacterId}
+                            {entry.linkedSubPageId ? " 상세" : ""} 파일 보기
+                          </button>
+                        )}
+                        {!entry.linkedCharacterId && entry.linkedSubPageId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSubPageId?.(entry.linkedSubPageId!);
+                              setActiveTab("settings");
+                              if (typeof window !== "undefined") {
+                                window.scrollTo({ top: 0, behavior: "smooth" });
+                              }
+                            }}
+                            className="relationship-card-link"
+                          >
+                            {ownSubPageTitleById.get(entry.linkedSubPageId) || "하위 페이지"} 보기
+                          </button>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              )}
+              </>
             )}
 
             {activeTab === "images" && (

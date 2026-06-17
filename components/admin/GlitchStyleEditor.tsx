@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   DECORATION_THICKNESS_STEP_PX,
   DEFAULT_DECORATION_THICKNESS_PX,
   DEFAULT_GLITCH_TICK_MS,
+  clampGlitchTickMs,
   formatDecorationThicknessPx,
   GLITCH_STYLE_PRESETS,
   MAX_DECORATION_THICKNESS_PX,
@@ -250,24 +252,39 @@ export function GlitchStyleEditor({ style, onStyleChange, compact = false }: Gli
 interface GlitchTickEditorProps {
   tickMs: number;
   onTickMsChange: (tickMs: number) => void;
+  onTickMsCommit?: (tickMs: number) => void;
 }
 
-export function GlitchTickEditor({ tickMs, onTickMsChange }: GlitchTickEditorProps) {
-  const seconds = (tickMs / 1000).toFixed(1);
+export function GlitchTickEditor({ tickMs, onTickMsChange, onTickMsCommit }: GlitchTickEditorProps) {
+  const [draftTickMs, setDraftTickMs] = useState(tickMs);
+  const seconds = (draftTickMs / 1000).toFixed(1);
+
+  useEffect(() => {
+    setDraftTickMs(tickMs);
+  }, [tickMs]);
+
+  const commitTickMs = (value: number) => {
+    const clamped = clampGlitchTickMs(value);
+    setDraftTickMs(clamped);
+    onTickMsChange(clamped);
+    onTickMsCommit?.(clamped);
+  };
 
   return (
     <label className="mt-3 grid gap-2 border border-emerald-100/15 bg-black/25 p-3 text-xs text-emerald-100/70">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-medium text-emerald-100/85">오류 ↔ 원문 전환 간격</span>
-        <span className="font-mono text-emerald-50">{seconds}초</span>
+        <span className="min-w-[3.5rem] text-right font-mono text-emerald-50">{seconds}초</span>
       </div>
       <input
         type="range"
         min={MIN_GLITCH_TICK_MS}
         max={MAX_GLITCH_TICK_MS}
         step={50}
-        value={tickMs}
-        onChange={(event) => onTickMsChange(Number(event.target.value))}
+        value={draftTickMs}
+        onChange={(event) => setDraftTickMs(Number(event.target.value))}
+        onPointerUp={(event) => commitTickMs(Number(event.currentTarget.value))}
+        onTouchEnd={(event) => commitTickMs(Number(event.currentTarget.value))}
         className="w-full accent-emerald-300"
       />
       <p className="text-[11px] leading-5 text-emerald-100/50">

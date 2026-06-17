@@ -1,15 +1,32 @@
 "use client";
 
 import { ProfileFieldsEditor } from "@/components/admin/ProfileFieldsEditor";
-import type { CharacterSubPage, SettingSection } from "@/lib/types";
+import { RelationshipsEditor } from "@/components/admin/RelationshipsEditor";
+import { SubPageMediaEditor } from "@/components/admin/SubPageMediaEditor";
+import { CaseFileThemeEditor } from "@/components/admin/CaseFileThemeEditor";
+import type { Character, CharacterSubPage, SettingSection } from "@/lib/types";
 import { settingSectionGlitchPath, subPageFieldGlitchPath } from "@/lib/glitch-fields";
 import { profileFieldGlitchPath } from "@/lib/profile-fields";
-import { createBlankSubPage } from "@/lib/sub-pages";
+import { relationshipEntryGlitchPath } from "@/lib/relationship-entries";
+import {
+  characterAlreadyImportsSharedSubPage,
+  collectSharedSubPageCatalog,
+  createBlankSubPage,
+  createSharedSubPageRef,
+  isSubPageReference,
+  listNavigableSubPages,
+  resolveSubPage,
+} from "@/lib/sub-pages";
 
-interface SubPageEditorProps {  subPages: CharacterSubPage[];
+interface SubPageEditorProps {
+  subPages: CharacterSubPage[];
   activeSubPageId: string;
   onActiveSubPageChange: (subPageId: string) => void;
   onSubPagesChange: (subPages: CharacterSubPage[]) => void;
+  linkableCharacters?: Character[];
+  parentCharacterId?: string;
+  allCharacters?: Character[];
+  onNotice?: (message: string) => void;
 }
 
 function removeSubPage(subPages: CharacterSubPage[], subPageId: string) {
@@ -29,10 +46,31 @@ export function SubPageEditor({
   activeSubPageId,
   onActiveSubPageChange,
   onSubPagesChange,
+  linkableCharacters = [],
+  parentCharacterId = "",
+  allCharacters = [],
+  onNotice,
 }: SubPageEditorProps) {
   const activeSubPage =
     subPages.find((subPage) => subPage.id === activeSubPageId) ?? subPages[0] ?? null;
   const activeSettingSections = activeSubPage?.settingSections ?? [];
+  const isImportedSubPage = activeSubPage ? isSubPageReference(activeSubPage) : false;
+  const sharedCatalog = collectSharedSubPageCatalog(allCharacters, {
+    excludeCharacterId: parentCharacterId,
+  });
+
+  const getSubPageTabLabel = (subPage: CharacterSubPage) => {
+    if (isSubPageReference(subPage)) {
+      const resolved = resolveSubPage(
+        { id: parentCharacterId, subPages } as Character,
+        subPage.id,
+        allCharacters,
+      );
+      return resolved?.title?.trim() || "공용 페이지";
+    }
+
+    return subPage.title?.trim() || "제목 없음";
+  };
 
   const updateActiveSubPage = (patch: Partial<CharacterSubPage>) => {
     if (!activeSubPage) {
@@ -107,6 +145,25 @@ export function SubPageEditor({
     onActiveSubPageChange(nextSubPage.id);
   };
 
+  const importSharedSubPage = (characterId: string, sourceSubPageId: string) => {
+    const source = { characterId, subPageId: sourceSubPageId };
+    if (characterAlreadyImportsSharedSubPage({ id: parentCharacterId, subPages } as Character, source)) {
+      return;
+    }
+
+    const nextRef = createSharedSubPageRef(source);
+    onSubPagesChange([...subPages, nextRef]);
+    onActiveSubPageChange(nextRef.id);
+  };
+
+  const detachImportedSubPage = () => {
+    if (!activeSubPage || !isImportedSubPage) {
+      return;
+    }
+
+    deleteActiveSubPage();
+  };
+
   const deleteActiveSubPage = () => {
     if (!activeSubPage) {
       return;
@@ -133,7 +190,8 @@ export function SubPageEditor({
                 : "admin-tab-btn px-3 py-2 text-xs"
             }
           >
-            {subPage.title || "제목 없음"}
+            {getSubPageTabLabel(subPage)}
+            {subPage.sharedFrom ? " · 불러옴" : subPage.isShared ? " · 공용" : ""}
           </button>
         ))}
         </div>
@@ -156,8 +214,83 @@ export function SubPageEditor({
         </button>
       </div>
 
+      {sharedCatalog.length > 0 && (
+        <section className="grid gap-2 border border-emerald-100/15 bg-black/25 p-4">
+          <div>
+            <p className="text-sm font-semibold text-emerald-50">공용 상세 페이지 불러오기</p>
+            <p className="mt-1 text-xs text-emerald-100/55">
+              다른 캐릭터의 하위 전체가 아니라, 원본에서 「공용」으로 켠 상세 페이지 하나만 가져와 쓸 수 있어요.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sharedCatalog.map((item) => (
+              <button
+                key={`${item.characterId}-${item.subPageId}`}
+                type="button"
+                data-admin-interactive
+                onClick={() => importSharedSubPage(item.characterId, item.subPageId)}
+                className="border border-emerald-100/20 px-3 py-2 text-left text-xs text-emerald-100/80"
+              >
+                <span className="block font-semibold text-emerald-50">{item.title}</span>
+                <span className="mt-1 block text-emerald-100/45">
+                  {item.characterName} ({item.characterId})
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {activeSubPage ? (
         <div className="grid gap-3 border border-emerald-100/15 bg-black/25 p-4">
+          {isImportedSubPage ? (
+            <div className="border border-sky-300/20 bg-sky-950/20 p-3 text-sm leading-6 text-sky-100/75">
+              <p className="font-semibold text-sky-50">공용 상세 페이지 (불러온 항목)</p>
+              <p className="mt-1 text-xs text-sky-100/55">
+                원본: {activeSubPage.sharedFrom?.characterId} / {activeSubPage.sharedFrom?.subPageId}
+              </p>
+              <p className="mt-2 text-xs text-sky-100/55">
+                제목·설정·그림·글은 원본 캐릭터의 그 상세 페이지에서만 수정됩니다. 이 항목에서는 연결만 유지해요.
+              </p>
+              {(() => {
+                const resolved = resolveSubPage(
+                  { id: parentCharacterId, subPages } as Character,
+                  activeSubPage.id,
+                  allCharacters,
+                );
+                if (!resolved) return null;
+                const imageCount = resolved.images?.length ?? 0;
+                const workCount = resolved.works?.length ?? 0;
+                if (imageCount === 0 && workCount === 0) return null;
+                return (
+                  <p className="mt-2 text-xs text-sky-100/55">
+                    원본 내용: 그림 {imageCount}장 · 글 {workCount}개
+                  </p>
+                );
+              })()}
+              <button
+                type="button"
+                onClick={detachImportedSubPage}
+                className="mt-3 border border-stone-400/35 px-3 py-2 text-xs text-stone-200"
+              >
+                불러오기 해제
+              </button>
+            </div>
+          ) : (
+            <>
+          <label className="grid gap-1 text-sm text-emerald-100/75">
+            <span className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={Boolean(activeSubPage.isShared)}
+                onChange={(event) => updateActiveSubPage({ isShared: event.target.checked })}
+              />
+              이 상세 페이지를 공용으로 설정
+            </span>
+            <span className="text-xs text-emerald-100/50">
+              켜 두면 다른 캐릭터가 이 페이지만 불러와서 쓸 수 있어요. (다른 캐릭터 하위 전체가 공유되는 것은 아닙니다)
+            </span>
+          </label>
           <label className="grid gap-2 text-sm text-emerald-100/75">
             하위 페이지 제목
             <input
@@ -207,6 +340,13 @@ export function SubPageEditor({
               className="auth-input min-h-24"
             />
           </label>
+
+          {!isImportedSubPage ? (
+            <CaseFileThemeEditor
+              theme={activeSubPage.detailTheme}
+              onChange={(detailTheme) => updateActiveSubPage({ detailTheme })}
+            />
+          ) : null}
 
           <ProfileFieldsEditor
             fields={activeSubPage.profileFields}
@@ -278,23 +418,33 @@ export function SubPageEditor({
             )}
           </section>
 
-          <label className="grid gap-2 text-sm text-emerald-100/75">
-            관계
-            <textarea
-              value={(activeSubPage.relationships ?? []).join("\n")}
-              onChange={(event) =>
-                updateActiveSubPage({
-                  relationships: event.target.value
-                    .split("\n")
-                    .map((line) => line.trim())
-                    .filter(Boolean),
-                })
-              }
-              placeholder="한 줄에 하나씩 입력"
-              data-glitch-field={subPageFieldGlitchPath(activeSubPage.id, "relationships")}
-              className="auth-input min-h-24"
-            />
-          </label>
+          <RelationshipsEditor
+            entries={activeSubPage.relationshipEntries ?? []}
+            onEntriesChange={(relationshipEntries) =>
+              updateActiveSubPage({ relationshipEntries })
+            }
+            linkableCharacters={linkableCharacters}
+            currentCharacterId={parentCharacterId}
+            ownSubPages={listNavigableSubPages(
+              { id: parentCharacterId, subPages } as Character,
+              allCharacters,
+            )}
+            getGlitchPath={(entryId) =>
+              subPageFieldGlitchPath(activeSubPage.id, relationshipEntryGlitchPath(entryId))
+            }
+          />
+
+          <SubPageMediaEditor
+            parentCharacterId={parentCharacterId}
+            subPageId={activeSubPage.id}
+            images={activeSubPage.images ?? []}
+            works={activeSubPage.works ?? []}
+            onImagesChange={(nextImages) => updateActiveSubPage({ images: nextImages })}
+            onWorksChange={(nextWorks) => updateActiveSubPage({ works: nextWorks })}
+            onNotice={onNotice}
+          />
+            </>
+          )}
         </div>
       ) : (
         <div className="border border-emerald-100/15 bg-black/25 p-4 text-sm text-emerald-100/60">

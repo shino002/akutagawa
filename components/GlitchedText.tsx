@@ -11,9 +11,18 @@ import {
   subscribeGlitchPulse,
 } from "@/lib/glitch-ticker";
 import { buildZoneDisplayText, composeTextSegments } from "@/lib/text-scramble";
+import { sanitizePlainText } from "@/lib/glitch-display";
 import type { FieldGlitchConfig, ZoneLinkTarget } from "@/lib/types";
 import { cn } from "@/utils/cn";
 import { resolveZoneLink, type CharacterDetailSection } from "@/lib/zone-links";
+
+function noopGlitchPulseSubscribe() {
+  return () => {};
+}
+
+function staticGlitchPulseSnapshot() {
+  return 0;
+}
 
 interface GlitchedTextProps {
   text: string;
@@ -57,9 +66,9 @@ function GlitchedTextLive({
 }: GlitchedTextLiveProps) {
   const shouldScramble = fieldGlitchHasScramble(glitch);
   const pulse = useSyncExternalStore(
-    animate ? subscribeGlitchPulse : () => () => {},
-    animate ? getGlitchPulseSnapshot : () => 0,
-    animate ? getGlitchPulseServerSnapshot : () => 0,
+    animate ? subscribeGlitchPulse : noopGlitchPulseSubscribe,
+    animate ? getGlitchPulseSnapshot : staticGlitchPulseSnapshot,
+    getGlitchPulseServerSnapshot,
   );
 
   const zones = glitch.zones;
@@ -95,7 +104,7 @@ function GlitchedTextLive({
         zones
           .map((zone) => {
             const target = resolveZoneLink(zone, linkContext);
-            return target ? [zone.id, target] as const : null;
+            return target ? ([zone.id, target] as const) : null;
           })
           .filter((entry): entry is readonly [string, ZoneLinkTarget] => entry !== null),
       ),
@@ -137,35 +146,47 @@ export function GlitchedText({
   onZoneLinkClick,
   linkContext,
 }: GlitchedTextProps) {
+  const safeText = useMemo(() => sanitizePlainText(text), [text]);
+
   const zoneFingerprint = glitch?.zones
     ?.map((zone) => `${zone.id}:${zone.start}:${zone.end}:${zone.original}`)
     .join("|");
 
   const loopSignature = useMemo(
-    () => glitchConfigSignature(text, glitch),
-    [glitch?.wordPool, glitch?.scrambleMode, glitch?.builtinScramble, glitch?.errorDisplayMode, glitch?.builtinTokens, glitch?.tickMs, glitch?.defaultStyle, text, zoneFingerprint],
+    () => glitchConfigSignature(safeText, glitch),
+    [
+      glitch?.wordPool,
+      glitch?.scrambleMode,
+      glitch?.builtinScramble,
+      glitch?.errorDisplayMode,
+      glitch?.builtinTokens,
+      glitch?.tickMs,
+      glitch?.defaultStyle,
+      safeText,
+      zoneFingerprint,
+    ],
   );
 
   const resolvedGlitch = useMemo(
-    () => (loopSignature ? reanchorGlitchConfig(text, glitch) : undefined),
-    [glitch, loopSignature, text],
+    () => (loopSignature ? reanchorGlitchConfig(safeText, glitch) : undefined),
+    [glitch, loopSignature, safeText],
   );
 
   const hasLiveGlitch = Boolean(loopSignature && resolvedGlitch && resolvedGlitch.zones.length > 0);
 
   if (!hasLiveGlitch || !resolvedGlitch) {
     if (useCssGlitchFallback) {
-      return <TextGlitch className={cn(className, glitchClassName)} text={text} />;
+      return <TextGlitch className={cn(className, glitchClassName)} text={safeText} />;
     }
 
     return (
-      <span className={cn(className, preserveWhitespace && "whitespace-pre-line")}>{text}</span>
+      <span className={cn(className, preserveWhitespace && "whitespace-pre-line")}>{safeText}</span>
     );
   }
 
   return (
     <GlitchedTextLive
-      text={text}
+      text={safeText}
       glitch={resolvedGlitch}
       className={className}
       glitchClassName={glitchClassName}

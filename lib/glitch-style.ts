@@ -227,8 +227,13 @@ export function resolveGlitchZonePresentation(
   };
 }
 
-export function glitchScramblePhase(pulse: number, tickMs?: number) {
-  return Math.floor((pulse * GLITCH_TICK_PULSE_MS) / clampGlitchTickMs(tickMs));
+export function glitchScramblePhase(timestamp: number, tickMs?: number) {
+  const interval = clampGlitchTickMs(tickMs);
+  if (interval <= 0) {
+    return 0;
+  }
+
+  return Math.floor(timestamp / interval);
 }
 
 /** @deprecated Use glitchScramblePhase */

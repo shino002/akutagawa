@@ -1,4 +1,5 @@
 import type { FieldGlitchConfig, GlitchErrorDisplayMode, GlitchScrambleMode, GlitchZone } from "@/lib/types";
+import { hasGlitchPresentation } from "@/lib/glitch-style";
 
 export function resolveEffectiveScrambleMode(
   wordPool: string,
@@ -8,7 +9,7 @@ export function resolveEffectiveScrambleMode(
     return "builtinOnly";
   }
 
-  return scrambleMode ?? "referenceWithBuiltin";
+  return scrambleMode ?? "referenceOnly";
 }
 
 export function zoneUsesErrorAlternation(zone: GlitchZone, config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">) {
@@ -34,6 +35,31 @@ export function fieldConfigHasScrambleAlternation(config?: Pick<FieldGlitchConfi
   }
 
   return config.zones.some((zone) => zoneUsesErrorAlternation(zone, config));
+}
+
+/** 참조 단어·기본 오류가 켜져 있는데 구간만 none으로 남은 경우 자동 생성으로 복구 */
+export function ensureZoneErrorAlternation(
+  zones: GlitchZone[],
+  config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">,
+): GlitchZone[] {
+  const hasPool = Boolean(config.wordPool?.trim());
+  const hasBuiltin = config.builtinScramble !== false;
+
+  if (!hasPool && !hasBuiltin) {
+    return zones;
+  }
+
+  return zones.map((zone) => {
+    if (zone.errorMessageSource !== "none") {
+      return zone;
+    }
+
+    if (hasGlitchPresentation(zone.style) || zone.linkTarget || zone.linkSubPageId) {
+      return zone;
+    }
+
+    return { ...zone, errorMessageSource: "auto" as const };
+  });
 }
 
 export function normalizeScrambleMode(value: unknown): GlitchScrambleMode | undefined {

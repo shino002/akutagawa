@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;700;900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&display=swap");
 @import "tailwindcss";
 
 /* 전역 폰트와 색상 변수: 사이트 전체의 검정/붉은 테마 기준값입니다. */
@@ -19,6 +20,10 @@
   --archive-panel: rgba(5, 0, 1, 0.92);
   --archive-line: rgba(255, 0, 24, 0.44);
   --archive-muted: rgba(255, 210, 210, 0.58);
+  /* 노션식: 본문 폰트에 기호·이모지 폴백을 이어 붙여 □(토후) 대신 시스템 글리프 사용 */
+  --font-ui-stack: "Noto Sans KR", "Noto Sans Symbols 2", "Segoe UI Symbol", "Apple Symbols",
+    "Malgun Gothic", "Apple SD Gothic Neo", ui-sans-serif, system-ui, sans-serif;
+  --font-emoji-stack: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 @theme inline {
@@ -31,7 +36,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  font-family: var(--font-ui-stack), var(--font-emoji-stack);
   letter-spacing: -0.01em;
   line-height: 1.65;
   text-rendering: geometricPrecision;
@@ -929,6 +934,33 @@ select {
 .admin-page .admin-section-nav {
   position: relative;
   z-index: 5;
+  overflow: visible;
+}
+
+.admin-page .admin-edit-form {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.admin-page [data-text-scramble-tool] {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.admin-page [data-text-scramble-tool] :where(textarea, input, p, span, mark) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admin-page .admin-choice-btn-candidate {
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-all;
+  text-align: left;
+  line-height: 1.5;
+  padding: 0.5rem 0.65rem;
 }
 
 /* 관리자 버튼: 전역 box-shadow 제거 규칙보다 우선해 박스 형태가 보이게 합니다. */
@@ -1138,7 +1170,8 @@ html body main.admin-page .admin-tab-btn-active {
 }
 
 .archive-character-card-name .glitch-zone-mark,
-.archive-character-card-subtitle .glitch-zone-mark {
+.archive-character-card-subtitle .glitch-zone-mark,
+.archive-card-intro .glitch-zone-mark {
   vertical-align: baseline;
 }
 
@@ -1311,9 +1344,13 @@ html body main.admin-page .admin-tab-btn-active {
   position: absolute;
   top: auto;
   right: auto;
-  left: 1rem;
-  bottom: 0.65rem;
-  max-width: min(44rem, calc(100% - 2.4rem));
+  left: clamp(1.15rem, 3.2vw, 1.85rem);
+  bottom: clamp(1.15rem, 3.5vw, 1.9rem);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: min(44rem, calc(100% - 2.8rem));
+  padding-right: clamp(0.5rem, 2vw, 1.25rem);
   text-align: left;
   z-index: 8;
 }
@@ -1348,11 +1385,149 @@ html body main.admin-page .admin-tab-btn-active {
     0 14px 35px rgba(0, 0, 0, 0.9);
 }
 
-.case-file-subtitle {
+.case-file-intro {
+  margin-top: 1rem;
+  max-width: min(38rem, 100%);
+}
+
+.case-file-intro-label,
+.case-file-voice-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem;
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.case-file-intro-label {
+  color: var(--case-intro-label, rgba(255, 196, 196, 0.46));
+}
+
+.case-file-intro-label::before {
+  content: "◆";
+  color: color-mix(in srgb, var(--case-intro-label, rgba(255, 196, 196, 0.46)) 88%, transparent);
+  font-size: 0.48rem;
+  line-height: 1;
+}
+
+.case-file-intro-text {
+  position: relative;
+  margin: 0;
+  padding: 0.62rem 0.85rem 0.65rem;
+  border: 1px solid var(--case-intro-border, rgba(255, 255, 255, 0.09));
+  background: var(--case-intro-bg, rgba(0, 0, 0, 0.38));
+  color: var(--case-intro-text, rgba(255, 236, 236, 0.86));
+  font-size: 0.82rem;
+  line-height: 1.6;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.case-file-intro-text::before,
+.case-file-intro-text::after {
+  position: absolute;
+  width: 0.55rem;
+  height: 0.55rem;
+  content: "";
+  pointer-events: none;
+}
+
+.case-file-intro-text::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 85%, #ff4242);
+  border-left: 1px solid color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 85%, #ff4242);
+}
+
+.case-file-intro-text::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 1px solid color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 65%, #ff4242);
+  border-bottom: 1px solid color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 65%, #ff4242);
+}
+
+.case-file-intro-text .glitch-zone-mark {
+  color: color-mix(in srgb, var(--case-intro-text, rgba(255, 236, 236, 0.86)) 92%, #fff);
+  font-family: var(--font-ui-stack), var(--font-emoji-stack);
+  text-shadow:
+    0 0 10px rgba(255, 0, 24, 0.18),
+    0 1px 14px rgba(0, 0, 0, 0.86);
+}
+
+.case-file-voice {
+  margin: 1.35rem 0 0;
+  padding: 0;
+}
+
+.case-file-voice-label {
+  color: var(--case-voice-label, rgba(160, 160, 160, 0.62));
+}
+
+.case-file-voice-label::before {
+  content: ">";
+  color: color-mix(in srgb, var(--case-voice-label, rgba(160, 160, 160, 0.62)) 92%, #fff);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+}
+
+.case-file-voice-text {
+  position: relative;
+  margin: 0;
+  padding: 0.72rem 0.9rem 0.75rem 1.2rem;
+  border: 1px solid var(--case-voice-border, rgba(255, 255, 255, 0.1));
+  background: var(--case-voice-bg, rgba(12, 12, 12, 0.82));
+  color: var(--case-voice-text, rgba(210, 206, 200, 0.88));
+  font-size: 0.86rem;
+  font-style: italic;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  text-shadow: none;
+}
+
+.case-file-voice-text::before {
+  content: "“";
+  position: absolute;
+  left: 0.38rem;
+  top: 0.08rem;
+  color: color-mix(in srgb, var(--case-voice-text, rgba(210, 206, 200, 0.88)) 28%, transparent);
+  font-size: 1.35rem;
+  font-style: normal;
+  line-height: 1;
+}
+
+.case-file-voice-text .glitch-zone-mark {
+  color: color-mix(in srgb, var(--case-voice-text, rgba(210, 206, 200, 0.88)) 96%, #fff);
+  font-family: var(--font-ui-stack), var(--font-emoji-stack);
+  font-style: italic;
+  text-shadow: none;
+}
+
+.archive-card-intro {
   margin-top: 0.35rem;
-  max-width: 36rem;
-  color: rgba(255, 230, 230, 0.68);
-  font-size: 0.95rem;
+  color: rgba(255, 224, 224, 0.62);
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.archive-card-intro .glitch-zone-mark {
+  vertical-align: baseline;
+}
+
+.case-file-theme-preview.case-file-intro {
+  margin-top: 0;
+  max-width: 100%;
+}
+
+.case-file-theme-preview.case-file-voice {
+  margin-top: 0;
 }
 
 .case-file-name--subpage {
@@ -1416,18 +1591,6 @@ html body main.admin-page .admin-tab-btn-active {
   color: rgba(255, 226, 226, 0.66);
   font-size: 0.7rem;
   letter-spacing: 0.08em;
-}
-
-.case-file-quote {
-  margin-top: 1rem;
-  border-left: 2px solid rgba(255, 0, 24, 0.78);
-  background:
-    linear-gradient(90deg, rgba(255, 0, 24, 0.12), transparent),
-    rgba(0, 0, 0, 0.24);
-  padding: 1rem 1.15rem;
-  color: rgba(255, 245, 245, 0.82);
-  font-size: 0.94rem;
-  line-height: 1.9;
 }
 
 .case-profile-grid {
@@ -1510,6 +1673,8 @@ html body main.admin-page .admin-tab-btn-active {
 
 .case-tab-panel {
   margin-top: 1.25rem;
+  min-width: 0;
+  max-width: 100%;
   animation: none;
 }
 
@@ -2027,6 +2192,12 @@ body {
     rgba(0, 0, 0, 0.28);
 }
 
+.case-file-voice-text {
+  border-color: var(--case-voice-border, rgba(255, 255, 255, 0.1)) !important;
+  background: var(--case-voice-bg, rgba(12, 12, 12, 0.82)) !important;
+  color: var(--case-voice-text, rgba(210, 206, 200, 0.88)) !important;
+}
+
 /* 최종 톤: 검정이 주인공이고 붉은색은 거의 죽은 보조색으로만 둡니다. */
 body {
   background:
@@ -2454,6 +2625,13 @@ body {
     rgba(0, 0, 0, 0.34) !important;
 }
 
+.case-file-voice-text {
+  border-color: var(--case-voice-border, rgba(255, 255, 255, 0.1)) !important;
+  background: var(--case-voice-bg, rgba(12, 12, 12, 0.82)) !important;
+  color: var(--case-voice-text, rgba(210, 206, 200, 0.88)) !important;
+  text-shadow: none !important;
+}
+
 .case-file-hero::before {
   background:
     linear-gradient(90deg, rgba(0, 0, 0, 0.94) 0 36%, rgba(0, 0, 0, 0.72) 68%, rgba(0, 0, 0, 0.28) 100%),
@@ -2796,6 +2974,20 @@ main :where(
   color: inherit;
 }
 
+.case-file-intro-label {
+  color: var(--case-intro-label, rgba(255, 196, 196, 0.46)) !important;
+}
+
+.case-file-intro-text {
+  border-color: var(--case-intro-border, rgba(255, 255, 255, 0.09)) !important;
+  background: var(--case-intro-bg, rgba(0, 0, 0, 0.38)) !important;
+  color: var(--case-intro-text, rgba(255, 236, 236, 0.86)) !important;
+}
+
+.case-file-voice-label {
+  color: var(--case-voice-label, rgba(160, 160, 160, 0.62)) !important;
+}
+
 .archive-character-card-id,
 .archive-kicker,
 .case-file-kicker,
@@ -2861,16 +3053,11 @@ html body main img.object-cover {
   mix-blend-mode: normal !important;
 }
 
-/* Cold emphasis: 캐릭터 대표 문장은 붉은색 대신 차갑고 이상한 CRT 블루로 강조합니다. */
 .case-file-quote {
-  border-left-color: rgba(92, 170, 255, 0.52) !important;
-  background:
-    linear-gradient(90deg, rgba(28, 88, 150, 0.16), rgba(0, 0, 0, 0.18) 62%, transparent),
-    #020304 !important;
-  color: rgba(190, 220, 255, 0.92) !important;
-  text-shadow:
-    0 0 8px rgba(88, 156, 255, 0.18),
-    1px 1px 0 #000 !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  background: rgba(245, 242, 236, 0.94) !important;
+  color: #0a0a0a !important;
+  text-shadow: none !important;
 }
 
 .blue-emphasis {
@@ -3855,6 +4042,9 @@ html body main .static-record-panel,
 html body main .static-record-panel:hover {
   align-self: start;
   display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
   border-style: solid !important;
   border-width: 1px !important;
   border-color: rgba(111, 143, 215, 0.32) !important;
@@ -3864,6 +4054,50 @@ html body main .static-record-panel:hover {
   outline-color: rgba(111, 143, 215, 0.24) !important;
   padding: 1rem;
   transform: none !important;
+}
+
+html body main .static-record-panel :where(p, dd, span, .glitch-zone-mark) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.relationship-map-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.relationship-card {
+  border: 1px solid rgba(111, 143, 215, 0.22);
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.9rem 1rem;
+}
+
+.relationship-card-badge {
+  border: 1px solid rgba(168, 191, 255, 0.28);
+  background: rgba(111, 143, 215, 0.12);
+  color: rgba(226, 236, 255, 0.88);
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  padding: 0.25rem 0.5rem;
+  text-transform: uppercase;
+}
+
+.relationship-card-link {
+  margin-top: 0.85rem;
+  border: 1px solid rgba(168, 191, 255, 0.24);
+  background: rgba(7, 15, 32, 0.72);
+  color: rgba(226, 236, 255, 0.88);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  padding: 0.45rem 0.65rem;
+  text-transform: uppercase;
+  transition: border-color 240ms ease, background 240ms ease;
+}
+
+.relationship-card-link:hover {
+  border-color: rgba(168, 191, 255, 0.42);
+  background: rgba(12, 24, 48, 0.88);
 }
 
 /* OC / World interaction motion: WAAPI(ArchiveMotion) + 호버/클릭 피드백 */
@@ -3946,7 +4180,11 @@ html body main .dossier-viewer .case-tab-button.is-active {
   box-shadow: none !important;
   text-shadow: none !important;
   border: none !important;
-  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  font-style: inherit;
+  line-height: inherit;
+  font-family: var(--font-ui-stack), var(--font-emoji-stack);
   animation: none !important;
   transform: none !important;
   filter: none !important;
@@ -3965,9 +4203,18 @@ html body main .dossier-viewer .case-tab-button.is-active {
   text-decoration-skip-ink: none;
 }
 
+.glitch-zone-mark.glitch-zone-chaos {
+  display: inline-block;
+  max-width: 100%;
+  line-height: 1.2;
+  max-height: 1.35em;
+  overflow: hidden;
+  vertical-align: text-bottom;
+}
+
 .glitch-zone-mark.glitch-zone-has-strikethrough {
   position: relative;
-  display: inline-block;
+  display: inline;
 }
 
 .glitch-zone-mark.glitch-zone-has-strikethrough::after {

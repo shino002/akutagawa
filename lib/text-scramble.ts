@@ -1,5 +1,25 @@
 import type { FieldGlitchConfig, GlitchScrambleMode, GlitchZone } from "@/lib/types";
-import { resolveEffectiveScrambleMode, zoneUsesErrorAlternation } from "@/lib/glitch-scramble-options";
+import {
+  resolveEffectiveScrambleMode,
+  zoneUsesErrorAlternation,
+} from "@/lib/glitch-scramble-options";
+import {
+  sanitizeErrorMessageText,
+  sanitizePlainText,
+} from "@/lib/glitch-display";
+
+const ZALGO_COMBINING = [
+  "\u030D",
+  "\u0315",
+  "\u0310",
+  "\u034E",
+  "\u0334",
+  "\u0335",
+  "\u0336",
+  "\u0338",
+  "\u0339",
+  "\u0347",
+];
 
 export const GLITCH_CHARS = ["#", "?", "!", "/", "\\", "0", "1", "_", "§", "¤", "×", "▓"];
 
@@ -35,7 +55,13 @@ export function normalizeBuiltinTokens(raw: unknown): string[] | undefined {
     return undefined;
   }
 
-  const next = [...new Set(raw.filter((token): token is string => typeof token === "string" && BUILTIN_TOKEN_SET.has(token)))];
+  const next = [
+    ...new Set(
+      raw.filter(
+        (token): token is string => typeof token === "string" && BUILTIN_TOKEN_SET.has(token),
+      ),
+    ),
+  ];
   return next.length > 0 ? next : undefined;
 }
 
@@ -57,7 +83,8 @@ export function resolveBuiltinGlitchChars(selected?: string[]) {
 export type { GlitchZone };
 
 export function extractWords(text: string) {
-  return text.match(/[^\s]+/g) ?? [];
+  const sanitized = sanitizePlainText(text);
+  return sanitized.match(/[^\s]+/g) ?? [];
 }
 
 function hashSeed(input: string) {
@@ -80,6 +107,28 @@ function createSeededRandom(seed: string) {
     value ^= value + Math.imul(value ^ (value >>> 7), 61 | value);
     return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/** 오류 문구에만 쓰는 제한 Zalgo — 글자당 합성 기호 1~2개 */
+export function applyControlledZalgoGlitch(text: string, seed: string, intensity = 0.52) {
+  const random = createSeededRandom(`${seed}:zalgo`);
+
+  return text
+    .split("")
+    .map((character) => {
+      if (!character.trim() || random() > intensity) {
+        return character;
+      }
+
+      const markCount = 1 + Math.floor(random() * 2);
+      let marks = "";
+      for (let index = 0; index < markCount; index += 1) {
+        marks += ZALGO_COMBINING[Math.floor(random() * ZALGO_COMBINING.length)] ?? "\u0336";
+      }
+
+      return character + marks;
+    })
+    .join("");
 }
 
 export function shuffleItems<T>(items: T[]) {
@@ -105,14 +154,27 @@ function shuffleItemsSeeded<T>(items: T[], seed: string) {
   return copy;
 }
 
-function glitchCharacters(text: string, intensity = 0.22, seed?: string, glitchChars = GLITCH_CHARS) {
+function glitchCharacters(
+  text: string,
+  intensity = 0.22,
+  seed?: string,
+  glitchChars = GLITCH_CHARS,
+) {
   const random = seed ? createSeededRandom(`${seed}:glitch`) : Math.random;
   const chars = glitchChars.length > 0 ? glitchChars : GLITCH_CHARS;
+  const characters = text.split("");
+  const eligibleIndexes = characters
+    .map((character, index) => (character.trim() ? index : -1))
+    .filter((index) => index >= 0);
+  const preserve = new Set<number>(
+    eligibleIndexes.length > 0
+      ? [eligibleIndexes[0], eligibleIndexes[eligibleIndexes.length - 1]]
+      : [],
+  );
 
-  return text
-    .split("")
-    .map((character) => {
-      if (!character.trim() || random() > intensity) {
+  return characters
+    .map((character, index) => {
+      if (!character.trim() || preserve.has(index) || random() > intensity) {
         return character;
       }
 
@@ -166,17 +228,24 @@ export function fitTextToLength(text: string, targetLength: number, fillerWords:
 
   let result = chunks.join("").slice(0, targetLength);
 
-  if (result.length < targetLength || result.endsWith(" ")) {
-    const paddingSource = (fillerWords[0] ?? text).replace(/\s/g, "") || text;
-    if (paddingSource) {
-      result = paddingSource.repeat(Math.ceil(targetLength / paddingSource.length)).slice(0, targetLength);
+  if (result.length < targetLength) {
+    const pool = fillerWords.length > 0 ? fillerWords : extractWords(text);
+    if (pool.length > 0) {
+      const padded = assembleTextFromWordPool(targetLength, pool, `fit:${text}:${targetLength}`);
+      if (padded.length > result.length) {
+        result = padded.slice(0, targetLength);
+      }
     }
   }
 
-  return result;
+  return result.slice(0, targetLength);
 }
 
-function buildBuiltinErrorText(selectedText: string, seed: string, tokenPool = DEFAULT_GLITCH_TOKENS) {
+function buildBuiltinErrorText(
+  selectedText: string,
+  seed: string,
+  tokenPool = DEFAULT_GLITCH_TOKENS,
+) {
   const safeLength = Math.min(selectedText.length, 256);
   const targetLength = safeLength < selectedText.length ? safeLength : selectedText.length;
   const random = createSeededRandom(`${seed}:builtin`);
@@ -204,28 +273,86 @@ function buildBuiltinErrorText(selectedText: string, seed: string, tokenPool = D
   return parts.join("").slice(0, targetLength);
 }
 
-function collectPoolCharacters(poolWords: string[]) {
-  return poolWords.flatMap((word) => [...word]);
-}
-
-function pickRandomReferenceText(targetLength: number, poolWords: string[], seed: string) {
-  const characters = collectPoolCharacters(poolWords);
-  if (!characters.length || targetLength <= 0) {
+function assembleTextFromWordPool(targetLength: number, poolWords: string[], seed: string) {
+  if (!poolWords.length || targetLength <= 0) {
     return "";
   }
 
-  const random = createSeededRandom(`${seed}:ref`);
+  const random = createSeededRandom(`${seed}:assemble`);
   let result = "";
+  let guard = 0;
 
-  for (let index = 0; index < targetLength; index += 1) {
-    result += characters[Math.floor(random() * characters.length)] ?? characters[0];
+  while (result.length < targetLength && guard < poolWords.length * 24) {
+    const word = poolWords[Math.floor(random() * poolWords.length)] ?? poolWords[0];
+    const piece = result.length > 0 ? ` ${word}` : word;
+
+    if (result.length + piece.length > targetLength) {
+      result += piece.slice(0, targetLength - result.length);
+      break;
+    }
+
+    result += piece;
+    guard += 1;
   }
 
-  return result;
+  return result.slice(0, targetLength);
 }
 
 function assembleReferenceOnlyText(targetLength: number, poolWords: string[], seed: string) {
-  return pickRandomReferenceText(targetLength, poolWords, seed);
+  return assembleTextFromWordPool(targetLength, poolWords, seed);
+}
+
+function referenceScrambleIntensity(textLength: number) {
+  if (textLength <= 20) {
+    return 0.4;
+  }
+
+  if (textLength <= 48) {
+    return 0.28;
+  }
+
+  return 0.18;
+}
+
+function scrambleReferencePoolCharacters(
+  text: string,
+  poolWords: string[],
+  seed: string,
+  intensity = 0.42,
+) {
+  const poolChars = [...poolWords.join("")].filter((character) => character.trim());
+  if (poolChars.length === 0) {
+    return text;
+  }
+
+  const characters = text.split("");
+  const eligibleIndexes = characters
+    .map((character, index) => (character.trim() ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (eligibleIndexes.length === 0) {
+    return text;
+  }
+
+  const preserve = new Set<number>([
+    eligibleIndexes[0],
+    eligibleIndexes[eligibleIndexes.length - 1],
+  ]);
+  const random = createSeededRandom(`${seed}:ref-chars`);
+
+  return characters
+    .map((character, index) => {
+      if (!character.trim() || preserve.has(index) || random() > intensity) {
+        return character;
+      }
+
+      return poolChars[Math.floor(random() * poolChars.length)] ?? character;
+    })
+    .join("");
+}
+
+function shouldApplyZalgoToError(pool: string, scrambleMode?: GlitchScrambleMode) {
+  return resolveEffectiveScrambleMode(pool, scrambleMode) !== "referenceOnly";
 }
 
 function scrambleFromReferencePool(
@@ -241,13 +368,13 @@ function scrambleFromReferencePool(
   }
 
   const targetLength = Math.min(selectedText.length, 256);
-  const referenceText = pickRandomReferenceText(targetLength, poolWords, seed);
+  const referenceText = assembleTextFromWordPool(targetLength, poolWords, seed);
 
   if (mode === "referenceOnly") {
     return referenceText;
   }
 
-  return glitchCharacters(referenceText, 0.22, seed, resolveBuiltinGlitchChars(builtinTokens));
+  return glitchCharacters(referenceText, 0.18, seed, resolveBuiltinGlitchChars(builtinTokens));
 }
 
 export interface ScrambleErrorOptions {
@@ -258,27 +385,35 @@ export interface ScrambleErrorOptions {
 }
 
 export function scrambleErrorText(selectedText: string, options: ScrambleErrorOptions) {
-  const pool = options.wordPool?.trim() ?? "";
+  const pool = sanitizePlainText(options.wordPool?.trim() ?? "");
   const effectiveMode = resolveEffectiveScrambleMode(pool, options.scrambleMode);
   const tokenPool = resolveBuiltinTokenPool(options.builtinTokens);
 
-  if (effectiveMode === "builtinOnly") {
-    return buildBuiltinErrorText(selectedText, options.seed, tokenPool);
-  }
+  let result: string;
 
-  if (effectiveMode === "referenceOnly") {
+  if (effectiveMode === "builtinOnly") {
+    result = buildBuiltinErrorText(selectedText, options.seed, tokenPool);
+  } else if (effectiveMode === "referenceOnly") {
     const poolWords = extractWords(pool);
     const targetLength = Math.min(selectedText.length, 256);
-    return assembleReferenceOnlyText(targetLength, poolWords, options.seed);
+    const assembled = assembleReferenceOnlyText(targetLength, poolWords, options.seed);
+    result = scrambleReferencePoolCharacters(
+      assembled,
+      poolWords,
+      options.seed,
+      referenceScrambleIntensity(targetLength),
+    );
+  } else {
+    result = scrambleFromReferencePool(
+      selectedText,
+      pool,
+      "referenceWithBuiltin",
+      options.seed,
+      options.builtinTokens,
+    );
   }
 
-  return scrambleFromReferencePool(
-    selectedText,
-    pool,
-    "referenceWithBuiltin",
-    options.seed,
-    options.builtinTokens,
-  );
+  return result;
 }
 
 export function generateErrorMessageCandidates(
@@ -286,12 +421,32 @@ export function generateErrorMessageCandidates(
   options: Omit<ScrambleErrorOptions, "seed">,
   count = 4,
 ) {
-  return Array.from({ length: count }, (_, index) =>
-    scrambleErrorText(selectedText, {
+  const seen = new Set<string>();
+  const results: string[] = [];
+  let attempt = 0;
+
+  while (results.length < count && attempt < count * 10) {
+    const seed = `candidate:${selectedText}:${attempt}`;
+    const base = scrambleErrorText(selectedText, {
       ...options,
-      seed: `candidate:${index}:${Date.now()}`,
-    }),
-  );
+      seed,
+    });
+    const candidate = sanitizeErrorMessageText(
+      shouldApplyZalgoToError(options.wordPool?.trim() ?? "", options.scrambleMode)
+        ? applyControlledZalgoGlitch(base, seed)
+        : base,
+    );
+    attempt += 1;
+
+    if (!candidate || seen.has(candidate)) {
+      continue;
+    }
+
+    seen.add(candidate);
+    results.push(candidate);
+  }
+
+  return results;
 }
 
 export function scrambleWithWordPool(selectedText: string, wordPoolText: string) {
@@ -302,7 +457,11 @@ export function scrambleWithWordPool(selectedText: string, wordPoolText: string)
   });
 }
 
-export function scrambleWithWordPoolSeeded(selectedText: string, wordPoolText: string, seed: string) {
+export function scrambleWithWordPoolSeeded(
+  selectedText: string,
+  wordPoolText: string,
+  seed: string,
+) {
   return scrambleErrorText(selectedText, {
     wordPool: wordPoolText,
     scrambleMode: "referenceWithBuiltin",
@@ -379,11 +538,15 @@ function resolveZoneErrorText(zone: GlitchZone, config: FieldGlitchConfig, error
   }
 
   if (zone.errorMessageSource === "custom" && zone.errorMessage?.trim()) {
-    return fitTextToLength(zone.errorMessage.trim(), zone.original.length);
+    const custom = zone.errorMessage.trim();
+    const trimmed =
+      custom.length > zone.original.length ? custom.slice(0, zone.original.length) : custom;
+    return sanitizeErrorMessageText(trimmed);
   }
 
   const pool = config.wordPool?.trim() ?? "";
-  const seed = `${zone.id}:${errorCycle}`;
+  const poolWords = extractWords(pool);
+  const seed = `${zone.id}:${errorCycle}:${zone.original}`;
 
   const errorText = scrambleErrorText(zone.original, {
     wordPool: config.wordPool,
@@ -392,11 +555,12 @@ function resolveZoneErrorText(zone: GlitchZone, config: FieldGlitchConfig, error
     seed,
   });
 
-  if (errorText.length === zone.original.length) {
-    return errorText;
+  const fitted = fitTextToLength(errorText, zone.original.length, poolWords);
+  if (!shouldApplyZalgoToError(pool, config.scrambleMode)) {
+    return sanitizeErrorMessageText(fitted);
   }
 
-  return fitTextToLength(errorText, zone.original.length, extractWords(pool));
+  return sanitizeErrorMessageText(applyControlledZalgoGlitch(fitted, seed));
 }
 
 export function buildZoneDisplayText(zones: GlitchZone[], config: FieldGlitchConfig, phase = 0) {
@@ -406,7 +570,7 @@ export function buildZoneDisplayText(zones: GlitchZone[], config: FieldGlitchCon
     return Object.fromEntries(zones.map((zone) => [zone.id, zone.original]));
   }
 
-  const errorCycle = displayMode === "randomOnly" ? phase : Math.floor(phase / 2);
+  const errorCycle = phase;
 
   return Object.fromEntries(
     zones.map((zone) => [zone.id, resolveZoneErrorText(zone, config, errorCycle)]),

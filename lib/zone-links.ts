@@ -1,6 +1,6 @@
 import type { ArchiveSubSectionId } from "@/constants/home";
 import { CHARACTER_KIND_LABELS, filterCharactersByKind, normalizeCharacterKind } from "@/lib/character-kind";
-import { findSubPage } from "@/lib/sub-pages";
+import { resolveSubPage } from "@/lib/sub-pages";
 import type { Character, CharacterKind, GlitchZone, ZoneLinkTarget } from "@/lib/types";
 
 export type CharacterDetailSection = ArchiveSubSectionId;
@@ -122,7 +122,7 @@ export function formatZoneLinkLabel(
     return `${sectionLabel} · ${characterName}`;
   }
 
-  const subPage = character ? findSubPage(character, target.subPageId) : undefined;
+  const subPage = character ? resolveSubPage(character, target.subPageId, characters) : undefined;
   const subPageTitle = subPage?.title?.trim() || "상세 페이지";
   return `${sectionLabel} · ${characterName} · ${subPageTitle}`;
 }

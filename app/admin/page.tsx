@@ -8,11 +8,21 @@ import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId
 import { normalizeBgmTracks, resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { characterPaletteStyle } from "@/lib/character-palette";
+import { compactCaseFileDetailTheme, normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
+import { CaseFileThemeEditor } from "@/components/admin/CaseFileThemeEditor";
 import { clamp, thumbnailStyle } from "@/lib/image-helpers";
 import { ProfileFieldsEditor, profileFieldGlitchPath } from "@/components/admin/ProfileFieldsEditor";
+import { RelationshipsEditor } from "@/components/admin/RelationshipsEditor";
 import { BgmQuickPicker } from "@/components/admin/BgmQuickPicker";
 import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import { createDefaultProfileFields, normalizeProfileFields, profileFieldsHaveContent } from "@/lib/profile-fields";
+import {
+  normalizeRelationshipEntries,
+  relationshipEntriesHaveContent,
+  relationshipEntriesToLegacyLines,
+  resolveRelationshipEntries,
+  relationshipEntryGlitchPath,
+} from "@/lib/relationship-entries";
 import { isAllowedBannerLinkUrl, normalizePersonalHomeBanners } from "@/lib/personal-home-banners";
 import type {
   Character,
@@ -39,7 +49,6 @@ import {
   getCharacterDraftFieldValue,
   getDraftGlitchConfig,
   getGlitchFieldLabel,
-  parseSubPageGlitchPath,
   pruneDraftTextGlitch,
   pruneSubPageTextGlitch,
   settingSectionGlitchPath,
@@ -69,7 +78,7 @@ import {
   normalizeCharacterKind,
 } from "@/lib/character-kind";
 import { characterKindToSection } from "@/lib/zone-links";
-import { normalizeSubPages } from "@/lib/sub-pages";
+import { compactSubPageForStorage, listNavigableSubPages, normalizeSubPages } from "@/lib/sub-pages";
 import {
   formatPairDisplayName,
   normalizePairMemberIds,
@@ -272,6 +281,10 @@ function characterToDraft(character: Character): CharacterDraft {
     character.settingSections,
     character.settings,
   );
+  const { relationshipEntries } = resolveRelationshipEntries(
+    character.relationshipEntries,
+    character.relationships,
+  );
 
   return {
     id: character.id,
@@ -283,14 +296,22 @@ function characterToDraft(character: Character): CharacterDraft {
     subtitle: character.subtitle,
     quote: character.quote,
     palette: character.palette,
+    detailTheme: character.detailTheme,
     profileFields: character.profileFields,
     settingSections,
-    relationshipsText: character.relationships.join("\n"),
+    relationshipEntries,
     textGlitch: normalizeTextGlitch(character.textGlitch),
     subPages: normalizeSubPages(character.subPages),
     pairMemberIds: resolvePairMemberIds(character),
     bgmUrl: character.bgmUrl ?? "",
   };
+}
+
+function getLegacyRelationshipsMigrationNotice(character: Character) {
+  const resolved = resolveRelationshipEntries(character.relationshipEntries, character.relationships);
+  return resolved.migratedFromLegacy
+    ? "예전 관계 목록을 관계 카드로 불러왔어요. 아래 내용을 확인한 뒤 「본 페이지에 저장」을 눌러주세요."
+    : null;
 }
 
 function getLegacySettingsMigrationNotice(character: Character) {
@@ -308,7 +329,7 @@ function draftBasicsLookEmpty(draft: CharacterDraft) {
     !draft.kanjiName.trim() &&
     !draft.statusTagsText.trim() &&
     !draft.classification.trim() &&
-    !draft.relationshipsText.trim() &&
+    !relationshipEntriesHaveContent(draft.relationshipEntries) &&
     normalizeSettingSections(draft.settingSections).length === 0
   );
 }
@@ -352,7 +373,7 @@ function createBlankDraft(kind: CharacterKind = "oc"): CharacterDraft {
     palette: "from-zinc-950 via-black to-zinc-900",
     profileFields: createDefaultProfileFields(),
     settingSections: [],
-    relationshipsText: "",
+    relationshipEntries: [],
     textGlitch: {},
     subPages: [],
     pairMemberIds: ["", ""],
@@ -392,13 +413,25 @@ function draftToCharacter(
     })),
     settings: [],
     settingSections: normalizeSettingSections(draft.settingSections),
-    relationships: linesToList(draft.relationshipsText),
+    relationships: relationshipEntriesToLegacyLines(draft.relationshipEntries),
+    relationshipEntries: normalizeRelationshipEntries(draft.relationshipEntries),
     images: currentImages,
     works: currentWorks,
     worldEntries: currentWorldEntries,
     subPages: normalizeSubPages(draft.subPages).map((subPage) => {
-      const subPageGlitch = compactSubPageTextGlitch(subPage);
-      return subPageGlitch ? { ...subPage, textGlitch: subPageGlitch } : subPage;
+      const compacted = compactSubPageForStorage(subPage);
+      const subPageGlitch = compactSubPageTextGlitch(compacted);
+      const nextSubPage = {
+        ...compacted,
+        relationshipEntries: normalizeRelationshipEntries(compacted.relationshipEntries, compacted.relationships),
+        relationships: relationshipEntriesToLegacyLines(
+          normalizeRelationshipEntries(compacted.relationshipEntries, compacted.relationships),
+        ),
+        ...(compactCaseFileDetailTheme(compacted.detailTheme)
+          ? { detailTheme: compactCaseFileDetailTheme(compacted.detailTheme) }
+          : {}),
+      };
+      return subPageGlitch ? { ...nextSubPage, textGlitch: subPageGlitch } : nextSubPage;
     }),
   };
 
@@ -414,6 +447,9 @@ function draftToCharacter(
       ...pairCharacter,
       ...(bgmUrl ? { bgmUrl } : {}),
       ...(textGlitch ? { textGlitch } : {}),
+      ...(compactCaseFileDetailTheme(draft.detailTheme)
+        ? { detailTheme: compactCaseFileDetailTheme(draft.detailTheme) }
+        : {}),
     };
   }
 
@@ -421,6 +457,9 @@ function draftToCharacter(
     ...characterBase,
     ...(bgmUrl ? { bgmUrl } : {}),
     ...(textGlitch ? { textGlitch } : {}),
+    ...(compactCaseFileDetailTheme(draft.detailTheme)
+      ? { detailTheme: compactCaseFileDetailTheme(draft.detailTheme) }
+      : {}),
   };
 
   return character;
@@ -769,7 +808,8 @@ export default function AdminPage() {
             profile?: { age?: string; height?: string; role?: string; keyword?: string };
           };
           const resolvedBgmUrl = resolveCharacterBgmUrl(data.bgmUrl);
-          const { bgmUrl: _bgmUrl, profile: legacyProfile, ...rest } = data;
+          const normalizedDetailTheme = normalizeCaseFileDetailTheme(data.detailTheme);
+          const { bgmUrl: _bgmUrl, profile: legacyProfile, detailTheme: _detailTheme, ...rest } = data;
           return {
             ...rest,
             id: data.id || characterDoc.id,
@@ -781,6 +821,7 @@ export default function AdminPage() {
             settings: Array.isArray(data.settings) ? data.settings : [],
             settingSections: normalizeSettingSections(data.settingSections),
             relationships: Array.isArray(data.relationships) ? data.relationships : [],
+            relationshipEntries: normalizeRelationshipEntries(data.relationshipEntries, data.relationships),
             images: Array.isArray(data.images) ? data.images : [],
             worldEntries: normalizeWorldEntries(data.worldEntries),
             kind: normalizeCharacterKind(data.kind),
@@ -788,6 +829,7 @@ export default function AdminPage() {
             pairMemberIds: normalizePairMemberIds(data.pairMemberIds),
             textGlitch: normalizeTextGlitch(data.textGlitch),
             ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : {}),
+            ...(normalizedDetailTheme ? { detailTheme: normalizedDetailTheme } : {}),
           };
         });
 
@@ -1197,6 +1239,7 @@ export default function AdminPage() {
     const hadGlitchDraft = Object.keys(prunedDraft.textGlitch).length > 0;
     const hadStoredGlitch = Boolean(storedGlitch && Object.keys(storedGlitch).length > 0);
     const resolvedBgmUrl = resolveCharacterBgmUrl(prunedDraft.bgmUrl);
+    const compactedDetailTheme = compactCaseFileDetailTheme(character.detailTheme);
     const { textGlitch: _textGlitch, ...characterBody } = character;
 
     try {
@@ -1207,6 +1250,9 @@ export default function AdminPage() {
           ...characterBody,
           ...textGlitchPatch,
           ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
+          ...(compactedDetailTheme
+            ? { detailTheme: compactedDetailTheme }
+            : { detailTheme: deleteField() }),
           ...(normalizeCharacterKind(character.kind) !== "pair" ? { pairMemberIds: deleteField() } : {}),
           updatedAt: serverTimestamp(),
         }),
@@ -1319,6 +1365,7 @@ export default function AdminPage() {
     const storedGlitch = activeCharacter.textGlitch;
     const textGlitchPatch = buildTextGlitchFirestorePatch(character.textGlitch, storedGlitch);
     const resolvedBgmUrl = resolveCharacterBgmUrl(prunedDraft.bgmUrl);
+    const compactedDetailTheme = compactCaseFileDetailTheme(character.detailTheme);
     const { textGlitch: _textGlitch, ...characterBody } = character;
 
     try {
@@ -1329,6 +1376,9 @@ export default function AdminPage() {
           ...characterBody,
           ...textGlitchPatch,
           ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
+          ...(compactedDetailTheme
+            ? { detailTheme: compactedDetailTheme }
+            : { detailTheme: deleteField() }),
           ...(normalizeCharacterKind(character.kind) !== "pair" ? { pairMemberIds: deleteField() } : {}),
           updatedAt: serverTimestamp(),
         }),
@@ -1355,9 +1405,12 @@ export default function AdminPage() {
     setDraft(nextDraft);
     setActiveSubPageId(nextDraft.subPages[0]?.id ?? "");
     setActiveCharacterKind(normalizeCharacterKind(character.kind));
-    const migrationNotice = getLegacySettingsMigrationNotice(character);
-    if (migrationNotice) {
-      setNotice(migrationNotice);
+    const settingsMigrationNotice = getLegacySettingsMigrationNotice(character);
+    const relationshipsMigrationNotice = getLegacyRelationshipsMigrationNotice(character);
+    if (settingsMigrationNotice) {
+      setNotice(settingsMigrationNotice);
+    } else if (relationshipsMigrationNotice) {
+      setNotice(relationshipsMigrationNotice);
     }
   }
 
@@ -2706,7 +2759,7 @@ export default function AdminPage() {
               </button>
             </aside>
 
-            <section className="grid gap-6">
+            <section className="grid min-w-0 gap-6">
               {adminPanel === "categories" && (
                 <form
                   onSubmit={(event) => {
@@ -3193,7 +3246,7 @@ export default function AdminPage() {
                   isPair={isPairDraft}
                   activeGlitchLabel={activeGlitchLabel}
                 />
-              <form onSubmit={saveCharacter} className="glass-card grid gap-3 p-5 md:p-6">
+              <form onSubmit={saveCharacter} className="glass-card admin-edit-form grid min-w-0 max-w-full gap-3 p-5 pb-28 md:p-6">
                 {characterEditSection === "basics" && (
                 <>
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -3341,6 +3394,15 @@ export default function AdminPage() {
                     className={glitchFieldClass("quote", activeGlitchFieldPath, "auth-input min-h-20")}
                   />
                 </label>
+                <CaseFileThemeEditor
+                  theme={draft.detailTheme}
+                  onChange={(detailTheme) =>
+                    setDraft((current) => ({
+                      ...current,
+                      detailTheme,
+                    }))
+                  }
+                />
                 {!isPairDraft && (
                 <label className="grid gap-2 text-sm text-emerald-100/75">
                   상세 보기 BGM
@@ -3457,18 +3519,33 @@ export default function AdminPage() {
                   </div>
                 </section>
 
-                <label className="grid gap-2 text-sm text-emerald-100/75">
-                  관계
-                  <textarea
-                    value={draft.relationshipsText}
-                    onChange={(event) =>
-                      setDraft((current) => updateDraftFieldValue(current, "relationships", event.target.value))
-                    }
-                    {...bindGlitchField("relationships")}
-                    placeholder={"한 줄에 하나씩 입력"}
-                    className={glitchFieldClass("relationships", activeGlitchFieldPath, "auth-input min-h-32")}
-                  />
-                </label>
+                <RelationshipsEditor
+                  entries={draft.relationshipEntries}
+                  onEntriesChange={(relationshipEntries) =>
+                    setDraft((current) => {
+                      const removedEntry = current.relationshipEntries.find(
+                        (entry) => !relationshipEntries.some((next) => next.id === entry.id),
+                      );
+                      const nextGlitch = { ...current.textGlitch };
+                      if (removedEntry) {
+                        delete nextGlitch[relationshipEntryGlitchPath(removedEntry.id)];
+                      }
+                      return { ...current, relationshipEntries };
+                    })
+                  }
+                  linkableCharacters={characters}
+                  currentCharacterId={draft.id}
+                  ownSubPages={listNavigableSubPages(
+                    { id: draft.id, subPages: draft.subPages } as Character,
+                    characters,
+                  )}
+                  bindGlitchField={bindGlitchField}
+                  activeGlitchFieldPath={activeGlitchFieldPath}
+                  glitchFieldClass={glitchFieldClass}
+                  onBodyChange={(entryId, value) =>
+                    setDraft((current) => updateDraftFieldValue(current, relationshipEntryGlitchPath(entryId), value))
+                  }
+                />
                 </>
                 )}
 
@@ -3511,11 +3588,6 @@ export default function AdminPage() {
                       const path = event.target.value;
                       setActiveGlitchFieldPath(path || null);
                       setGlitchFieldSelection(null);
-                      const subPagePath = path ? parseSubPageGlitchPath(path) : null;
-                      if (subPagePath) {
-                        setCharacterEditSection("subpages");
-                        setActiveSubPageId(subPagePath.subPageId);
-                      }
                     }}
                     className="auth-input"
                   >
@@ -3569,7 +3641,7 @@ export default function AdminPage() {
                 <div>
                   <h2 className="board-title">상세 페이지</h2>
                   <p className="mt-1 text-xs leading-5 text-emerald-100/55">
-                    이 항목 안에 보여 줄 상세 페이지를 만듭니다. 「오류」 탭에서 구간을 다른 항목·상세 페이지로 연결할 수 있어요.
+                    이 캐릭터 전용 상세 페이지를 만듭니다. 각 페이지에서 그림·글을 넣을 수 있고, 공용으로 설정하면 다른 캐릭터가 그 페이지만 불러와 쓸 수 있어요.
                   </p>
                 </div>
                 <SubPageEditor
@@ -3582,6 +3654,10 @@ export default function AdminPage() {
                       subPages,
                     }))
                   }
+                  linkableCharacters={characters}
+                  parentCharacterId={draft.id}
+                  allCharacters={characters}
+                  onNotice={setNotice}
                 />
                 </>
                 )}

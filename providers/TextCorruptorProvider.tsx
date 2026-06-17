@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { type ReactNode, useEffect, useRef } from "react";
+import { TEXT_CORRUPTOR_CHARS } from "@/lib/glitch-display";
 
 interface TextCorruptorProviderProps {
   children: ReactNode;
@@ -22,7 +23,7 @@ type CorruptCandidate =
 
 type RestoreAction = () => void;
 
-const DEFAULT_GLITCH_CHARS = ["0", "1", "/", "\\", "_", "-", "#", "?", "!", "."];
+const DEFAULT_GLITCH_CHARS = [...TEXT_CORRUPTOR_CHARS];
 const CORRUPT_INTERVALS_MS = [4000, 5000, 6000, 7000, 8000];
 const CORRUPT_VISIBLE_MS = 520;
 const CORRUPT_COUNT = 5;
@@ -96,7 +97,7 @@ function corruptText(text: string, preserveFirstLetter = false) {
 function isCorruptableElement(element: Element) {
   if (
     element.closest(
-      "script, style, noscript, textarea, select, option, [data-text-corruptor-ignore]",
+      "script, style, noscript, textarea, select, option, [data-text-corruptor-ignore], .case-file-intro-text, .case-file-voice-text, .case-file-name, .archive-card-intro",
     )
   ) {
     return false;

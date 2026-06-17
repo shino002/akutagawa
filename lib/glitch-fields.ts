@@ -10,8 +10,13 @@ import {
   setProfileFieldValue,
 } from "@/lib/profile-fields";
 import {
-  isValidFieldGlitchConfig,
-} from "@/lib/glitch-style";
+  getRelationshipEntryBody,
+  parseRelationshipEntryGlitchPath,
+  relationshipEntriesToLegacyLines,
+  relationshipEntryGlitchPath,
+  setRelationshipEntryBody,
+} from "@/lib/relationship-entries";
+import { isValidFieldGlitchConfig } from "@/lib/glitch-style";
 
 export const GLITCH_FIELD_LABELS: Record<string, string> = {
   name: "이름",
@@ -20,7 +25,6 @@ export const GLITCH_FIELD_LABELS: Record<string, string> = {
   quote: "대표 대사",
   classification: "기록 분류",
   statusTags: "기록 상태",
-  relationships: "관계",
 };
 
 const SUB_PAGE_GLITCH_FIELD_PATHS = [
@@ -28,7 +32,6 @@ const SUB_PAGE_GLITCH_FIELD_PATHS = [
   "kanjiName",
   "subtitle",
   "quote",
-  "relationships",
 ] as const;
 
 const BASE_GLITCH_FIELD_PATHS = [
@@ -38,7 +41,6 @@ const BASE_GLITCH_FIELD_PATHS = [
   "quote",
   "classification",
   "statusTags",
-  "relationships",
 ] as const;
 
 export const SUB_PAGE_GLITCH_PREFIX = "subPages.";
@@ -80,7 +82,13 @@ function getSubPageFieldValue(subPage: CharacterSubPage, fieldPath: string) {
   if (fieldPath === "quote") return subPage.quote;
   const profileFieldId = parseProfileFieldGlitchPath(fieldPath);
   if (profileFieldId) return getProfileFieldValue(subPage.profileFields, profileFieldId);
-  if (fieldPath === "relationships") return (subPage.relationships ?? []).join("\n");
+  const relationshipEntryId = parseRelationshipEntryGlitchPath(fieldPath);
+  if (relationshipEntryId) {
+    return getRelationshipEntryBody(subPage.relationshipEntries ?? [], relationshipEntryId);
+  }
+  if (fieldPath === "relationships") {
+    return relationshipEntriesToLegacyLines(subPage.relationshipEntries ?? []).join("\n");
+  }
 
   if (fieldPath.startsWith("settingSections.")) {
     const sectionId = fieldPath.slice("settingSections.".length);
@@ -102,14 +110,19 @@ function setSubPageFieldValue(subPage: CharacterSubPage, fieldPath: string, valu
       profileFields: setProfileFieldValue(subPage.profileFields, profileFieldId, value),
     };
   }
-  if (fieldPath === "relationships") {
+  const relationshipEntryId = parseRelationshipEntryGlitchPath(fieldPath);
+  if (relationshipEntryId) {
     return {
       ...subPage,
-      relationships: value
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean),
+      relationshipEntries: setRelationshipEntryBody(
+        subPage.relationshipEntries ?? [],
+        relationshipEntryId,
+        value,
+      ),
     };
+  }
+  if (fieldPath === "relationships") {
+    return subPage;
   }
 
   if (fieldPath.startsWith("settingSections.")) {
@@ -154,6 +167,11 @@ export function getGlitchFieldLabel(path: string): string {
     return `상세 설정 본문 (${path.slice("settingSections.".length)})`;
   }
 
+  const relationshipEntryId = parseRelationshipEntryGlitchPath(path);
+  if (relationshipEntryId) {
+    return `관계 설명 (${relationshipEntryId})`;
+  }
+
   if (path.startsWith("works.")) {
     return `연성 본문 (${path.slice("works.".length)})`;
   }
@@ -176,7 +194,11 @@ export function getCharacterDraftFieldValue(draft: CharacterDraft, path: string)
   if (path === "statusTags") return draft.statusTagsText;
   const profileFieldId = parseProfileFieldGlitchPath(path);
   if (profileFieldId) return getProfileFieldValue(draft.profileFields, profileFieldId);
-  if (path === "relationships") return draft.relationshipsText;
+  const relationshipEntryId = parseRelationshipEntryGlitchPath(path);
+  if (relationshipEntryId) {
+    return getRelationshipEntryBody(draft.relationshipEntries, relationshipEntryId);
+  }
+  if (path === "relationships") return relationshipEntriesToLegacyLines(draft.relationshipEntries).join("\n");
 
   if (path.startsWith("settingSections.")) {
     const sectionId = path.slice("settingSections.".length);
@@ -195,7 +217,14 @@ export function getCharacterFieldValue(character: Character, path: string) {
   if (path === "statusTags") return (character.statusTags ?? []).join("\n");
   const profileFieldId = parseProfileFieldGlitchPath(path);
   if (profileFieldId) return getProfileFieldValue(character.profileFields, profileFieldId);
-  if (path === "relationships") return character.relationships.join("\n");
+  const relationshipEntryId = parseRelationshipEntryGlitchPath(path);
+  if (relationshipEntryId) {
+    return getRelationshipEntryBody(character.relationshipEntries ?? [], relationshipEntryId);
+  }
+  if (path === "relationships") {
+    return relationshipEntriesToLegacyLines(character.relationshipEntries ?? []).join("\n") ||
+      character.relationships.join("\n");
+  }
 
   if (path.startsWith("settingSections.")) {
     const sectionId = path.slice("settingSections.".length);
@@ -231,7 +260,14 @@ export function setCharacterDraftFieldValue(draft: CharacterDraft, path: string,
       profileFields: setProfileFieldValue(draft.profileFields, profileFieldId, value),
     };
   }
-  if (path === "relationships") return { ...draft, relationshipsText: value };
+  const relationshipEntryId = parseRelationshipEntryGlitchPath(path);
+  if (relationshipEntryId) {
+    return {
+      ...draft,
+      relationshipEntries: setRelationshipEntryBody(draft.relationshipEntries, relationshipEntryId, value),
+    };
+  }
+  if (path === "relationships") return draft;
 
   if (path.startsWith("settingSections.")) {
     const sectionId = path.slice("settingSections.".length);
@@ -318,7 +354,13 @@ function draftAsGlitchAnchorCharacter(draft: CharacterDraft): Character {
       title: section.title.trim(),
       body: section.body.trim(),
     })),
-    relationships: linesToList(draft.relationshipsText),
+    relationships: relationshipEntriesToLegacyLines(draft.relationshipEntries),
+    relationshipEntries: draft.relationshipEntries.map((entry) => ({
+      ...entry,
+      name: entry.name.trim(),
+      label: entry.label.trim(),
+      body: entry.body.trim(),
+    })),
     palette: draft.palette.trim() || "from-zinc-950 via-black to-zinc-900",
     works: [],
   };
@@ -411,7 +453,11 @@ export function getGlitchSectionForPath(path: string): GlitchEditSection {
   const subPagePath = parseSubPageGlitchPath(path);
   const fieldPath = subPagePath?.fieldPath ?? path;
 
-  if (RECORD_GLITCH_PATHS.has(fieldPath) || fieldPath.startsWith("settingSections.")) {
+  if (
+    RECORD_GLITCH_PATHS.has(fieldPath) ||
+    fieldPath.startsWith("settingSections.") ||
+    fieldPath.startsWith("relationships.")
+  ) {
     return "record";
   }
 
@@ -492,6 +538,20 @@ function buildBaseGlitchFieldOptions(
   return [...staticOptions, ...profileOptions];
 }
 
+function buildRelationshipGlitchFieldOptions(
+  draft: CharacterDraft,
+  textGlitch: Record<string, FieldGlitchConfig>,
+): GlitchFieldOption[] {
+  return draft.relationshipEntries.map((entry, index) => {
+    const path = relationshipEntryGlitchPath(entry.id);
+    const labelParts = [entry.name.trim(), entry.label.trim()].filter(Boolean);
+    return {
+      path,
+      label: labelParts.join(" · ") || `관계 ${index + 1}`,
+      hasGlitch: Boolean(textGlitch[path]),
+    };
+  });
+}
 function buildRecordBoxGlitchFieldOptions(
   draft: CharacterDraft,
   textGlitch: Record<string, FieldGlitchConfig>,
@@ -537,6 +597,16 @@ function buildSubPageGlitchFieldOptions(subPage: CharacterSubPage): GlitchFieldO
     });
   });
 
+  (subPage.relationshipEntries ?? []).forEach((entry, index) => {
+    const fieldPath = relationshipEntryGlitchPath(entry.id);
+    const labelParts = [entry.name.trim(), entry.label.trim()].filter(Boolean);
+    options.push({
+      path: subPageFieldGlitchPath(subPage.id, fieldPath),
+      label: labelParts.join(" · ") || `관계 ${index + 1}`,
+      hasGlitch: Boolean(subGlitch[fieldPath]),
+    });
+  });
+
   return options;
 }
 
@@ -558,6 +628,15 @@ export function buildGlitchFieldOptionGroups(
       id: "record-boxes",
       label: "레코드 박스",
       options: recordBoxOptions,
+    });
+  }
+
+  const relationshipOptions = buildRelationshipGlitchFieldOptions(draft, textGlitch);
+  if (relationshipOptions.length > 0) {
+    groups.push({
+      id: "relationships",
+      label: "관계",
+      options: relationshipOptions,
     });
   }
 

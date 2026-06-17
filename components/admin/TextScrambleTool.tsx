@@ -21,11 +21,13 @@ import {
   hasGlitchPresentation,
   normalizeGlitchZoneStyle,
 } from "@/lib/glitch-style";
+import { glitchTextWasSanitized, sanitizePlainText } from "@/lib/glitch-display";
 import { zonesOverlap, type GlitchZone } from "@/lib/text-scramble";
 import { getGlitchFieldLabel, glitchConfigSignature } from "@/lib/glitch-fields";
 import type { GlitchTextSelection } from "@/lib/glitch-selection";
 import { readGlitchTextSelection } from "@/lib/glitch-selection";
 import { normalizeFieldGlitchConfig } from "@/lib/normalize-text-glitch";
+import { ensureZoneErrorAlternation } from "@/lib/glitch-scramble-options";
 import type {
   FieldGlitchConfig,
   GlitchErrorDisplayMode,
@@ -85,10 +87,13 @@ function buildConfig({
 
   return normalizeFieldGlitchConfig({
     wordPool: wordPool.trim(),
-    zones,
+    zones: ensureZoneErrorAlternation(zones, {
+      wordPool: wordPool.trim(),
+      builtinScramble,
+    }),
     tickMs: clampGlitchTickMs(tickMs),
     defaultStyle,
-    scrambleMode: wordPool.trim() ? scrambleMode ?? "referenceWithBuiltin" : undefined,
+    scrambleMode: wordPool.trim() ? (scrambleMode ?? "referenceOnly") : undefined,
     builtinScramble,
     errorDisplayMode,
     builtinTokens: builtinTokens?.length ? builtinTokens : undefined,
@@ -142,7 +147,7 @@ export function TextScrambleTool({
   const defaults = createDefaultGlitchDraft();
   const [wordPool, setWordPool] = useState(glitchConfig?.wordPool ?? "");
   const [scrambleMode, setScrambleMode] = useState<GlitchScrambleMode>(
-    glitchConfig?.scrambleMode ?? "referenceWithBuiltin",
+    glitchConfig?.scrambleMode ?? "referenceOnly",
   );
   const [builtinScramble, setBuiltinScramble] = useState(glitchConfig?.builtinScramble === true);
   const [errorDisplayMode, setErrorDisplayMode] = useState<GlitchErrorDisplayMode>(
@@ -172,13 +177,10 @@ export function TextScrambleTool({
   const hasScramble = fieldGlitchHasScramble(draftConfig);
   const pendingUsesError = pendingZoneDraft.errorMessageSource !== "none";
   const showScrambleSettings =
-    hasScramble ||
-    pendingUsesError ||
-    Boolean(wordPool.trim()) ||
-    builtinScramble;
+    hasScramble || pendingUsesError || Boolean(wordPool.trim()) || builtinScramble;
   const showBuiltinTokenPicker = Boolean(
     showScrambleSettings &&
-      (wordPool.trim() ? scrambleMode === "referenceWithBuiltin" : builtinScramble),
+    (wordPool.trim() ? scrambleMode === "referenceWithBuiltin" : builtinScramble),
   );
   const activeSelection = workSelection ?? externalSelection;
   const zoneFingerprint = zones
@@ -198,7 +200,16 @@ export function TextScrambleTool({
             builtinTokens,
           })
         : undefined,
-    [builtinScramble, builtinTokens, errorDisplayMode, scrambleMode, tickMs, wordPool, zoneStyle, zones],
+    [
+      builtinScramble,
+      builtinTokens,
+      errorDisplayMode,
+      scrambleMode,
+      tickMs,
+      wordPool,
+      zoneStyle,
+      zones,
+    ],
   );
   const previewLoopSignature = useMemo(
     () => glitchConfigSignature(fieldValue, previewConfig ?? glitchConfig),
@@ -240,7 +251,7 @@ export function TextScrambleTool({
 
   useEffect(() => {
     setWordPool(glitchConfig?.wordPool ?? "");
-    setScrambleMode(glitchConfig?.scrambleMode ?? "referenceWithBuiltin");
+    setScrambleMode(glitchConfig?.scrambleMode ?? "referenceOnly");
     setBuiltinScramble(glitchConfig?.builtinScramble === true);
     setErrorDisplayMode(glitchConfig?.errorDisplayMode ?? "alternate");
     setBuiltinTokens(glitchConfig?.builtinTokens ?? []);
@@ -269,7 +280,9 @@ export function TextScrambleTool({
     glitchConfig?.wordPool,
   ]);
 
-  const commitConfig = (options: Partial<TextScrambleToolConfigOptions> & { zones: GlitchZone[] }) => {
+  const commitConfig = (
+    options: Partial<TextScrambleToolConfigOptions> & { zones: GlitchZone[] },
+  ) => {
     onGlitchChange(
       buildConfig({
         wordPool: options.wordPool ?? wordPool,
@@ -337,6 +350,11 @@ export function TextScrambleTool({
   };
 
   const handleTickMsChange = (nextTickMs: number) => {
+    const clamped = clampGlitchTickMs(nextTickMs);
+    setTickMs(clamped);
+  };
+
+  const handleTickMsCommit = (nextTickMs: number) => {
     const clamped = clampGlitchTickMs(nextTickMs);
     setTickMs(clamped);
     if (zones.length > 0) {
@@ -412,7 +430,12 @@ export function TextScrambleTool({
       return;
     }
 
-    const errorMessageSource = pendingZoneDraft.errorMessageSource;
+    const errorMessageSource =
+      pendingZoneDraft.errorMessageSource !== "none"
+        ? pendingZoneDraft.errorMessageSource
+        : wantsReference || wantsBuiltin
+          ? ("auto" as const)
+          : ("none" as const);
     const customMessage =
       errorMessageSource === "custom" ? pendingZoneDraft.errorMessage?.trim() : undefined;
     const linkTarget = normalizeZoneLinkTarget(pendingZoneDraft.linkTarget);
@@ -431,7 +454,9 @@ export function TextScrambleTool({
               style: normalizedStyle,
               errorMessageSource,
               ...(customMessage ? { errorMessage: customMessage } : { errorMessage: undefined }),
-              ...(linkTarget ? { linkTarget, linkSubPageId: undefined } : { linkTarget: undefined, linkSubPageId: undefined }),
+              ...(linkTarget
+                ? { linkTarget, linkSubPageId: undefined }
+                : { linkTarget: undefined, linkSubPageId: undefined }),
             }
           : zone,
       );
@@ -552,7 +577,7 @@ export function TextScrambleTool({
 
   return (
     <section
-      className="border border-emerald-100/15 bg-black/30 p-4"
+      className="max-w-full min-w-0 border border-emerald-100/15 bg-black/30 p-4 pb-6"
       data-text-corruptor-ignore
       data-text-scramble-tool
     >
@@ -571,7 +596,8 @@ export function TextScrambleTool({
         </div>
       ) : (
         <p className="mt-3 border border-amber-400/30 bg-amber-950/20 p-3 text-xs leading-6 text-amber-100">
-          위 편집 칸을 클릭한 뒤, 그 칸에서 바로 드래그하거나 아래 작업 텍스트에서 구간을 선택하세요.
+          위 편집 칸을 클릭한 뒤, 그 칸에서 바로 드래그하거나 아래 작업 텍스트에서 구간을
+          선택하세요.
         </p>
       )}
 
@@ -584,21 +610,29 @@ export function TextScrambleTool({
         <textarea
           value={wordPool}
           onChange={(event) => {
-            const next = event.target.value;
+            const raw = event.target.value;
+            const next = sanitizePlainText(raw);
             setWordPool(next);
             if (zones.length > 0) {
               commitConfig({ zones, wordPool: next });
             }
+            if (glitchTextWasSanitized(raw, next)) {
+              notify(
+                "참조 단어는 일반 글자만 넣어주세요. 오류 문구는 자동으로 뒤죽박죽(합성 기호) 처리됩니다.",
+              );
+            }
           }}
           placeholder={"한 줄에 하나씩 · 예: 오류\n불완전\nNULL"}
-          className="auth-input min-h-20"
+          className="auth-input min-h-20 max-w-full break-all"
           data-text-corruptor-ignore
         />
       </label>
 
       {showScrambleSettings && wordPool.trim() ? (
         <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
-          <legend className="px-1 text-[11px] font-medium text-emerald-100/85">오류 메시지 구성</legend>
+          <legend className="px-1 text-[11px] font-medium text-emerald-100/85">
+            오류 메시지 구성
+          </legend>
           <div className="mt-2 flex flex-wrap gap-2">
             <AdminChoiceButton
               active={scrambleMode === "referenceOnly"}
@@ -618,8 +652,8 @@ export function TextScrambleTool({
           <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
             「기본 기호」는 #, ?, ERR, NULL, ??? 같은 기본 제공 문구·기호입니다.
             {scrambleMode === "referenceOnly"
-              ? " 참조 단어에 있는 글자만 골라 구간 길이만큼 무작위로 섞습니다."
-              : null}
+              ? " 참조 단어 글자만 무작위로 섞어 구간 길이에 맞춥니다. (오류·불완전·NULL 등 풀 안 글자만 사용)"
+              : " 참조 단어로 문구를 만든 뒤 기본 기호(#, ERR 등)로 일부 글자를 더 섞습니다."}
           </p>
         </fieldset>
       ) : showScrambleSettings ? (
@@ -640,10 +674,7 @@ export function TextScrambleTool({
       ) : null}
 
       {showBuiltinTokenPicker ? (
-        <BuiltinTokenPicker
-          selectedTokens={builtinTokens}
-          onChange={handleBuiltinTokensChange}
-        />
+        <BuiltinTokenPicker selectedTokens={builtinTokens} onChange={handleBuiltinTokensChange} />
       ) : null}
 
       {showScrambleSettings && hasScramble ? (
@@ -673,7 +704,13 @@ export function TextScrambleTool({
         </fieldset>
       ) : null}
 
-      {hasScramble ? <GlitchTickEditor tickMs={tickMs} onTickMsChange={handleTickMsChange} /> : null}
+      {hasScramble ? (
+        <GlitchTickEditor
+          tickMs={tickMs}
+          onTickMsChange={handleTickMsChange}
+          onTickMsCommit={handleTickMsCommit}
+        />
+      ) : null}
 
       <label className="mt-4 grid gap-2 text-xs text-emerald-100/70">
         작업 텍스트
@@ -705,12 +742,15 @@ export function TextScrambleTool({
       />
 
       {activeSelection && pendingZonePreview ? (
-        <div className="mt-3 border border-amber-300/35 bg-amber-950/25 p-3" onMouseDown={keepAdminTextSelection}>
+        <div
+          className="mt-3 border border-amber-300/35 bg-amber-950/25 p-3"
+          onMouseDown={keepAdminTextSelection}
+        >
           <p className="text-xs font-medium text-amber-100">
             선택 구간 설정 · {activeSelection.start + 1}~{activeSelection.end}번째 글자 (
             {activeSelection.text.length}자)
           </p>
-          <p className="mt-2 break-all text-sm leading-7 text-emerald-50/90">
+          <p className="mt-2 text-sm leading-7 break-all text-emerald-50/90">
             {fieldValue.slice(Math.max(0, activeSelection.start - 24), activeSelection.start)}
             <mark className="bg-amber-300/35 px-1 text-amber-50">{activeSelection.text}</mark>
             {fieldValue.slice(activeSelection.end, activeSelection.end + 24)}
@@ -758,8 +798,8 @@ export function TextScrambleTool({
         </div>
       ) : (
         <p className="mt-3 border border-stone-500/20 bg-stone-950/30 p-3 text-xs leading-6 text-stone-300">
-          위 「드래그 없이 구간 지정」에서 전체 적용, 문구 찾기, 글자 번호를 사용하거나 작업 텍스트를
-          드래그한 뒤, 여기서 스타일·오류·이동 연결을 먼저 설정하세요.
+          위 「드래그 없이 구간 지정」에서 전체 적용, 문구 찾기, 글자 번호를 사용하거나 작업
+          텍스트를 드래그한 뒤, 여기서 스타일·오류·이동 연결을 먼저 설정하세요.
         </p>
       )}
 
@@ -790,19 +830,23 @@ export function TextScrambleTool({
           {zones.map((zone, index) => (
             <div
               key={zone.id}
-              className="border border-emerald-100/15 bg-black/25 px-3 py-2"
+              className="overflow-visible border border-emerald-100/15 bg-black/25 px-3 py-2"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="min-w-0 text-xs leading-6 text-emerald-50/90">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1 text-xs leading-6 break-all text-emerald-50/90">
                   <span className="font-semibold text-emerald-100">
                     구간 {index + 1} · {zone.start + 1}~{zone.end}번째 글자
                   </span>
                   <span className="mx-2 text-emerald-100/40">|</span>
-                  <span className="font-mono text-emerald-100/80">「{truncateMiddle(zone.original)}」</span>
+                  <span className="font-mono text-emerald-100/80">
+                    「{truncateMiddle(zone.original)}」
+                  </span>
                   {zone.errorMessageSource === "custom" && zone.errorMessage ? (
                     <>
                       <span className="mx-2 text-emerald-100/40">→</span>
-                      <span className="font-mono text-amber-100/85">「{truncateMiddle(zone.errorMessage, 24)}」</span>
+                      <span className="font-mono text-amber-100/85">
+                        「{truncateMiddle(zone.errorMessage, 24)}」
+                      </span>
                     </>
                   ) : null}
                   {zone.errorMessageSource === "none" ? (
@@ -818,7 +862,7 @@ export function TextScrambleTool({
                       <span className="mx-2 text-emerald-100/40">|</span>
                       <GlitchZoneMark
                         text={truncateMiddle(zone.original, 24)}
-                        original={zone.original}
+                        original={truncateMiddle(zone.original, 24)}
                         zoneStyle={zone.style}
                       />
                     </>
@@ -872,7 +916,7 @@ export function TextScrambleTool({
               : "본 페이지와 같이 오류 메시지만 계속 랜덤으로 바뀝니다."
             : "본 페이지와 같이 서식·색상이 적용된 모습입니다."}
         </p>
-        <p className="mt-3 min-h-16 whitespace-pre-wrap break-all text-sm leading-7 text-emerald-50/90">
+        <p className="mt-3 min-h-[4.5rem] text-sm leading-7 break-words whitespace-pre-wrap text-emerald-50/90">
           {previewLoopSignature && previewConfig ? (
             <GlitchedText text={fieldValue} glitch={previewConfig} preserveWhitespace />
           ) : (
