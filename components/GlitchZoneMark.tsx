@@ -44,6 +44,7 @@ export function GlitchZoneMark({
   const markClassName = cn(
     "glitch-zone-mark",
     isChaos && "glitch-zone-chaos",
+    zoneStyle?.storyQuote && "story-inline-quote",
     decorationClassName(decoration),
     className,
   );

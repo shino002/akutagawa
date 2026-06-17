@@ -1,4 +1,4 @@
-import type { Character, UploadedImage, Work } from "@/lib/types";
+import type { Character, SettingSection, UploadedImage, Work } from "@/lib/types";
 
 /**
  * 공개 페이지(홈)에서 사용하는 이미지 갤러리 모달 상태입니다.
@@ -14,6 +14,14 @@ export type GalleryModalItem = {
 export type ExpressionModalItem = {
   character: Character;
   images: UploadedImage[];
+};
+
+/**
+ * 스토리 창(레코드 박스 서사) 모달 상태입니다.
+ */
+export type StoryModalItem = {
+  character: Character;
+  section: SettingSection;
 };
 
 /**

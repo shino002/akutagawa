@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useCallback, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import "dayjs/locale/ko";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
@@ -15,6 +15,7 @@ import { WorldsSection } from "@/components/home/sections/WorldsSection";
 import { DiarySection } from "@/components/home/sections/DiarySection";
 import { GuestSection } from "@/components/home/sections/GuestSection";
 import { ExtractSection } from "@/components/home/sections/ExtractSection";
+import { StoryModal } from "@/components/home/modals/StoryModal";
 import { ReaderModal } from "@/components/home/modals/ReaderModal";
 import { GalleryModal } from "@/components/home/modals/GalleryModal";
 import { ExpressionModal } from "@/components/home/modals/ExpressionModal";
@@ -38,12 +39,6 @@ import { characterSectionForId, type CharacterDetailSection } from "@/lib/zone-l
 
 dayjs.locale("ko");
 
-const getInitialMenuOpen = () => {
-  if (typeof window === "undefined") return true;
-
-  return window.matchMedia("(min-width: 768px)").matches;
-};
-
 export default function Home() {
   const [activeSection, setActiveSection] = useState<SectionId>("home");
   const [activeArchiveSub, setActiveArchiveSub] = useState<ArchiveSubSectionId>("characters");
@@ -53,7 +48,13 @@ export default function Home() {
   const [activeSubPageId, setActiveSubPageId] = useState("");
   const [activeTab, setActiveTab] = useState<CharacterDetailTab>("settings");
   const [detailNavStack, setDetailNavStack] = useState<DetailNavSnapshot[]>([]);
-  const [menuOpen, setMenuOpen] = useState(getInitialMenuOpen);
+  const [menuOpen, setMenuOpen] = useState(true);
+
+  useEffect(() => {
+    if (!window.matchMedia("(min-width: 768px)").matches) {
+      setMenuOpen(false);
+    }
+  }, []);
   const [authNotice, setAuthNotice] = useState("");
   const [guestDraft, setGuestDraft] = useState({ name: "", body: "" });
 
@@ -266,6 +267,7 @@ export default function Home() {
       onOpenGallery={modals.openGalleryModal}
       onOpenExpression={modals.setExpressionModalItem}
       onOpenReader={modals.setReaderModalItem}
+      onOpenStory={modals.setStoryModalItem}
     />
   );
 
@@ -322,7 +324,7 @@ export default function Home() {
           font-family: "KbizHanmaumMyungjo", "Zen Old Mincho", serif !important;
         }
       `}</style>
-      <div className="fixed inset-0 bg-[linear-gradient(180deg,#000000_0%,#000000_78%,#080000_100%)]" />
+      <div className="fixed inset-0 bg-black" />
       <div className="noise-layer" aria-hidden="true" />
 
       <SideMenu
@@ -416,6 +418,13 @@ export default function Home() {
           <BgmPlayer characterBgmUrl={characterBgmUrl} />
         </aside>
       </section>
+
+      {modals.storyModalItem && (
+        <StoryModal
+          item={modals.storyModalItem}
+          onClose={() => modals.setStoryModalItem(null)}
+        />
+      )}
 
       {modals.readerModalItem && (
         <ReaderModal

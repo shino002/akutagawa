@@ -33,9 +33,22 @@ export type CharacterWorldEntry = {
   works: Work[];
 };
 
+export type SettingSectionKind = "record" | "story";
+
 export type SettingSection = {
   id: string;
   title: string;
+  body: string;
+  /** record: Record Box에 전체 표시 · story: 미리보기 + 스토리 창 */
+  kind?: SettingSectionKind;
+  /** story일 때 Record Box에 보일 짧은 소개 (비우면 본문에서 자동 생성) */
+  excerpt?: string;
+};
+
+/** 상세 카드 상단 메타 (상태·분류 등 사용자 정의 라벨) */
+export type CaseMetaField = {
+  id: string;
+  label: string;
   body: string;
 };
 
@@ -68,6 +81,8 @@ export type GlitchMarkdown = {
 export type GlitchZoneStyle = {
   textColor?: string;
   markdown?: GlitchMarkdown;
+  /** 스토리 $...$ 인용 강조 (편집기·본문 공통) */
+  storyQuote?: boolean;
   /** 밑줄 색 (markdown.underline 켜진 경우) */
   underlineColor?: string;
   /** 밑줄 굵기 px (0.5~12, 0.5 단위, 기본 2) */
@@ -134,11 +149,18 @@ export type CharacterSubPage = {
   isShared?: boolean;
   /** 상세 페이지 카드/히어로에 쓰일 표시 ID */
   displayId?: string;
+  /** 대상 종류 (직접 입력 · 예: 서브캐릭터, 물건, 능력, 장소) */
+  entryKind?: string;
   title: string;
   /** 한자 이름 */
   kanjiName?: string;
   subtitle: string;
   quote: string;
+  metaFields?: CaseMetaField[];
+  /** @deprecated metaFields 사용 */
+  statusTags?: string[];
+  /** @deprecated metaFields 사용 */
+  classification?: string;
   palette: string;
   detailTheme?: CaseFileDetailTheme;
   profileFields: ProfileField[];
@@ -169,7 +191,10 @@ export type Character = {
   kind?: CharacterKind;
   name: string;
   kanjiName?: string;
+  metaFields?: CaseMetaField[];
+  /** @deprecated metaFields 사용 */
   statusTags?: string[];
+  /** @deprecated metaFields 사용 */
   classification?: string;
   subtitle: string;
   quote: string;

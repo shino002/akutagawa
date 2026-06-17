@@ -13,13 +13,13 @@
 
 :root {
   --background: #000000;
-  --foreground: #fff5f5;
+  --foreground: #e8ecf1;
   --blood: #ff0018;
   --blood-dark: #8f0000;
-  --archive-ink: #050000;
-  --archive-panel: rgba(5, 0, 1, 0.92);
-  --archive-line: rgba(255, 0, 24, 0.44);
-  --archive-muted: rgba(255, 210, 210, 0.58);
+  --archive-ink: #000000;
+  --archive-panel: rgba(0, 0, 0, 0.96);
+  --archive-line: rgba(120, 120, 120, 0.35);
+  --archive-muted: rgba(184, 190, 200, 0.62);
   /* 노션식: 본문 폰트에 기호·이모지 폴백을 이어 붙여 □(토후) 대신 시스템 글리프 사용 */
   --font-ui-stack: "Noto Sans KR", "Noto Sans Symbols 2", "Segoe UI Symbol", "Apple Symbols",
     "Malgun Gothic", "Apple SD Gothic Neo", ui-sans-serif, system-ui, sans-serif;
@@ -160,30 +160,23 @@ main :where(button:hover, a:hover) {
 
 .archive-row {
   position: relative;
-  border: 1px solid rgba(255, 0, 24, 0.26);
-  background:
-    linear-gradient(90deg, rgba(255, 0, 24, 0.08), transparent 28%),
-    rgba(0, 0, 0, 0.5);
-  color: rgba(255, 238, 238, 0.84);
+  border: 1px solid rgba(120, 120, 120, 0.28);
+  background: rgba(0, 0, 0, 0.72);
+  color: rgba(232, 236, 241, 0.92);
 }
 
 .archive-row::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-left: 2px solid rgba(255, 0, 24, 0.5);
-  pointer-events: none;
+  content: none;
+  display: none;
 }
 
 .archive-row:hover {
-  border-color: rgba(255, 0, 24, 0.78);
-  background:
-    linear-gradient(90deg, rgba(255, 0, 24, 0.16), transparent 34%),
-    rgba(18, 0, 3, 0.66);
+  border-color: rgba(160, 160, 160, 0.4);
+  background: rgba(10, 10, 10, 0.92);
 }
 
 .archive-kicker {
-  color: rgba(255, 0, 24, 0.68);
+  color: rgba(168, 176, 188, 0.82);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.68rem;
   letter-spacing: 0.28em;
@@ -191,24 +184,24 @@ main :where(button:hover, a:hover) {
 }
 
 .archive-title {
-  color: rgba(255, 245, 245, 0.96);
+  color: rgba(245, 245, 243, 0.96);
   font-weight: 900;
   letter-spacing: -0.06em;
   line-height: 0.98;
-  text-shadow:
-    1px 0 rgba(255, 0, 24, 0.42),
-    -1px 0 rgba(255, 255, 255, 0.14),
-    0 12px 28px rgba(0, 0, 0, 0.9);
+  text-shadow: none;
 }
 
 .archive-submit-button {
-  border: 1px solid rgba(255, 0, 24, 0.58);
-  background:
-    linear-gradient(180deg, rgba(90, 0, 10, 0.86), rgba(16, 0, 2, 0.92));
-  color: rgba(255, 240, 240, 0.92);
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.72),
-    0 0 14px rgba(255, 0, 24, 0.12);
+  border: 1px solid rgba(120, 120, 120, 0.35);
+  background: #0a0a0a;
+  color: rgba(236, 240, 245, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72);
+}
+
+.archive-submit-button:hover {
+  border-color: rgba(150, 150, 150, 0.45);
+  background: #121212;
+  color: #eceff4;
 }
 
 .archive-submit-button:disabled {
@@ -253,12 +246,11 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   display: block;
   pointer-events: none;
   background:
-    repeating-linear-gradient(0deg, rgba(255, 0, 24, 0.035) 0 1px, transparent 1px 4px),
-    radial-gradient(circle at 50% 20%, rgba(255, 0, 24, 0.04), transparent 28%),
-    radial-gradient(circle at 0% 100%, rgba(255, 255, 255, 0.025), transparent 24%);
-  opacity: 0.42;
-  animation: black-scan-drift 12s linear infinite;
-  mix-blend-mode: screen;
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 4px),
+    radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.02), transparent 28%),
+    radial-gradient(circle at 0% 100%, rgba(255, 255, 255, 0.015), transparent 24%);
+  opacity: 0.28;
+  mix-blend-mode: normal;
 }
 
 .noise-layer::after {
@@ -1010,8 +1002,199 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
   color: #f4f0e0 !important;
 }
 
+.glitch-float-toolbar {
+  position: fixed;
+  z-index: 9999;
+  display: grid;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: min(92vw, 26rem);
+  border: 1px solid rgba(111, 143, 215, 0.34);
+  border-radius: 0.65rem;
+  background: rgba(8, 10, 14, 0.96);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  padding: 0.45rem 0.5rem 0.5rem;
+  pointer-events: auto;
+}
+
+.glitch-float-toolbar-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.glitch-float-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: rgba(230, 224, 206, 0.88);
+  font-size: 0.82rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.glitch-float-toolbar-btn:hover {
+  background: rgba(111, 143, 215, 0.16);
+  color: #f4f0e0;
+}
+
+.glitch-float-toolbar-btn.is-active {
+  background: rgba(111, 143, 215, 0.28);
+  color: #ffffff;
+}
+
+.glitch-float-toolbar-divider {
+  width: 1px;
+  height: 1.35rem;
+  margin-inline: 0.15rem;
+  background: rgba(150, 145, 126, 0.35);
+}
+
+.glitch-float-toolbar-meta {
+  margin: 0;
+  padding-inline: 0.25rem;
+  color: rgba(167, 243, 208, 0.55);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+}
+
+.glitch-float-toolbar-colors {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.glitch-float-toolbar-color-swatch {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: var(--swatch-color);
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.glitch-float-toolbar-color-swatch:hover {
+  transform: scale(1.06);
+}
+
+.glitch-float-toolbar-color-swatch.is-active {
+  box-shadow:
+    0 0 0 2px rgba(8, 10, 14, 0.95),
+    0 0 0 3px rgba(111, 143, 215, 0.75);
+}
+
+.glitch-float-toolbar-color-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.glitch-float-toolbar-color-picker.is-active {
+  border-style: solid;
+  box-shadow:
+    0 0 0 2px rgba(8, 10, 14, 0.95),
+    0 0 0 3px rgba(111, 143, 215, 0.75);
+}
+
+.glitch-float-toolbar-color-picker-preview {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(135deg, #fda4af 0%, #fde68a 33%, #a7f3d0 66%, #7dd3fc 100%);
+}
+
+.glitch-float-toolbar-color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
 html body main.admin-page .admin-choice-btn {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+}
+
+.admin-glitch-text-field {
+  min-width: 0;
+}
+
+.admin-glitch-live-preview {
+  border: 1px solid rgba(111, 143, 215, 0.28);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 0.75rem 0.85rem;
+}
+
+.admin-glitch-live-preview-label {
+  margin: 0 0 0.5rem;
+  color: rgba(167, 243, 208, 0.55);
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.admin-glitch-live-preview-body {
+  color: rgba(236, 253, 245, 0.88);
+  font-size: 0.92rem;
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+
+.admin-inline-glitch-editor {
+  position: relative;
+  min-width: 0;
+}
+
+.admin-inline-glitch-editor-body {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  outline: none;
+  line-height: 1.85;
+  transition: box-shadow 0.35s ease;
+}
+
+.admin-inline-glitch-editor-body.is-applied-flash {
+  box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.55), 0 0 0 2px rgba(52, 211, 153, 0.18);
+}
+
+.admin-inline-glitch-editor-body .admin-inline-zone-error {
+  color: #f87171;
+}
+
+.admin-inline-glitch-editor-placeholder {
+  position: absolute;
+  top: 0.65rem;
+  left: 0.75rem;
+  margin: 0;
+  pointer-events: none;
+  color: rgba(167, 243, 208, 0.35);
+  font-size: 0.92rem;
+  line-height: 1.85;
+}
+
+.glitch-float-toolbar.is-just-applied {
+  box-shadow:
+    0 0 0 1px rgba(52, 211, 153, 0.45),
+    0 12px 28px rgba(0, 0, 0, 0.45);
 }
 
 html body main.admin-page .admin-choice-btn-active {
@@ -1241,20 +1424,13 @@ html body main.admin-page .admin-tab-btn-active {
 }
 
 .dossier-viewer {
-  border-color: rgba(255, 0, 24, 0.62);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(255, 0, 24, 0.08), transparent 28%),
-    linear-gradient(180deg, rgba(6, 0, 1, 0.99), rgba(0, 0, 0, 0.99));
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.92),
-    0 0 36px rgba(255, 0, 24, 0.08),
-    inset 0 0 64px rgba(0, 0, 0, 0.92);
+  border-color: rgba(100, 100, 100, 0.3);
+  background: #000000;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.96);
 }
 
 .dossier-body {
-  background:
-    linear-gradient(180deg, rgba(255, 0, 24, 0.018), transparent 24%),
-    rgba(0, 0, 0, 0.2);
+  background: #000000;
 }
 
 .case-file-hero {
@@ -1390,8 +1566,7 @@ html body main.admin-page .admin-tab-btn-active {
   max-width: min(38rem, 100%);
 }
 
-.case-file-intro-label,
-.case-file-voice-label {
+.case-file-intro-label {
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
@@ -1421,9 +1596,15 @@ html body main.admin-page .admin-tab-btn-active {
   border: 1px solid var(--case-intro-border, rgba(255, 255, 255, 0.09));
   background: var(--case-intro-bg, rgba(0, 0, 0, 0.38));
   color: var(--case-intro-text, rgba(255, 236, 236, 0.86));
+  font-family: var(--font-ui-stack), var(--font-emoji-stack);
   font-size: 0.82rem;
   line-height: 1.6;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.case-file-intro-text :where(span:not(.glitch-zone-mark), em, strong) {
+  color: inherit;
+  font-family: inherit;
 }
 
 .case-file-intro-text::before,
@@ -1458,51 +1639,62 @@ html body main.admin-page .admin-tab-btn-active {
 }
 
 .case-file-voice {
-  margin: 1.35rem 0 0;
-  padding: 0;
+  margin-top: 1.15rem;
+  max-width: 100%;
 }
 
-.case-file-voice-label {
-  color: var(--case-voice-label, rgba(160, 160, 160, 0.62));
+.case-file-voice .case-file-intro-label {
+  color: var(--case-voice-label, var(--case-intro-label, rgba(168, 176, 188, 0.62)));
 }
 
-.case-file-voice-label::before {
-  content: ">";
-  color: color-mix(in srgb, var(--case-voice-label, rgba(160, 160, 160, 0.62)) 92%, #fff);
-  font-size: 0.72rem;
-  letter-spacing: 0;
+.case-file-voice .case-file-intro-text {
+  border-color: var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22)));
+  background: var(--case-voice-bg, var(--case-intro-bg, rgba(0, 0, 0, 0.35)));
+  color: var(--case-voice-text, var(--case-intro-text, rgba(236, 240, 245, 0.86)));
 }
 
-.case-file-voice-text {
-  position: relative;
+.case-file-voice .case-file-intro-text::before {
+  border-top-color: color-mix(
+    in srgb,
+    var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) 85%,
+    transparent
+  );
+  border-left-color: color-mix(
+    in srgb,
+    var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) 85%,
+    transparent
+  );
+}
+
+.case-file-voice .case-file-intro-text::after {
+  border-right-color: color-mix(
+    in srgb,
+    var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) 65%,
+    transparent
+  );
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) 65%,
+    transparent
+  );
+}
+
+.case-file-voice .case-file-intro-text .glitch-zone-mark {
+  color: color-mix(
+    in srgb,
+    var(--case-voice-text, var(--case-intro-text, rgba(236, 240, 245, 0.86))) 92%,
+    #fff
+  );
+}
+
+.case-file-voice .case-file-intro-text .story-inline-quote {
+  display: inline;
   margin: 0;
-  padding: 0.72rem 0.9rem 0.75rem 1.2rem;
-  border: 1px solid var(--case-voice-border, rgba(255, 255, 255, 0.1));
-  background: var(--case-voice-bg, rgba(12, 12, 12, 0.82));
-  color: var(--case-voice-text, rgba(210, 206, 200, 0.88));
-  font-size: 0.86rem;
-  font-style: italic;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-  word-break: keep-all;
-  text-shadow: none;
-}
-
-.case-file-voice-text::before {
-  content: "“";
-  position: absolute;
-  left: 0.38rem;
-  top: 0.08rem;
-  color: color-mix(in srgb, var(--case-voice-text, rgba(210, 206, 200, 0.88)) 28%, transparent);
-  font-size: 1.35rem;
-  font-style: normal;
-  line-height: 1;
-}
-
-.case-file-voice-text .glitch-zone-mark {
-  color: color-mix(in srgb, var(--case-voice-text, rgba(210, 206, 200, 0.88)) 96%, #fff);
-  font-family: var(--font-ui-stack), var(--font-emoji-stack);
-  font-style: italic;
+  border-left: none;
+  padding-left: 0;
+  color: inherit;
+  font-family: inherit;
+  font-weight: inherit;
   text-shadow: none;
 }
 
@@ -1584,7 +1776,7 @@ html body main.admin-page .admin-tab-btn-active {
   padding-bottom: 0.9rem;
 }
 
-.case-file-meta span {
+.case-file-meta-line {
   border: 1px solid rgba(255, 0, 24, 0.3);
   background: rgba(0, 0, 0, 0.42);
   padding: 0.38rem 0.55rem;
@@ -1593,89 +1785,205 @@ html body main.admin-page .admin-tab-btn-active {
   letter-spacing: 0.08em;
 }
 
+/* GlitchedText 등 안쪽 span에는 박스 없음 */
+.case-file-meta-line span {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.case-profile-panel {
+  position: relative;
+  margin-top: 1.15rem;
+  padding: 0.9rem 0.95rem 1rem;
+  border: 1px solid rgba(111, 143, 215, 0.2);
+  background: rgba(0, 0, 0, 0.38);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.case-profile-panel::before,
+.case-profile-panel::after {
+  position: absolute;
+  width: 0.55rem;
+  height: 0.55rem;
+  content: "";
+  pointer-events: none;
+}
+
+.case-profile-panel::before {
+  top: -1px;
+  left: -1px;
+  border-top: 1px solid rgba(111, 143, 215, 0.34);
+  border-left: 1px solid rgba(111, 143, 215, 0.34);
+}
+
+.case-profile-panel::after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 1px solid rgba(111, 143, 215, 0.26);
+  border-bottom: 1px solid rgba(111, 143, 215, 0.26);
+}
+
+.case-profile-kicker {
+  margin: 0 0 0.75rem;
+  color: rgba(168, 176, 188, 0.55);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.case-profile-kicker::before {
+  content: "◆";
+  margin-right: 0.4rem;
+  color: rgba(111, 143, 215, 0.45);
+  font-size: 0.48rem;
+}
+
 .case-profile-grid {
   display: grid;
-  gap: 0.55rem;
-  margin-top: 1.25rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-@media (min-width: 1280px) {
-  .case-profile-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.case-profile-cell {
-  border: 1px solid rgba(255, 0, 24, 0.22);
-  background: rgba(2, 0, 0, 0.56);
-  padding: 0.85rem;
-  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.72);
-}
-
-.case-profile-cell dt {
-  color: rgba(255, 194, 194, 0.43);
-  font-size: 0.72rem;
-}
-
-.case-profile-cell dd {
-  margin-top: 0.25rem;
-  color: rgba(255, 245, 245, 0.82);
-  font-size: 0.92rem;
-}
-
-.case-tab-strip {
-  display: grid;
-  gap: 0.45rem;
-  margin-top: 1.2rem;
+  gap: 0.5rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 @media (min-width: 768px) {
-  .case-tab-strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .case-profile-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
+.case-profile-chip {
+  display: flex;
+  min-height: 4.1rem;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.38rem;
+  padding: 0.68rem 0.72rem;
+  border: 1px solid rgba(111, 143, 215, 0.14);
+  background: rgba(0, 0, 0, 0.46);
+}
+
+.case-profile-chip-label {
+  color: rgba(168, 176, 188, 0.58);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.62rem;
+  line-height: 1.2;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.case-profile-chip-value {
+  display: flex;
+  align-items: center;
+  color: rgba(236, 240, 245, 0.92);
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.case-profile-chip-value .glitch-zone-mark {
+  vertical-align: baseline;
+}
+
+.case-tab-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.3rem;
+  margin-top: 1.35rem;
+  padding-top: 0.42rem;
+}
+
 .case-tab-button {
-  border: 1px solid rgba(255, 0, 24, 0.24);
-  border-bottom-color: rgba(255, 0, 24, 0.58);
-  background:
-    linear-gradient(135deg, rgba(255, 0, 24, 0.12), transparent 45%),
-    rgba(0, 0, 0, 0.68);
-  padding: 0.72rem 0.8rem;
-  color: rgba(255, 235, 235, 0.58);
+  position: relative;
+  flex: 1 1 7.25rem;
+  min-width: 7.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+  margin-bottom: 0;
+  padding: 0.72rem 0.85rem 0.58rem;
+  border: 1px solid rgba(111, 143, 215, 0.2);
+  border-bottom: 1px solid rgba(111, 143, 215, 0.16);
+  border-radius: 0.55rem 0.55rem 0 0;
+  background: rgba(0, 0, 0, 0.48);
+  color: rgba(200, 208, 220, 0.72);
   text-align: left;
+  z-index: 1;
   transition:
     border-color 160ms ease,
     color 160ms ease,
-    background 160ms ease;
+    background 160ms ease,
+    padding 160ms ease;
+}
+
+.case-tab-button::before {
+  position: absolute;
+  top: 0;
+  left: 0.7rem;
+  width: 2.15rem;
+  height: 0.4rem;
+  border: 1px solid rgba(111, 143, 215, 0.2);
+  border-bottom: none;
+  border-radius: 0.35rem 0.35rem 0 0;
+  background: rgba(0, 0, 0, 0.48);
+  content: "";
+  pointer-events: none;
+  transform: translateY(-100%);
 }
 
 .case-tab-button span {
   display: block;
-  margin-bottom: 0.18rem;
-  color: rgba(255, 0, 24, 0.62);
-  font-size: 0.62rem;
+  color: rgba(140, 155, 180, 0.78);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.6rem;
   letter-spacing: 0.16em;
+  line-height: 1.2;
 }
 
 .case-tab-button.is-active {
-  border-color: rgba(255, 0, 24, 0.78);
-  background:
-    linear-gradient(135deg, rgba(255, 0, 24, 0.2), rgba(0, 0, 0, 0.45)),
-    rgba(40, 0, 5, 0.62);
-  color: rgba(255, 248, 248, 0.92);
-  box-shadow:
-    inset 0 -2px 0 rgba(255, 0, 24, 0.5),
-    inset 0 0 24px rgba(255, 0, 24, 0.08);
+  margin-bottom: -1px;
+  padding-bottom: 0.7rem;
+  border-color: rgba(111, 143, 215, 0.3);
+  border-bottom-color: rgba(0, 0, 0, 0.88);
+  background: rgba(0, 0, 0, 0.88);
+  color: rgba(236, 240, 245, 0.96);
+  box-shadow: none;
+  z-index: 3;
+}
+
+.case-tab-button.is-active::before {
+  border-color: rgba(111, 143, 215, 0.3);
+  background: rgba(0, 0, 0, 0.88);
+}
+
+.case-tab-button:hover:not(.is-active) {
+  border-color: rgba(111, 143, 215, 0.26);
+  background: rgba(8, 8, 8, 0.72);
+  color: rgba(232, 236, 241, 0.88);
+}
+
+.case-tab-button:hover:not(.is-active)::before {
+  border-color: rgba(111, 143, 215, 0.26);
+  background: rgba(8, 8, 8, 0.72);
 }
 
 .case-tab-panel {
-  margin-top: 1.25rem;
+  margin-top: 0;
   min-width: 0;
   max-width: 100%;
+  padding: 1.15rem 1rem 1.25rem;
+  border: 1px solid rgba(111, 143, 215, 0.22);
+  border-radius: 0 0.35rem 0.35rem 0.35rem;
+  background: rgba(0, 0, 0, 0.28);
   animation: none;
+}
+
+@media (min-width: 768px) {
+  .case-tab-panel {
+    padding: 1.25rem 1.35rem 1.5rem;
+  }
 }
 
 .dossier-tab-stack {
@@ -1854,13 +2162,13 @@ label {
   bottom: 4vh;
 }
 
-/* Tailwind emerald 유틸을 사이트의 붉은 테마로 덮어쓰는 색상 호환 레이어입니다. */
+/* Tailwind emerald 유틸을 사이트의 중성 텍스트 톤으로 덮어쓰는 색상 호환 레이어입니다. */
 [class*="text-emerald-50"] {
-  color: rgba(244, 238, 207, var(--tw-text-opacity, 1)) !important;
+  color: rgba(236, 240, 245, var(--tw-text-opacity, 1)) !important;
 }
 
 [class*="text-emerald-100"] {
-  color: rgba(214, 208, 188, var(--tw-text-opacity, 1)) !important;
+  color: rgba(200, 205, 212, var(--tw-text-opacity, 1)) !important;
 }
 
 [class*="text-emerald-200"] {
@@ -1898,25 +2206,23 @@ label {
 
 /* 매트한 쯔꾸르 질감: 광택/유리/네온을 줄이고 낡은 게임 메뉴의 평평한 면을 우선합니다. */
 body {
-  background:
-    radial-gradient(circle at 50% 0%, rgba(45, 0, 4, 0.22), transparent 34%),
-    linear-gradient(180deg, #060000 0%, #000 42%, #050000 100%);
+  background: #000000;
 }
 
 .noise-layer {
   background:
-    repeating-linear-gradient(0deg, rgba(120, 24, 24, 0.06) 0 1px, transparent 1px 4px),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 6px);
-  opacity: 0.18;
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.012) 0 1px, transparent 1px 6px);
+  opacity: 0.14;
   mix-blend-mode: normal;
   animation: none;
 }
 
 .noise-layer::after {
   background-image:
-    radial-gradient(circle, rgba(255, 225, 210, 0.055) 0 0.55px, transparent 0.75px);
+    radial-gradient(circle, rgba(255, 255, 255, 0.04) 0 0.55px, transparent 0.75px);
   background-size: 4px 4px;
-  opacity: 0.12;
+  opacity: 0.1;
   animation: none;
 }
 
@@ -1943,18 +2249,16 @@ body {
 
 .archive-title,
 .case-file-name {
-  color: #f4e6dc;
-  text-shadow:
-    1px 1px 0 #000,
-    2px 2px 0 rgba(80, 0, 0, 0.8) !important;
+  color: #eceff4;
+  text-shadow: none !important;
 }
 
 .archive-kicker,
 .case-file-kicker,
 .case-tab-button span,
 .case-setting-note span {
-  color: #b85b55 !important;
-  text-shadow: 1px 1px 0 #000;
+  color: rgba(168, 176, 188, 0.82) !important;
+  text-shadow: none !important;
 }
 
 .archive-row,
@@ -1987,8 +2291,7 @@ body {
   transform: none !important;
 }
 
-.case-tab-button.is-active,
-.archive-submit-button {
+.case-tab-button.is-active {
   border-color: rgba(184, 71, 62, 0.95) !important;
   background:
     linear-gradient(180deg, #4d0b0b 0%, #210303 100%) !important;
@@ -1997,6 +2300,13 @@ body {
     inset 1px 1px 0 rgba(255, 207, 184, 0.1),
     inset -1px -1px 0 rgba(0, 0, 0, 0.86),
     2px 2px 0 rgba(0, 0, 0, 0.85) !important;
+}
+
+.archive-submit-button {
+  border-color: rgba(120, 120, 120, 0.35) !important;
+  background: #0a0a0a !important;
+  color: #e8ecf1 !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72) !important;
 }
 
 .archive-character-card,
@@ -2172,13 +2482,11 @@ body {
 
 .archive-title,
 .case-file-name {
-  color: #efe5dc;
-  text-shadow:
-    1px 1px 0 #000,
-    2px 2px 0 rgba(36, 8, 8, 0.85) !important;
+  color: #f5f5f3;
+  text-shadow: none !important;
 }
 
-.case-file-meta span,
+.case-file-meta-line,
 .image-credit-label,
 .world-profile-banner {
   border-color: rgba(84, 38, 38, 0.78) !important;
@@ -2520,8 +2828,7 @@ main::after {
   z-index: 2;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at center, transparent 0 48%, rgba(0, 0, 0, 0.36) 78%, rgba(0, 0, 0, 0.72) 100%),
-    linear-gradient(180deg, transparent 0 74%, rgba(40, 0, 0, 0.08) 100%);
+    radial-gradient(ellipse at center, transparent 0 48%, rgba(0, 0, 0, 0.36) 78%, rgba(0, 0, 0, 0.72) 100%);
   opacity: 0.72;
 }
 
@@ -2612,10 +2919,8 @@ body {
 .archive-title,
 .case-file-name,
 .board-title {
-  color: #eee7d9 !important;
-  text-shadow:
-    1px 1px 0 #000,
-    0 0 1px rgba(238, 231, 217, 0.22) !important;
+  color: #eceff4 !important;
+  text-shadow: none !important;
 }
 
 .case-file-quote {
@@ -2712,7 +3017,7 @@ main::after {
 .case-file-hero-mark,
 .case-file-hero-grid,
 .case-evidence-stamp,
-.case-file-meta span {
+.case-file-meta-line {
   border-color: rgba(150, 145, 126, 0.28) !important;
   color: rgba(210, 202, 175, 0.66) !important;
   background-color: transparent;
@@ -2771,7 +3076,7 @@ main :where(
 .case-evidence-stamp,
 .image-credit-label,
 .world-profile-banner,
-.case-file-meta span {
+.case-file-meta-line {
   border-color: rgba(150, 145, 126, 0.3) !important;
   background:
     repeating-linear-gradient(0deg, rgba(238, 231, 217, 0.01) 0 1px, transparent 1px 4px),
@@ -2993,7 +3298,7 @@ main :where(
 .case-file-kicker,
 .case-tab-button span,
 .case-setting-note span,
-.case-file-meta span,
+.case-file-meta-line,
 .case-evidence-stamp,
 .world-profile-banner span:last-child,
 .bgm-player p,
@@ -3128,7 +3433,7 @@ body {
 .case-file-kicker,
 .case-tab-button span,
 .case-setting-note span,
-.case-file-meta span,
+.case-file-meta-line,
 .case-evidence-stamp,
 .world-profile-banner span:last-child,
 .archive-character-card-id,
@@ -3143,10 +3448,8 @@ body {
 .board-title,
 .archive-character-card-name,
 main :where(h1, h2, h3, h4, h5) {
-  color: #f4eecf !important;
-  text-shadow:
-    2px 2px 0 #000,
-    0 0 2px rgba(244, 238, 207, 0.22) !important;
+  color: #eceff4 !important;
+  text-shadow: none !important;
 }
 
 .case-file-quote {
@@ -3174,15 +3477,14 @@ main :where(input[type="range"]) {
     linear-gradient(90deg, rgba(0, 0, 0, 0.94) 0 34%, rgba(0, 0, 0, 0.72) 66%, rgba(53, 95, 189, 0.08) 100%) !important;
 }
 
-/* Final text color guard: 이전 붉은 테마 호환 레이어에서 분홍빛이 새지 않게 막습니다. */
+/* Final text color guard: 분홍·크림 톤이 새지 않게 중성 회백색으로 고정합니다. */
 main [class*="text-emerald-50"],
 main [class*="text-emerald-100"] {
-  color: rgba(214, 208, 188, var(--tw-text-opacity, 1)) !important;
+  color: rgba(232, 236, 241, var(--tw-text-opacity, 1)) !important;
 }
 
-main [class*="text-emerald-200"],
-main [class*="text-stone"] {
-  color: rgba(111, 143, 215, var(--tw-text-opacity, 1)) !important;
+main [class*="text-emerald-100"] {
+  color: rgba(184, 190, 200, var(--tw-text-opacity, 1)) !important;
 }
 
 main [class*="border-emerald-100"],
@@ -3306,13 +3608,13 @@ main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6
   box-shadow: none !important;
 }
 
-main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6):not(.image-credit-label):not(.case-file-meta span):not(.case-evidence-stamp):not(.glitch-zone-mark):not(.glitch-zone-mark *) {
+main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6):not(.image-credit-label):not(.case-file-meta-line):not(.case-file-meta-line *):not(.case-evidence-stamp):not(.glitch-zone-mark):not(.glitch-zone-mark *) {
   background: transparent !important;
 }
 
 .archive-character-card-body,
-.case-profile-cell dt,
-.case-profile-cell dd,
+.case-profile-chip-label,
+.case-profile-chip-value,
 .case-file-title-block,
 .case-setting-note span {
   border-color: transparent !important;
@@ -3679,7 +3981,7 @@ main :where(
 .character-card,
 .image-credit-label,
 .world-profile-banner,
-.case-file-meta span,
+.case-file-meta-line,
 .case-evidence-stamp,
 .auth-panel-dot,
 .bgm-collapse-button,
@@ -3766,7 +4068,7 @@ main :where(
 .case-file-kicker,
 .case-tab-button span,
 .case-setting-note span,
-.case-file-meta span,
+.case-file-meta-line,
 .case-evidence-stamp,
 .world-profile-banner span:last-child,
 .archive-character-card-id,
@@ -3929,7 +4231,10 @@ main :where(
 }
 
 .text-glitch {
-  animation: current-text-glitch 2.4s steps(1, end) infinite;
+  animation: none;
+  filter: none;
+  text-shadow: none;
+  transform: none;
 }
 
 main :where([class*="border-stone"], [class*="border-red"], [class*="border-rose"], [class*="border-pink"], [class*="border-emerald"]) {
@@ -4059,6 +4364,153 @@ html body main .static-record-panel:hover {
 html body main .static-record-panel :where(p, dd, span, .glitch-zone-mark) {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.story-record-card {
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+}
+
+html body main .story-record-card.static-record-panel {
+  display: grid !important;
+}
+
+.story-record-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.story-record-card-kicker {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgba(167, 243, 208, 0.45);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.story-record-card-badge {
+  flex: 0 0 auto;
+  align-self: center;
+  border: 1px solid rgba(120, 130, 150, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(200, 208, 220, 0.88);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.62rem;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  padding: 0.28rem 0.45rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.story-record-card-excerpt {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: rgba(236, 253, 245, 0.8);
+  font-size: 0.875rem;
+  line-height: 1.75rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.story-record-card-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0;
+  border: 1px solid rgba(111, 143, 215, 0.28);
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(226, 236, 255, 0.9);
+  font-size: 0.82rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  padding: 0.72rem 0.9rem;
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.story-record-card-open:hover,
+.story-record-card-open:focus-visible {
+  border-color: rgba(140, 155, 180, 0.45);
+  background: rgba(18, 18, 18, 0.95);
+  color: #eceff4;
+}
+
+.story-record-card-open:active {
+  border-color: rgba(130, 145, 170, 0.5);
+  background: #000000;
+}
+
+.story-record-card-open-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+}
+
+.story-record-card-open-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.story-viewer-body {
+  background: #000000;
+}
+
+.ebook-reader.dossier-viewer,
+.story-log-viewer.dossier-viewer {
+  border-color: rgba(100, 100, 100, 0.28);
+  background: #000000;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.96);
+}
+
+.ebook-reader .story-viewer-body,
+.ebook-reader .story-viewer-header,
+.story-log-viewer .story-viewer-body,
+.story-log-viewer .story-viewer-header {
+  background: #000000;
+}
+
+.story-viewer-content {
+  max-width: 42rem;
+  margin-inline: auto;
+}
+
+.story-viewer-paragraph {
+  margin: 0 0 1.35rem;
+  color: rgba(236, 253, 245, 0.86);
+  font-size: 0.95rem;
+  line-height: 2.05;
+  white-space: pre-line;
+}
+
+.story-viewer-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.story-inline-quote {
+  display: inline-block;
+  margin-top: 0.15rem;
+  border-left: 2px solid rgba(255, 0, 24, 0.55);
+  color: rgba(255, 196, 196, 0.96);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding-left: 0.65rem;
+  text-shadow: 0 0 18px rgba(255, 0, 24, 0.16);
 }
 
 .relationship-map-grid {
@@ -4359,3 +4811,520 @@ html body main .side-menu .archive-submenu.is-open .archive-submenu-item {
   opacity: 0.95;
 }
 
+/* 색 분위기: 그라데이션 백드롭 1장 + 칸은 테두리만 (전역 테마 !important보다 뒤에 둡니다). */
+html body main .character-palette-scope {
+  position: relative;
+  isolation: isolate;
+  background: #000 !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0 !important;
+  pointer-events: none;
+  background: var(
+    --character-palette-background,
+    linear-gradient(90deg, #09090b 0%, #000 52%, #18181b 100%)
+  );
+  background-image: var(
+    --character-palette-background,
+    linear-gradient(90deg, #09090b 0%, #000 52%, #18181b 100%)
+  );
+}
+
+html body main .character-palette-scope.case-file-detail .character-palette-backdrop {
+  display: none;
+}
+
+html body main .case-file-detail.dossier-viewer,
+html body main .case-file-detail .dossier-body,
+html body main .case-file-detail .case-file-hero {
+  background: #000000 !important;
+  background-image: none !important;
+}
+
+html body main .case-file-detail :is(
+    .case-file-meta-line,
+    .archive-row,
+    .case-setting-note,
+    .case-empty-note,
+    .case-side-record,
+    .case-evidence-preview,
+    .gallery-tile,
+    .archive-input,
+    .pair-member-switcher__button
+  ) {
+  background: rgba(0, 0, 0, 0.22) !important;
+  background-color: rgba(0, 0, 0, 0.22) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active {
+  background: rgba(0, 0, 0, 0.36) !important;
+  background-color: rgba(0, 0, 0, 0.36) !important;
+  background-image: none !important;
+}
+
+html body main .case-file-detail :is(
+    .case-tab-button:hover,
+    .archive-row:hover,
+    .case-side-record:hover,
+    .gallery-tile:hover
+  ) {
+  background: rgba(0, 0, 0, 0.3) !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  background-image: none !important;
+}
+
+html body main .case-file-detail .case-profile-panel {
+  margin-top: 1.15rem !important;
+  border-color: rgba(111, 143, 215, 0.2) !important;
+  background: rgba(0, 0, 0, 0.38) !important;
+  background-image: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+html body main .case-file-detail .case-profile-kicker {
+  color: rgba(168, 176, 188, 0.55) !important;
+}
+
+html body main .case-file-detail .case-profile-chip {
+  border-color: rgba(111, 143, 215, 0.14) !important;
+  background: rgba(0, 0, 0, 0.46) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-profile-chip-label {
+  color: rgba(168, 176, 188, 0.58) !important;
+}
+
+html body main .case-file-detail .case-profile-chip-value {
+  display: flex !important;
+  align-items: center !important;
+  color: rgba(236, 240, 245, 0.92) !important;
+  line-height: 1.3 !important;
+}
+
+html body main .case-file-detail .case-tab-strip {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: flex-end !important;
+  gap: 0.3rem !important;
+  padding-top: 0.42rem !important;
+  grid-template-columns: unset !important;
+  border-bottom: none !important;
+}
+
+html body main .case-file-detail .case-tab-button {
+  position: relative !important;
+  flex: 1 1 7.25rem !important;
+  min-width: 7.25rem !important;
+  margin-bottom: 0 !important;
+  border-radius: 0.55rem 0.55rem 0 0 !important;
+  border-color: rgba(111, 143, 215, 0.2) !important;
+  border-bottom-color: rgba(111, 143, 215, 0.16) !important;
+  background: rgba(0, 0, 0, 0.48) !important;
+  background-image: none !important;
+  color: rgba(200, 208, 220, 0.72) !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-tab-button::before {
+  border-color: rgba(111, 143, 215, 0.2) !important;
+  background: rgba(0, 0, 0, 0.48) !important;
+}
+
+html body main .case-file-detail .case-tab-button span {
+  color: rgba(140, 155, 180, 0.78) !important;
+  text-shadow: none !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active {
+  margin-bottom: -1px !important;
+  border-color: rgba(111, 143, 215, 0.3) !important;
+  border-bottom-color: rgba(0, 0, 0, 0.88) !important;
+  background: rgba(0, 0, 0, 0.88) !important;
+  color: #eceff4 !important;
+  box-shadow: none !important;
+  z-index: 3 !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active::before {
+  border-color: rgba(111, 143, 215, 0.3) !important;
+  background: rgba(0, 0, 0, 0.88) !important;
+}
+
+html body main .case-file-detail .case-tab-button:hover:not(.is-active) {
+  border-color: rgba(111, 143, 215, 0.26) !important;
+  background: rgba(8, 8, 8, 0.72) !important;
+  color: #e8ecf1 !important;
+}
+
+html body main .case-file-detail .case-tab-panel {
+  margin-top: 0 !important;
+  padding: 1.15rem 1rem 1.25rem !important;
+  border-color: rgba(111, 143, 215, 0.22) !important;
+  background: rgba(0, 0, 0, 0.28) !important;
+  background-image: none !important;
+}
+
+@media (min-width: 768px) {
+  html body main .case-file-detail .case-tab-panel {
+    padding: 1.25rem 1.35rem 1.5rem !important;
+  }
+}
+
+html body main .case-file-detail .case-file-intro-label {
+  color: var(--case-intro-label, rgba(168, 176, 188, 0.62)) !important;
+}
+
+html body main .case-file-detail .case-file-intro-text {
+  border-color: var(--case-intro-border, rgba(111, 143, 215, 0.22)) !important;
+  background: var(--case-intro-bg, rgba(0, 0, 0, 0.35)) !important;
+  color: var(--case-intro-text, rgba(236, 240, 245, 0.86)) !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-file-intro-text :where(span:not(.glitch-zone-mark), em, strong) {
+  color: inherit !important;
+  font-family: inherit !important;
+}
+
+html body main .case-file-detail .case-file-intro-text::before {
+  border-top-color: color-mix(
+    in srgb,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22)) 85%,
+    transparent
+  ) !important;
+  border-left-color: color-mix(
+    in srgb,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22)) 85%,
+    transparent
+  ) !important;
+}
+
+html body main .case-file-detail .case-file-intro-text::after {
+  border-right-color: color-mix(
+    in srgb,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22)) 65%,
+    transparent
+  ) !important;
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22)) 65%,
+    transparent
+  ) !important;
+}
+
+html body main .case-file-detail .case-file-intro-text .glitch-zone-mark {
+  color: color-mix(
+    in srgb,
+    var(--case-intro-text, rgba(236, 240, 245, 0.86)) 92%,
+    #fff
+  ) !important;
+  text-shadow: none !important;
+}
+
+html body main .case-file-detail .case-file-voice .case-file-intro-label {
+  color: var(--case-voice-label, var(--case-intro-label, rgba(168, 176, 188, 0.62))) !important;
+}
+
+html body main .case-file-detail .case-file-voice .case-file-intro-text {
+  border-color: var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) !important;
+  background: var(--case-voice-bg, var(--case-intro-bg, rgba(0, 0, 0, 0.35))) !important;
+  color: var(--case-voice-text, var(--case-intro-text, rgba(236, 240, 245, 0.86))) !important;
+}
+
+html body main .case-file-detail .case-file-voice .case-file-intro-text .glitch-zone-mark {
+  color: color-mix(
+    in srgb,
+    var(--case-voice-text, var(--case-intro-text, rgba(236, 240, 245, 0.86))) 92%,
+    #fff
+  ) !important;
+}
+
+html body main .case-file-detail .case-file-voice .case-file-intro-text .story-inline-quote {
+  display: inline !important;
+  margin: 0 !important;
+  border-left: none !important;
+  padding-left: 0 !important;
+  color: inherit !important;
+  font-family: inherit !important;
+  font-weight: inherit !important;
+  text-shadow: none !important;
+}
+
+html body main .character-palette-scope.glass-card::before,
+html body main .character-palette-scope.glass-card::after,
+html body main .character-palette-scope.archive-character-card::before {
+  opacity: 0 !important;
+  background: none !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope > :not(.character-palette-backdrop) {
+  position: relative;
+  z-index: 1;
+}
+
+html body main .character-palette-scope .case-file-hero,
+html body main .character-palette-scope .dossier-body {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope .dossier-body {
+  background: #000000 !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope .case-file-hero::before {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0 40%, rgba(0, 0, 0, 0.32) 72%, transparent 100%),
+    linear-gradient(180deg, transparent 54%, rgba(0, 0, 0, 0.36) 100%),
+    linear-gradient(0deg, rgba(0, 0, 0, 0.34), transparent 46%) !important;
+}
+
+html body main .character-palette-scope .archive-character-card-image,
+html body main .character-palette-scope .archive-character-card-body {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope .archive-character-card-body {
+  background: rgba(0, 0, 0, 0.28) !important;
+}
+
+html body main .character-palette-scope.archive-character-card,
+html body main .character-palette-scope.archive-character-card:hover {
+  background: #000 !important;
+  background-image: none !important;
+}
+
+/* 이북·스토리 로그 뷰어 — 테마의 dossier-viewer !important 덮어쓰기 */
+html body .ebook-reader.dossier-viewer,
+html body .ebook-reader.dossier-viewer.story-viewer,
+html body .story-log-viewer.dossier-viewer,
+html body .story-log-viewer.dossier-viewer.story-viewer,
+html body main .ebook-reader.dossier-viewer,
+html body main .story-log-viewer.dossier-viewer {
+  border-color: rgba(80, 80, 80, 0.32) !important;
+  background: #000000 !important;
+  background-color: #000000 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html body .ebook-reader .story-viewer-body,
+html body .ebook-reader .story-viewer-header,
+html body .story-log-viewer .story-viewer-body,
+html body .story-log-viewer .story-viewer-header,
+html body main .ebook-reader .story-viewer-body,
+html body main .story-log-viewer .story-viewer-body {
+  background: #000000 !important;
+  background-color: #000000 !important;
+  background-image: none !important;
+}
+
+html body .ebook-reader .archive-submit-button,
+html body .story-log-viewer .archive-submit-button,
+html body main .ebook-reader .archive-submit-button,
+html body main .story-log-viewer .archive-submit-button {
+  border-color: rgba(120, 120, 120, 0.35) !important;
+  background: #0a0a0a !important;
+  background-image: none !important;
+  color: #e8ecf1 !important;
+  box-shadow: none !important;
+}
+
+html body .ebook-reader .archive-submit-button:hover,
+html body .story-log-viewer .archive-submit-button:hover {
+  border-color: rgba(150, 150, 150, 0.45) !important;
+  background: #121212 !important;
+}
+
+/* 텍스트 붉은 기 제거 — 제목·글리치·본문을 중성 톤으로 고정 */
+html body main .archive-title,
+html body main .case-file-name,
+html body main .board-title,
+html body main .site-logo-title {
+  color: rgba(245, 245, 243, 0.96) !important;
+  text-shadow: none !important;
+}
+
+html body main .text-glitch {
+  color: inherit;
+  animation: none !important;
+  filter: none !important;
+  text-shadow: none !important;
+  transform: none !important;
+}
+
+html body main [class*="text-emerald-50"] {
+  color: rgba(236, 240, 245, var(--tw-text-opacity, 1)) !important;
+}
+
+html body main [class*="text-emerald-100"] {
+  color: rgba(184, 190, 200, var(--tw-text-opacity, 1)) !important;
+}
+
+/* === Neutral text lock: 카드·리스트 텍스트 붉은 기 최종 차단 === */
+html body main .archive-row,
+html body main .archive-row:hover,
+html body main .archive-row *:not(.story-inline-quote):not(.glitch-zone-mark) {
+  color: #e8ecf1 !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+html body main .archive-row,
+html body main .archive-row:hover {
+  background: #000000 !important;
+  background-image: none !important;
+  border-color: rgba(100, 100, 100, 0.28) !important;
+  box-shadow: none !important;
+}
+
+html body main .archive-row::before,
+html body main .archive-row::after {
+  display: none !important;
+  content: none !important;
+}
+
+html body main .glass-card,
+html body main .glass-card:hover,
+html body main .archive-panel {
+  background: #000000 !important;
+  background-image: none !important;
+  border-color: rgba(100, 100, 100, 0.28) !important;
+  box-shadow: none !important;
+}
+
+html body main .glass-card::before,
+html body main .glass-card::after {
+  display: none !important;
+  opacity: 0 !important;
+  background: none !important;
+}
+
+html body main::after {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0 48%,
+    rgba(0, 0, 0, 0.36) 78%,
+    rgba(0, 0, 0, 0.72) 100%
+  ) !important;
+}
+
+html body main {
+  color: #e8ecf1 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html body main :where(p, span, h1, h2, h3, h4, h5, h6, button, label, li, dt, dd, a):not(
+    .story-inline-quote
+  ):not(.glitch-zone-mark):not(.image-credit-label) {
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+/* dossier 탭 — 파일 탭 형태 최종 고정 */
+html body main .case-file-detail .case-tab-strip {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: flex-end !important;
+  gap: 0.3rem !important;
+  padding-top: 0.42rem !important;
+  grid-template-columns: unset !important;
+}
+
+html body main .case-file-detail .case-tab-button {
+  position: relative !important;
+  flex: 1 1 7.25rem !important;
+  min-width: 7.25rem !important;
+  border-radius: 0.55rem 0.55rem 0 0 !important;
+  border-color: rgba(111, 143, 215, 0.2) !important;
+  border-bottom-color: rgba(111, 143, 215, 0.16) !important;
+  background: rgba(0, 0, 0, 0.48) !important;
+  background-image: none !important;
+  color: rgba(200, 208, 220, 0.72) !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-tab-button::before {
+  border-color: rgba(111, 143, 215, 0.2) !important;
+  background: rgba(0, 0, 0, 0.48) !important;
+}
+
+html body main .case-file-detail .case-tab-button span {
+  color: rgba(140, 155, 180, 0.78) !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active {
+  margin-bottom: -1px !important;
+  border-color: rgba(111, 143, 215, 0.3) !important;
+  border-bottom-color: rgba(0, 0, 0, 0.88) !important;
+  background: rgba(0, 0, 0, 0.88) !important;
+  color: #eceff4 !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active::before {
+  border-color: rgba(111, 143, 215, 0.3) !important;
+  background: rgba(0, 0, 0, 0.88) !important;
+}
+
+html body main .case-file-detail .case-tab-button:hover:not(.is-active) {
+  border-color: rgba(111, 143, 215, 0.26) !important;
+  background: rgba(8, 8, 8, 0.72) !important;
+  color: #e8ecf1 !important;
+}
+
+html body main .case-file-detail .case-tab-panel {
+  margin-top: 0 !important;
+  padding: 1.15rem 1rem 1.25rem !important;
+  border-color: rgba(111, 143, 215, 0.22) !important;
+  background: rgba(0, 0, 0, 0.28) !important;
+}
+
+@media (min-width: 768px) {
+  html body main .case-file-detail .case-tab-panel {
+    padding: 1.25rem 1.35rem 1.5rem !important;
+  }
+}
+
+html body main .case-file-detail.dossier-viewer,
+html body main .case-file-detail .dossier-body {
+  border-color: rgba(100, 100, 100, 0.28) !important;
+  background: #000000 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html body main .story-record-card-open,
+html body main .story-record-card-open:hover,
+html body main .story-record-card-open:focus-visible,
+html body main .story-record-card-open:active {
+  border-color: rgba(120, 130, 150, 0.35) !important;
+  background: #000000 !important;
+  background-image: none !important;
+  color: #e8ecf1 !important;
+  box-shadow: none !important;
+}
+
+html body main .story-record-card-open:hover,
+html body main .story-record-card-open:focus-visible {
+  border-color: rgba(140, 155, 180, 0.45) !important;
+  background: #101010 !important;
+}
+
+html body main .story-record-card-badge {
+  border-color: rgba(120, 130, 150, 0.32) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: rgba(200, 208, 220, 0.88) !important;
+}

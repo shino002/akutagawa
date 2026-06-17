@@ -77,6 +77,7 @@ export function CaseFileThemeEditor({ theme, onChange }: CaseFileThemeEditorProp
           <p className="text-sm font-semibold text-emerald-50">상세 페이지 테마</p>
           <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
             한 줄 소개·한마디 박스 색을 이 캐릭터(또는 상세 페이지)에 맞게 바꿉니다.
+            본문·히어로 배경은 「색 분위기」에서 고른 3색 그라데이션을 따릅니다.
           </p>
         </div>
         <button
@@ -122,8 +123,8 @@ export function CaseFileThemeEditor({ theme, onChange }: CaseFileThemeEditorProp
           <p className="text-[11px] font-medium tracking-[0.18em] text-emerald-100/55 uppercase">
             한마디
           </p>
-          <figure
-            className="case-file-voice case-file-theme-preview"
+          <div
+            className="case-file-intro case-file-voice case-file-theme-preview"
             style={
               {
                 "--case-voice-label": resolved.voiceLabel,
@@ -133,9 +134,9 @@ export function CaseFileThemeEditor({ theme, onChange }: CaseFileThemeEditorProp
               } as CSSProperties
             }
           >
-            <figcaption className="case-file-voice-label">한마디</figcaption>
-            <blockquote className="case-file-voice-text">미리보기 한마디</blockquote>
-          </figure>
+            <p className="case-file-intro-label">한마디</p>
+            <p className="case-file-intro-text">미리보기 한마디</p>
+          </div>
           {voiceFields.map((field) => (
             <ColorField
               key={field.key}

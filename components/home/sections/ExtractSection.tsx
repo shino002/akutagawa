@@ -2,7 +2,7 @@
 
 import { cn } from "@/utils/cn";
 import { ArchiveMotion } from "@/components/home/ArchiveMotion";
-import { thumbnailStyle } from "@/lib/image-helpers";
+import { ThumbnailImage } from "@/components/ThumbnailImage";
 import type { PersonalHomeBanner } from "@/lib/types";
 
 interface ExtractSectionProps {
@@ -40,12 +40,11 @@ export function ExtractSection({ banners, className }: ExtractSectionProps) {
               title={banner.label || undefined}
               className="extract-banner-link group"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-              <img
+              <ThumbnailImage
+                image={banner.image}
                 src={banner.image.url}
                 alt={banner.label || "Banner"}
                 className="extract-banner-image"
-                style={thumbnailStyle(banner.image)}
               />
             </a>
           ))

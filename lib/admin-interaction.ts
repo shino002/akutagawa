@@ -1,4 +1,8 @@
+import { readContentEditableSelection } from "@/lib/contenteditable-glitch";
+import { readGlitchTextSelection, type GlitchTextSelection } from "@/lib/glitch-selection";
 import type { MouseEvent } from "react";
+
+export const GLITCH_FLOAT_TOOLBAR_SELECTOR = "[data-glitch-float-toolbar]";
 
 function resolvePointerElement(target: EventTarget | null) {
   if (target instanceof Element) {
@@ -32,4 +36,33 @@ export function keepAdminTextSelection(event: MouseEvent) {
   }
 
   event.preventDefault();
+}
+
+/** 플로팅 툴바 클릭 시 원본 필드의 텍스트 선택이 풀리지 않게 합니다. */
+export function preserveGlitchToolbarSourceSelection(event: MouseEvent | globalThis.MouseEvent) {
+  event.preventDefault();
+}
+
+export function isGlitchFloatToolbarTarget(target: EventTarget | null) {
+  const element = resolvePointerElement(target);
+  return Boolean(element?.closest(GLITCH_FLOAT_TOOLBAR_SELECTOR));
+}
+
+export function isGlitchFieldTarget(target: EventTarget | null) {
+  const element = resolvePointerElement(target);
+  return Boolean(element?.closest("[data-glitch-field]"));
+}
+
+export function readGlitchFieldSelection(
+  element: HTMLInputElement | HTMLTextAreaElement | HTMLElement,
+): GlitchTextSelection | null {
+  if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
+    return readGlitchTextSelection(element);
+  }
+
+  if (element.isContentEditable) {
+    return readContentEditableSelection(element);
+  }
+
+  return null;
 }

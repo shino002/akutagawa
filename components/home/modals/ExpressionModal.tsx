@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/utils/cn";
-import { thumbnailStyle } from "@/lib/image-helpers";
+import { ThumbnailImage } from "@/components/ThumbnailImage";
 import type { ExpressionModalItem, GalleryModalItem } from "@/types/home.types";
 
 interface ExpressionModalProps {
@@ -55,12 +55,10 @@ export function ExpressionModal({ item, onClose, onOpenGallery, className }: Exp
                   className="block w-full text-left"
                 >
                   <div className="aspect-[3/4] overflow-hidden bg-black">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                    <img
+                    <ThumbnailImage
+                      image={image}
                       src={image.url}
                       alt="스탠딩 이미지"
-                      className="h-full w-full object-cover"
-                      style={thumbnailStyle(image)}
                     />
                   </div>
                 </button>

@@ -1,7 +1,9 @@
 "use client";
 
+import { StoryFormattedText } from "@/components/StoryFormattedText";
 import { cn } from "@/utils/cn";
-import { thumbnailStyle } from "@/lib/image-helpers";
+import { ThumbnailImage } from "@/components/ThumbnailImage";
+import { splitStoryParagraphs } from "@/lib/story-text";
 import type { GalleryModalItem, ReaderModalItem } from "@/types/home.types";
 
 interface ReaderModalProps {
@@ -12,10 +14,12 @@ interface ReaderModalProps {
 }
 
 export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderModalProps) {
+  const paragraphs = splitStoryParagraphs(item.work.body);
+
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 grid place-items-center bg-black/86 p-4 backdrop-blur-sm",
+        "fixed inset-0 z-50 grid place-items-center bg-black p-4",
         className,
       )}
       role="dialog"
@@ -24,14 +28,12 @@ export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderM
       onClick={onClose}
     >
       <div
-        className="dossier-viewer flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden"
+        className="ebook-reader story-viewer dossier-viewer flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden border !border-stone-700/30 !bg-black !shadow-none"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-stone-400/15 p-4">
+        <div className="story-viewer-header flex items-center justify-between gap-3 border-b border-stone-400/15 bg-black p-4">
           <div>
-            <p className="archive-kicker">
-              Ebook Reader / {item.character.name}
-            </p>
+            <p className="archive-kicker">Ebook Reader / {item.character.name}</p>
             <h3 className="archive-title mt-1 text-2xl">{item.work.title}</h3>
             <p className="mt-1 text-xs text-emerald-100/45">
               {item.work.kind} / {item.work.date}
@@ -46,8 +48,8 @@ export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderM
           </button>
         </div>
 
-        <article className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-[radial-gradient(circle_at_50%_0%,rgba(255,0,24,0.06),transparent_34%),#030000]">
-          <div className="px-7 py-8 md:px-12 md:py-10">
+        <article className="story-viewer-body min-h-0 flex-1 overflow-y-auto overscroll-contain !bg-black">
+          <div className="story-viewer-content px-7 py-8 md:px-12 md:py-10">
             {(item.work.images?.length ?? 0) > 0 && (
               <div className="mb-8 grid gap-3 sm:grid-cols-2">
                 {item.work.images?.map((image) => (
@@ -58,21 +60,26 @@ export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderM
                     className="gallery-tile group block text-left"
                   >
                     <div className="aspect-[4/3] overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                      <img
+                      <ThumbnailImage
+                        image={image}
                         src={image.url}
                         alt="첨부 이미지"
-                        className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
-                        style={thumbnailStyle(image)}
+                        className="opacity-95 transition group-hover:opacity-100"
                       />
                     </div>
                   </button>
                 ))}
               </div>
             )}
-            <p className="text-[0.95rem] leading-9 whitespace-pre-line text-emerald-50/86">
-              {item.work.body || "내용이 없어요."}
-            </p>
+            {paragraphs.length > 0 ? (
+              paragraphs.map((paragraph, index) => (
+                <p key={index} className="story-viewer-paragraph">
+                  <StoryFormattedText text={paragraph} preserveWhitespace />
+                </p>
+              ))
+            ) : (
+              <p className="story-viewer-paragraph plain-empty-note">내용이 없어요.</p>
+            )}
           </div>
         </article>
       </div>

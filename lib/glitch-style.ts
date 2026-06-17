@@ -125,6 +125,10 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
     next.markdown = markdown;
   }
 
+  if (raw.storyQuote) {
+    next.storyQuote = true;
+  }
+
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
@@ -248,6 +252,7 @@ export function hasGlitchPresentation(style?: GlitchZoneStyle): boolean {
   const markdown = normalized.markdown;
   return Boolean(
     normalized.textColor ||
+      normalized.storyQuote ||
       markdown?.bold ||
       markdown?.italic ||
       markdown?.underline ||

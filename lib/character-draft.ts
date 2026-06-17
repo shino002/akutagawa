@@ -1,4 +1,4 @@
-import type { SettingSection, ProfileField, RelationshipEntry, CaseFileDetailTheme } from "@/lib/types";
+import type { SettingSection, ProfileField, RelationshipEntry, CaseFileDetailTheme, CaseMetaField } from "@/lib/types";
 import type { CharacterKind, FieldGlitchConfig, CharacterSubPage } from "@/lib/types";
 
 export type CharacterDraft = {
@@ -6,8 +6,7 @@ export type CharacterDraft = {
   kind: CharacterKind;
   name: string;
   kanjiName: string;
-  statusTagsText: string;
-  classification: string;
+  metaFields: CaseMetaField[];
   subtitle: string;
   quote: string;
   palette: string;

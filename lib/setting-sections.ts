@@ -13,6 +13,17 @@ export function normalizeSettingSections(sections: SettingSection[] | undefined)
   return sections
     .map((section, index) => {
       const raw = section as RawSettingSection;
+      const kind = raw.kind === "story" ? "story" : "record";
+
+      if (kind === "story") {
+        return {
+          id: raw.id || `setting-section-${index}`,
+          title: raw.title?.trim() ?? "",
+          body: (raw.body ?? raw.content ?? raw.text ?? "").trim(),
+          kind: "story" as const,
+          excerpt: raw.excerpt?.trim() ?? "",
+        };
+      }
 
       return {
         id: raw.id || `setting-section-${index}`,
@@ -21,6 +32,26 @@ export function normalizeSettingSections(sections: SettingSection[] | undefined)
       };
     })
     .filter((section) => section.title || section.body);
+}
+
+export function moveSettingSection(
+  sections: SettingSection[],
+  sectionId: string,
+  direction: "up" | "down",
+): SettingSection[] {
+  const index = sections.findIndex((section) => section.id === sectionId);
+  if (index === -1) {
+    return sections;
+  }
+
+  const targetIndex = direction === "up" ? index - 1 : index + 1;
+  if (targetIndex < 0 || targetIndex >= sections.length) {
+    return sections;
+  }
+
+  const next = [...sections];
+  [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+  return next;
 }
 
 export function legacySettingsToSections(settings: string[]): SettingSection[] {

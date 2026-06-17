@@ -1,10 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import type { Character, RelationshipEntry } from "@/lib/types";
+import { AdminInlineGlitchEditor } from "@/components/admin/AdminInlineGlitchEditor";
+import type { Character, FieldGlitchConfig, RelationshipEntry } from "@/lib/types";
 import {
   createBlankRelationshipEntry,
   relationshipEntryGlitchPath,
+  relationshipEntryLabelGlitchPath,
+  relationshipEntryNameGlitchPath,
 } from "@/lib/relationship-entries";
 import { listNavigableSubPages, type NavigableSubPageOption } from "@/lib/sub-pages";
 
@@ -12,9 +15,9 @@ type GlitchFieldBindings = {
   "data-glitch-field"?: string;
   onFocus?: () => void;
   onClick?: () => void;
-  onSelect?: (event: React.SyntheticEvent<HTMLTextAreaElement>) => void;
-  onKeyUp?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
-  onMouseUp?: (event: React.MouseEvent<HTMLTextAreaElement>) => void;
+  onSelect?: (event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
+  onKeyUp?: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
+  onMouseUp?: (event: React.MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
 };
 
 interface RelationshipsEditorProps {
@@ -26,8 +29,18 @@ interface RelationshipsEditorProps {
   bindGlitchField?: (path: string) => GlitchFieldBindings;
   activeGlitchFieldPath?: string | null;
   glitchFieldClass?: (path: string, activePath: string | null, baseClass?: string) => string;
+  prefixGlitchPath?: (path: string) => string;
+  onEntryFieldValueChange?: (path: string, value: string) => void;
+  getGlitchByPath?: (path: string) => FieldGlitchConfig | undefined;
+  onGlitchPathChange?: (path: string, config: FieldGlitchConfig | undefined) => void;
+  /** @deprecated use onEntryFieldValueChange */
   onBodyChange?: (entryId: string, body: string) => void;
+  /** @deprecated use prefixGlitchPath + relationshipEntryGlitchPath */
   getGlitchPath?: (entryId: string) => string;
+  /** @deprecated use getGlitchByPath */
+  getFieldGlitch?: (entryId: string) => FieldGlitchConfig | undefined;
+  /** @deprecated use onGlitchPathChange */
+  onFieldGlitchChange?: (entryId: string, config: FieldGlitchConfig | undefined) => void;
 }
 
 export function RelationshipsEditor({
@@ -39,8 +52,14 @@ export function RelationshipsEditor({
   bindGlitchField,
   activeGlitchFieldPath = null,
   glitchFieldClass,
+  prefixGlitchPath,
+  onEntryFieldValueChange,
+  getGlitchByPath,
+  onGlitchPathChange,
   onBodyChange,
   getGlitchPath = relationshipEntryGlitchPath,
+  getFieldGlitch,
+  onFieldGlitchChange,
 }: RelationshipsEditorProps) {
   const selectableCharacters = linkableCharacters.filter((character) => character.id !== currentCharacterId);
   const resolvedOwnSubPages = useMemo(() => {
@@ -102,10 +121,20 @@ export function RelationshipsEditor({
 
       <div className="grid gap-3">
         {entries.map((entry, index) => {
-          const glitchPath = getGlitchPath(entry.id);
-          const textareaClassName = glitchFieldClass
-            ? glitchFieldClass(glitchPath, activeGlitchFieldPath, "auth-input min-h-24")
-            : "auth-input min-h-24";
+          const resolvePath = (fieldPath: string) =>
+            prefixGlitchPath ? prefixGlitchPath(fieldPath) : fieldPath;
+          const namePath = resolvePath(relationshipEntryNameGlitchPath(entry.id));
+          const labelPath = resolvePath(relationshipEntryLabelGlitchPath(entry.id));
+          const bodyPath = resolvePath(getGlitchPath(entry.id));
+          const nameClassName = glitchFieldClass
+            ? glitchFieldClass(namePath, activeGlitchFieldPath, "")
+            : "";
+          const labelClassName = glitchFieldClass
+            ? glitchFieldClass(labelPath, activeGlitchFieldPath, "")
+            : "";
+          const bodyClassName = glitchFieldClass
+            ? glitchFieldClass(bodyPath, activeGlitchFieldPath, "")
+            : "";
           const linkedCharacterSubPages = entry.linkedCharacterId
             ? subPagesByCharacterId.get(entry.linkedCharacterId) ?? []
             : [];
@@ -123,17 +152,33 @@ export function RelationshipsEditor({
                 </button>
               </div>
               <div className="grid gap-2 md:grid-cols-2">
-                <input
+                <AdminInlineGlitchEditor
                   value={entry.name}
-                  onChange={(event) => updateEntry(entry.id, { name: event.target.value })}
+                  onChange={(value) => {
+                    updateEntry(entry.id, { name: value });
+                    onEntryFieldValueChange?.(namePath, value);
+                  }}
+                  glitch={getGlitchByPath?.(namePath)}
+                  onGlitchChange={(config) =>
+                    onGlitchPathChange?.(namePath, config) ?? onFieldGlitchChange?.(entry.id, config)
+                  }
+                  glitchBindings={bindGlitchField?.(namePath) ?? { "data-glitch-field": namePath }}
                   placeholder="대상 이름"
-                  className="auth-input"
+                  className={nameClassName}
+                  minHeightClass="min-h-10"
                 />
-                <input
+                <AdminInlineGlitchEditor
                   value={entry.label}
-                  onChange={(event) => updateEntry(entry.id, { label: event.target.value })}
+                  onChange={(value) => {
+                    updateEntry(entry.id, { label: value });
+                    onEntryFieldValueChange?.(labelPath, value);
+                  }}
+                  glitch={getGlitchByPath?.(labelPath)}
+                  onGlitchChange={(config) => onGlitchPathChange?.(labelPath, config)}
+                  glitchBindings={bindGlitchField?.(labelPath) ?? { "data-glitch-field": labelPath }}
                   placeholder="관계 유형 (예: 형제, 라이벌)"
-                  className="auth-input"
+                  className={labelClassName}
+                  minHeightClass="min-h-10"
                 />
               </div>
               {resolvedOwnSubPages.length > 0 && (
@@ -200,15 +245,21 @@ export function RelationshipsEditor({
                   </select>
                 </label>
               )}
-              <textarea
+              <AdminInlineGlitchEditor
                 value={entry.body}
-                onChange={(event) => {
-                  updateEntry(entry.id, { body: event.target.value });
-                  onBodyChange?.(entry.id, event.target.value);
+                onChange={(value) => {
+                  updateEntry(entry.id, { body: value });
+                  onEntryFieldValueChange?.(bodyPath, value);
+                  onBodyChange?.(entry.id, value);
                 }}
+                glitch={getGlitchByPath?.(bodyPath) ?? getFieldGlitch?.(entry.id)}
+                onGlitchChange={(config) =>
+                  onGlitchPathChange?.(bodyPath, config) ?? onFieldGlitchChange?.(entry.id, config)
+                }
+                glitchBindings={bindGlitchField?.(bodyPath) ?? { "data-glitch-field": bodyPath }}
                 placeholder="관계 설명"
-                className={textareaClassName}
-                {...(bindGlitchField?.(glitchPath) ?? { "data-glitch-field": glitchPath })}
+                className={bodyClassName}
+                minHeightClass="min-h-24"
               />
             </article>
           );

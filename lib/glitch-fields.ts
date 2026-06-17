@@ -1,6 +1,13 @@
+import { normalizeCharacterPaletteInput } from "@/lib/character-palette";
 import type { Character, CharacterSubPage } from "@/lib/types";
 import type { FieldGlitchConfig, GlitchZone } from "@/lib/types";
 import type { CharacterDraft } from "@/lib/character-draft";
+import {
+  getMetaFieldBody,
+  metaFieldGlitchPath,
+  parseMetaFieldGlitchPath,
+  setMetaFieldBody,
+} from "@/lib/meta-fields";
 import { normalizeFieldGlitchConfig } from "@/lib/normalize-text-glitch";
 import {
   getProfileFieldLabel,
@@ -10,11 +17,13 @@ import {
   setProfileFieldValue,
 } from "@/lib/profile-fields";
 import {
-  getRelationshipEntryBody,
+  getRelationshipEntryFieldValue,
   parseRelationshipEntryGlitchPath,
   relationshipEntriesToLegacyLines,
   relationshipEntryGlitchPath,
-  setRelationshipEntryBody,
+  relationshipEntryLabelGlitchPath,
+  relationshipEntryNameGlitchPath,
+  setRelationshipEntryFieldValue,
 } from "@/lib/relationship-entries";
 import { isValidFieldGlitchConfig } from "@/lib/glitch-style";
 
@@ -23,8 +32,6 @@ export const GLITCH_FIELD_LABELS: Record<string, string> = {
   kanjiName: "한자 이름",
   subtitle: "한 줄 소개",
   quote: "대표 대사",
-  classification: "기록 분류",
-  statusTags: "기록 상태",
 };
 
 const SUB_PAGE_GLITCH_FIELD_PATHS = [
@@ -39,8 +46,6 @@ const BASE_GLITCH_FIELD_PATHS = [
   "kanjiName",
   "subtitle",
   "quote",
-  "classification",
-  "statusTags",
 ] as const;
 
 export const SUB_PAGE_GLITCH_PREFIX = "subPages.";
@@ -80,19 +85,44 @@ function getSubPageFieldValue(subPage: CharacterSubPage, fieldPath: string) {
   if (fieldPath === "kanjiName") return subPage.kanjiName ?? "";
   if (fieldPath === "subtitle") return subPage.subtitle;
   if (fieldPath === "quote") return subPage.quote;
+  const metaFieldId = parseMetaFieldGlitchPath(fieldPath);
+  if (metaFieldId) {
+    return getMetaFieldBody(subPage.metaFields ?? [], metaFieldId);
+  }
+  if (fieldPath === "classification") return subPage.classification ?? "";
+  if (fieldPath === "statusTags") return (subPage.statusTags ?? []).join("\n");
   const profileFieldId = parseProfileFieldGlitchPath(fieldPath);
   if (profileFieldId) return getProfileFieldValue(subPage.profileFields, profileFieldId);
-  const relationshipEntryId = parseRelationshipEntryGlitchPath(fieldPath);
-  if (relationshipEntryId) {
-    return getRelationshipEntryBody(subPage.relationshipEntries ?? [], relationshipEntryId);
+  const relationshipEntryPath = parseRelationshipEntryGlitchPath(fieldPath);
+  if (relationshipEntryPath) {
+    return getRelationshipEntryFieldValue(
+      subPage.relationshipEntries ?? [],
+      relationshipEntryPath.entryId,
+      relationshipEntryPath.field,
+    );
   }
   if (fieldPath === "relationships") {
     return relationshipEntriesToLegacyLines(subPage.relationshipEntries ?? []).join("\n");
   }
 
   if (fieldPath.startsWith("settingSections.")) {
-    const sectionId = fieldPath.slice("settingSections.".length);
-    return subPage.settingSections?.find((section) => section.id === sectionId)?.body ?? "";
+    const sectionPath = parseSettingSectionGlitchPath(fieldPath);
+    if (sectionPath) {
+      const section = subPage.settingSections?.find((item) => item.id === sectionPath.sectionId);
+      if (!section) {
+        return "";
+      }
+
+      if (sectionPath.field === "excerpt") {
+        return section.excerpt ?? "";
+      }
+
+      if (sectionPath.field === "title") {
+        return section.title;
+      }
+
+      return section.body;
+    }
   }
 
   return "";
@@ -103,6 +133,23 @@ function setSubPageFieldValue(subPage: CharacterSubPage, fieldPath: string, valu
   if (fieldPath === "kanjiName") return { ...subPage, kanjiName: value };
   if (fieldPath === "subtitle") return { ...subPage, subtitle: value };
   if (fieldPath === "quote") return { ...subPage, quote: value };
+  const metaFieldId = parseMetaFieldGlitchPath(fieldPath);
+  if (metaFieldId) {
+    return {
+      ...subPage,
+      metaFields: setMetaFieldBody(subPage.metaFields ?? [], metaFieldId, value),
+    };
+  }
+  if (fieldPath === "classification") return { ...subPage, classification: value };
+  if (fieldPath === "statusTags") {
+    return {
+      ...subPage,
+      statusTags: value
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    };
+  }
   const profileFieldId = parseProfileFieldGlitchPath(fieldPath);
   if (profileFieldId) {
     return {
@@ -110,13 +157,14 @@ function setSubPageFieldValue(subPage: CharacterSubPage, fieldPath: string, valu
       profileFields: setProfileFieldValue(subPage.profileFields, profileFieldId, value),
     };
   }
-  const relationshipEntryId = parseRelationshipEntryGlitchPath(fieldPath);
-  if (relationshipEntryId) {
+  const relationshipEntryPath = parseRelationshipEntryGlitchPath(fieldPath);
+  if (relationshipEntryPath) {
     return {
       ...subPage,
-      relationshipEntries: setRelationshipEntryBody(
+      relationshipEntries: setRelationshipEntryFieldValue(
         subPage.relationshipEntries ?? [],
-        relationshipEntryId,
+        relationshipEntryPath.entryId,
+        relationshipEntryPath.field,
         value,
       ),
     };
@@ -126,13 +174,27 @@ function setSubPageFieldValue(subPage: CharacterSubPage, fieldPath: string, valu
   }
 
   if (fieldPath.startsWith("settingSections.")) {
-    const sectionId = fieldPath.slice("settingSections.".length);
-    return {
-      ...subPage,
-      settingSections: (subPage.settingSections ?? []).map((section) =>
-        section.id === sectionId ? { ...section, body: value } : section,
-      ),
-    };
+    const sectionPath = parseSettingSectionGlitchPath(fieldPath);
+    if (sectionPath) {
+      return {
+        ...subPage,
+        settingSections: (subPage.settingSections ?? []).map((section) => {
+          if (section.id !== sectionPath.sectionId) {
+            return section;
+          }
+
+          if (sectionPath.field === "excerpt") {
+            return { ...section, excerpt: value };
+          }
+
+          if (sectionPath.field === "title") {
+            return { ...section, title: value };
+          }
+
+          return { ...section, body: value };
+        }),
+      };
+    }
   }
 
   return subPage;
@@ -164,12 +226,34 @@ export function getGlitchFieldLabel(path: string): string {
   }
 
   if (path.startsWith("settingSections.")) {
-    return `상세 설정 본문 (${path.slice("settingSections.".length)})`;
+    const sectionPath = parseSettingSectionGlitchPath(path);
+    if (sectionPath?.field === "excerpt") {
+      return `스토리 소개 (${sectionPath.sectionId})`;
+    }
+
+    if (sectionPath?.field === "title") {
+      return `레코드 박스 제목 (${sectionPath.sectionId})`;
+    }
+
+    return `상세 설정 본문 (${sectionPath?.sectionId ?? path.slice("settingSections.".length)})`;
   }
 
-  const relationshipEntryId = parseRelationshipEntryGlitchPath(path);
-  if (relationshipEntryId) {
-    return `관계 설명 (${relationshipEntryId})`;
+  const metaFieldId = parseMetaFieldGlitchPath(path);
+  if (metaFieldId) {
+    return `카드 메타 (${metaFieldId})`;
+  }
+
+  const relationshipEntryPath = parseRelationshipEntryGlitchPath(path);
+  if (relationshipEntryPath) {
+    if (relationshipEntryPath.field === "name") {
+      return `관계 이름 (${relationshipEntryPath.entryId})`;
+    }
+
+    if (relationshipEntryPath.field === "label") {
+      return `관계 유형 (${relationshipEntryPath.entryId})`;
+    }
+
+    return `관계 설명 (${relationshipEntryPath.entryId})`;
   }
 
   if (path.startsWith("works.")) {
@@ -190,19 +274,38 @@ export function getCharacterDraftFieldValue(draft: CharacterDraft, path: string)
   if (path === "kanjiName") return draft.kanjiName;
   if (path === "subtitle") return draft.subtitle;
   if (path === "quote") return draft.quote;
-  if (path === "classification") return draft.classification;
-  if (path === "statusTags") return draft.statusTagsText;
+  const metaFieldId = parseMetaFieldGlitchPath(path);
+  if (metaFieldId) return getMetaFieldBody(draft.metaFields, metaFieldId);
   const profileFieldId = parseProfileFieldGlitchPath(path);
   if (profileFieldId) return getProfileFieldValue(draft.profileFields, profileFieldId);
-  const relationshipEntryId = parseRelationshipEntryGlitchPath(path);
-  if (relationshipEntryId) {
-    return getRelationshipEntryBody(draft.relationshipEntries, relationshipEntryId);
+  const relationshipEntryPath = parseRelationshipEntryGlitchPath(path);
+  if (relationshipEntryPath) {
+    return getRelationshipEntryFieldValue(
+      draft.relationshipEntries,
+      relationshipEntryPath.entryId,
+      relationshipEntryPath.field,
+    );
   }
   if (path === "relationships") return relationshipEntriesToLegacyLines(draft.relationshipEntries).join("\n");
 
   if (path.startsWith("settingSections.")) {
-    const sectionId = path.slice("settingSections.".length);
-    return draft.settingSections.find((section) => section.id === sectionId)?.body ?? "";
+    const sectionPath = parseSettingSectionGlitchPath(path);
+    if (sectionPath) {
+      const section = draft.settingSections.find((item) => item.id === sectionPath.sectionId);
+      if (!section) {
+        return "";
+      }
+
+      if (sectionPath.field === "excerpt") {
+        return section.excerpt ?? "";
+      }
+
+      if (sectionPath.field === "title") {
+        return section.title;
+      }
+
+      return section.body;
+    }
   }
 
   return "";
@@ -213,13 +316,19 @@ export function getCharacterFieldValue(character: Character, path: string) {
   if (path === "kanjiName") return character.kanjiName ?? "";
   if (path === "subtitle") return character.subtitle;
   if (path === "quote") return character.quote;
+  const metaFieldId = parseMetaFieldGlitchPath(path);
+  if (metaFieldId) return getMetaFieldBody(character.metaFields ?? [], metaFieldId);
   if (path === "classification") return character.classification ?? "";
   if (path === "statusTags") return (character.statusTags ?? []).join("\n");
   const profileFieldId = parseProfileFieldGlitchPath(path);
   if (profileFieldId) return getProfileFieldValue(character.profileFields, profileFieldId);
-  const relationshipEntryId = parseRelationshipEntryGlitchPath(path);
-  if (relationshipEntryId) {
-    return getRelationshipEntryBody(character.relationshipEntries ?? [], relationshipEntryId);
+  const relationshipEntryPath = parseRelationshipEntryGlitchPath(path);
+  if (relationshipEntryPath) {
+    return getRelationshipEntryFieldValue(
+      character.relationshipEntries ?? [],
+      relationshipEntryPath.entryId,
+      relationshipEntryPath.field,
+    );
   }
   if (path === "relationships") {
     return relationshipEntriesToLegacyLines(character.relationshipEntries ?? []).join("\n") ||
@@ -227,8 +336,23 @@ export function getCharacterFieldValue(character: Character, path: string) {
   }
 
   if (path.startsWith("settingSections.")) {
-    const sectionId = path.slice("settingSections.".length);
-    return character.settingSections?.find((section) => section.id === sectionId)?.body ?? "";
+    const sectionPath = parseSettingSectionGlitchPath(path);
+    if (sectionPath) {
+      const section = character.settingSections?.find((item) => item.id === sectionPath.sectionId);
+      if (!section) {
+        return "";
+      }
+
+      if (sectionPath.field === "excerpt") {
+        return section.excerpt ?? "";
+      }
+
+      if (sectionPath.field === "title") {
+        return section.title;
+      }
+
+      return section.body;
+    }
   }
 
   return "";
@@ -251,8 +375,13 @@ export function setCharacterDraftFieldValue(draft: CharacterDraft, path: string,
   if (path === "kanjiName") return { ...draft, kanjiName: value };
   if (path === "subtitle") return { ...draft, subtitle: value };
   if (path === "quote") return { ...draft, quote: value };
-  if (path === "classification") return { ...draft, classification: value };
-  if (path === "statusTags") return { ...draft, statusTagsText: value };
+  const metaFieldId = parseMetaFieldGlitchPath(path);
+  if (metaFieldId) {
+    return {
+      ...draft,
+      metaFields: setMetaFieldBody(draft.metaFields, metaFieldId, value),
+    };
+  }
   const profileFieldId = parseProfileFieldGlitchPath(path);
   if (profileFieldId) {
     return {
@@ -260,23 +389,42 @@ export function setCharacterDraftFieldValue(draft: CharacterDraft, path: string,
       profileFields: setProfileFieldValue(draft.profileFields, profileFieldId, value),
     };
   }
-  const relationshipEntryId = parseRelationshipEntryGlitchPath(path);
-  if (relationshipEntryId) {
+  const relationshipEntryPath = parseRelationshipEntryGlitchPath(path);
+  if (relationshipEntryPath) {
     return {
       ...draft,
-      relationshipEntries: setRelationshipEntryBody(draft.relationshipEntries, relationshipEntryId, value),
+      relationshipEntries: setRelationshipEntryFieldValue(
+        draft.relationshipEntries,
+        relationshipEntryPath.entryId,
+        relationshipEntryPath.field,
+        value,
+      ),
     };
   }
   if (path === "relationships") return draft;
 
   if (path.startsWith("settingSections.")) {
-    const sectionId = path.slice("settingSections.".length);
-    return {
-      ...draft,
-      settingSections: draft.settingSections.map((section) =>
-        section.id === sectionId ? { ...section, body: value } : section,
-      ),
-    };
+    const sectionPath = parseSettingSectionGlitchPath(path);
+    if (sectionPath) {
+      return {
+        ...draft,
+        settingSections: draft.settingSections.map((section) => {
+          if (section.id !== sectionPath.sectionId) {
+            return section;
+          }
+
+          if (sectionPath.field === "excerpt") {
+            return { ...section, excerpt: value };
+          }
+
+          if (sectionPath.field === "title") {
+            return { ...section, title: value };
+          }
+
+          return { ...section, body: value };
+        }),
+      };
+    }
   }
 
   return draft;
@@ -341,8 +489,11 @@ function draftAsGlitchAnchorCharacter(draft: CharacterDraft): Character {
     kanjiName: draft.kanjiName.trim(),
     subtitle: draft.subtitle.trim(),
     quote: draft.quote.trim(),
-    classification: draft.classification.trim(),
-    statusTags: linesToList(draft.statusTagsText),
+    metaFields: draft.metaFields.map((field) => ({
+      ...field,
+      label: field.label.trim(),
+      body: field.body.trim(),
+    })),
     profileFields: draft.profileFields.map((field) => ({
       ...field,
       label: field.label.trim(),
@@ -361,7 +512,7 @@ function draftAsGlitchAnchorCharacter(draft: CharacterDraft): Character {
       label: entry.label.trim(),
       body: entry.body.trim(),
     })),
-    palette: draft.palette.trim() || "from-zinc-950 via-black to-zinc-900",
+    palette: normalizeCharacterPaletteInput(draft.palette),
     works: [],
   };
 }
@@ -542,27 +693,74 @@ function buildRelationshipGlitchFieldOptions(
   draft: CharacterDraft,
   textGlitch: Record<string, FieldGlitchConfig>,
 ): GlitchFieldOption[] {
-  return draft.relationshipEntries.map((entry, index) => {
-    const path = relationshipEntryGlitchPath(entry.id);
+  return draft.relationshipEntries.flatMap((entry, index) => {
     const labelParts = [entry.name.trim(), entry.label.trim()].filter(Boolean);
+    const fallbackLabel = labelParts.join(" · ") || `관계 ${index + 1}`;
+
+    return [
+      {
+        path: relationshipEntryNameGlitchPath(entry.id),
+        label: `${fallbackLabel} · 이름`,
+        hasGlitch: Boolean(textGlitch[relationshipEntryNameGlitchPath(entry.id)]),
+      },
+      {
+        path: relationshipEntryLabelGlitchPath(entry.id),
+        label: `${fallbackLabel} · 유형`,
+        hasGlitch: Boolean(textGlitch[relationshipEntryLabelGlitchPath(entry.id)]),
+      },
+      {
+        path: relationshipEntryGlitchPath(entry.id),
+        label: `${fallbackLabel} · 설명`,
+        hasGlitch: Boolean(textGlitch[relationshipEntryGlitchPath(entry.id)]),
+      },
+    ];
+  });
+}
+function buildMetaFieldGlitchFieldOptions(
+  draft: CharacterDraft,
+  textGlitch: Record<string, FieldGlitchConfig>,
+): GlitchFieldOption[] {
+  return draft.metaFields.map((field, index) => {
+    const path = metaFieldGlitchPath(field.id);
     return {
       path,
-      label: labelParts.join(" · ") || `관계 ${index + 1}`,
+      label: field.label.trim() || `카드 메타 ${index + 1}`,
       hasGlitch: Boolean(textGlitch[path]),
     };
   });
 }
+
 function buildRecordBoxGlitchFieldOptions(
   draft: CharacterDraft,
   textGlitch: Record<string, FieldGlitchConfig>,
 ): GlitchFieldOption[] {
-  return draft.settingSections.map((section, index) => {
-    const path = settingSectionGlitchPath(section.id);
-    return {
-      path,
-      label: section.title.trim() || `레코드 박스 ${index + 1}`,
-      hasGlitch: Boolean(textGlitch[path]),
-    };
+  return draft.settingSections.flatMap((section, index) => {
+    const baseLabel = section.title.trim() || `레코드 박스 ${index + 1}`;
+    const bodyPath = settingSectionGlitchPath(section.id);
+    const titlePath = settingSectionTitleGlitchPath(section.id);
+    const options: GlitchFieldOption[] = [
+      {
+        path: titlePath,
+        label: `${baseLabel} · 제목`,
+        hasGlitch: Boolean(textGlitch[titlePath]),
+      },
+      {
+        path: bodyPath,
+        label: `${baseLabel} · 본문`,
+        hasGlitch: Boolean(textGlitch[bodyPath]),
+      },
+    ];
+
+    if (section.kind === "story") {
+      const excerptPath = settingSectionExcerptGlitchPath(section.id);
+      options.push({
+        path: excerptPath,
+        label: `${baseLabel} · 소개`,
+        hasGlitch: Boolean(textGlitch[excerptPath]),
+      });
+    }
+
+    return options;
   });
 }
 
@@ -588,23 +786,63 @@ function buildSubPageGlitchFieldOptions(subPage: CharacterSubPage): GlitchFieldO
     });
   });
 
-  subPage.settingSections?.forEach((section, index) => {
-    const fieldPath = settingSectionGlitchPath(section.id);
+  (subPage.metaFields ?? []).forEach((field, index) => {
+    const fieldPath = metaFieldGlitchPath(field.id);
     options.push({
       path: subPageFieldGlitchPath(subPage.id, fieldPath),
-      label: section.title.trim() || `레코드 박스 ${index + 1}`,
+      label: field.label.trim() || `카드 메타 ${index + 1}`,
       hasGlitch: Boolean(subGlitch[fieldPath]),
     });
   });
 
+  subPage.settingSections?.forEach((section, index) => {
+    const baseLabel = section.title.trim() || `레코드 박스 ${index + 1}`;
+    const bodyFieldPath = settingSectionGlitchPath(section.id);
+    const titleFieldPath = settingSectionTitleGlitchPath(section.id);
+    options.push(
+      {
+        path: subPageFieldGlitchPath(subPage.id, titleFieldPath),
+        label: `${baseLabel} · 제목`,
+        hasGlitch: Boolean(subGlitch[titleFieldPath]),
+      },
+      {
+        path: subPageFieldGlitchPath(subPage.id, bodyFieldPath),
+        label: `${baseLabel} · 본문`,
+        hasGlitch: Boolean(subGlitch[bodyFieldPath]),
+      },
+    );
+
+    if (section.kind === "story") {
+      const excerptFieldPath = settingSectionExcerptGlitchPath(section.id);
+      options.push({
+        path: subPageFieldGlitchPath(subPage.id, excerptFieldPath),
+        label: `${baseLabel} · 소개`,
+        hasGlitch: Boolean(subGlitch[excerptFieldPath]),
+      });
+    }
+  });
+
   (subPage.relationshipEntries ?? []).forEach((entry, index) => {
-    const fieldPath = relationshipEntryGlitchPath(entry.id);
     const labelParts = [entry.name.trim(), entry.label.trim()].filter(Boolean);
-    options.push({
-      path: subPageFieldGlitchPath(subPage.id, fieldPath),
-      label: labelParts.join(" · ") || `관계 ${index + 1}`,
-      hasGlitch: Boolean(subGlitch[fieldPath]),
-    });
+    const fallbackLabel = labelParts.join(" · ") || `관계 ${index + 1}`;
+
+    options.push(
+      {
+        path: subPageFieldGlitchPath(subPage.id, relationshipEntryNameGlitchPath(entry.id)),
+        label: `${fallbackLabel} · 이름`,
+        hasGlitch: Boolean(subGlitch[relationshipEntryNameGlitchPath(entry.id)]),
+      },
+      {
+        path: subPageFieldGlitchPath(subPage.id, relationshipEntryLabelGlitchPath(entry.id)),
+        label: `${fallbackLabel} · 유형`,
+        hasGlitch: Boolean(subGlitch[relationshipEntryLabelGlitchPath(entry.id)]),
+      },
+      {
+        path: subPageFieldGlitchPath(subPage.id, relationshipEntryGlitchPath(entry.id)),
+        label: `${fallbackLabel} · 설명`,
+        hasGlitch: Boolean(subGlitch[relationshipEntryGlitchPath(entry.id)]),
+      },
+    );
   });
 
   return options;
@@ -621,6 +859,15 @@ export function buildGlitchFieldOptionGroups(
       options: buildBaseGlitchFieldOptions(draft, textGlitch),
     },
   ];
+
+  const metaFieldOptions = buildMetaFieldGlitchFieldOptions(draft, textGlitch);
+  if (metaFieldOptions.length > 0) {
+    groups.push({
+      id: "meta-fields",
+      label: "카드 메타",
+      options: metaFieldOptions,
+    });
+  }
 
   const recordBoxOptions = buildRecordBoxGlitchFieldOptions(draft, textGlitch);
   if (recordBoxOptions.length > 0) {
@@ -730,6 +977,39 @@ export function getCharacterFieldGlitch(
 
 export function settingSectionGlitchPath(sectionId: string) {
   return `settingSections.${sectionId}`;
+}
+
+export function settingSectionTitleGlitchPath(sectionId: string) {
+  return `settingSections.${sectionId}.title`;
+}
+
+export function settingSectionExcerptGlitchPath(sectionId: string) {
+  return `settingSections.${sectionId}.excerpt`;
+}
+
+export type SettingSectionGlitchField = "body" | "excerpt" | "title";
+
+export function parseSettingSectionGlitchPath(
+  path: string,
+): { sectionId: string; field: SettingSectionGlitchField } | null {
+  if (!path.startsWith("settingSections.")) {
+    return null;
+  }
+
+  const rest = path.slice("settingSections.".length);
+  if (!rest) {
+    return null;
+  }
+
+  if (rest.endsWith(".excerpt")) {
+    return { sectionId: rest.slice(0, -".excerpt".length), field: "excerpt" };
+  }
+
+  if (rest.endsWith(".title")) {
+    return { sectionId: rest.slice(0, -".title".length), field: "title" };
+  }
+
+  return { sectionId: rest, field: "body" };
 }
 
 export function workBodyGlitchPath(index: number) {

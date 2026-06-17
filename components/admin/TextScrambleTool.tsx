@@ -25,7 +25,7 @@ import { glitchTextWasSanitized, sanitizePlainText } from "@/lib/glitch-display"
 import { zonesOverlap, type GlitchZone } from "@/lib/text-scramble";
 import { getGlitchFieldLabel, glitchConfigSignature } from "@/lib/glitch-fields";
 import type { GlitchTextSelection } from "@/lib/glitch-selection";
-import { readGlitchTextSelection } from "@/lib/glitch-selection";
+import { readGlitchTextSelection, scheduleReadGlitchTextSelection } from "@/lib/glitch-selection";
 import { normalizeFieldGlitchConfig } from "@/lib/normalize-text-glitch";
 import { ensureZoneErrorAlternation } from "@/lib/glitch-scramble-options";
 import type {
@@ -44,6 +44,8 @@ import {
   type CharacterDetailSection,
 } from "@/lib/zone-links";
 import { AdminChoiceButton } from "@/components/admin/AdminChoiceButton";
+import { AdminCollapsiblePanel } from "@/components/admin/AdminCollapsiblePanel";
+import { GlitchZoneListItem } from "@/components/admin/GlitchZoneListItem";
 import { ZoneLinkEditor } from "@/components/admin/ZoneLinkEditor";
 
 interface PendingZoneDraft {
@@ -112,15 +114,6 @@ interface TextScrambleToolProps {
   allCharacters?: Character[];
   currentCharacterId?: string;
   currentSection?: CharacterDetailSection;
-}
-
-function truncateMiddle(text: string, maxLength = 40) {
-  if (text.length <= maxLength) {
-    return text;
-  }
-
-  const half = Math.floor((maxLength - 1) / 2);
-  return `${text.slice(0, half)}…${text.slice(-half)}`;
 }
 
 function createZoneId() {
@@ -346,7 +339,9 @@ export function TextScrambleTool({
   };
 
   const updateSelectionFromTextarea = (element: HTMLTextAreaElement) => {
-    setWorkSelection(readGlitchTextSelection(element));
+    scheduleReadGlitchTextSelection(element, (selection) => {
+      setWorkSelection(selection);
+    });
   };
 
   const handleTickMsChange = (nextTickMs: number) => {
@@ -553,10 +548,15 @@ export function TextScrambleTool({
     );
   };
 
-  const linkContext = useMemo(
-    () => ({ section: currentSection, characterId: currentCharacterId }),
-    [currentCharacterId, currentSection],
-  );
+  const selectZoneForEditing = (zone: GlitchZone) => {
+    setWorkSelection({
+      start: zone.start,
+      end: zone.end,
+      text: zone.original,
+    });
+    onExternalSelectionClear?.();
+    notify(`구간 ${zone.start + 1}~${zone.end}을(를) 다시 선택했어요.`);
+  };
 
   const handleZoneStyleUpdate = (zoneId: string, nextStyle: GlitchZoneStyle) => {
     const normalizedStyle = normalizeGlitchZoneStyle(nextStyle);
@@ -582,10 +582,25 @@ export function TextScrambleTool({
       data-text-scramble-tool
     >
       <h3 className="text-sm font-semibold text-emerald-50">텍스트 오류 · 서식 도구</h3>
-      <p className="mt-2 text-xs leading-6 text-emerald-100/60">
-        필드를 고른 뒤 구간을 선택하고, 적용 전에 스타일·오류 메시지·페이지 이동을 모두 설정할 수
-        있습니다.
-      </p>
+
+      <ol className="mt-3 grid gap-2 sm:grid-cols-3">
+        {[
+          { step: "1", label: "필드 선택", done: Boolean(activeFieldPath) },
+          { step: "2", label: "구간 지정", done: Boolean(activeSelection) },
+          { step: "3", label: "적용", done: zones.length > 0 },
+        ].map((item) => (
+          <li
+            key={item.step}
+            className={
+              item.done
+                ? "border border-emerald-200/25 bg-emerald-950/35 px-3 py-2 text-xs text-emerald-50"
+                : "border border-emerald-100/10 bg-black/20 px-3 py-2 text-xs text-emerald-100/55"
+            }
+          >
+            <span className="font-semibold">{item.step}.</span> {item.label}
+          </li>
+        ))}
+      </ol>
 
       {activeFieldPath ? (
         <div className="mt-3 border border-emerald-200/25 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-50">
@@ -596,150 +611,169 @@ export function TextScrambleTool({
         </div>
       ) : (
         <p className="mt-3 border border-amber-400/30 bg-amber-950/20 p-3 text-xs leading-6 text-amber-100">
-          위 편집 칸을 클릭한 뒤, 그 칸에서 바로 드래그하거나 아래 작업 텍스트에서 구간을
-          선택하세요.
+          위에서 필드를 고른 뒤, 작업 텍스트에서 구간을 선택하거나 「드래그 없이 구간 지정」을
+          사용하세요.
         </p>
       )}
 
-      {!activeSelection ? (
-        <GlitchStyleEditor style={zoneStyle} onStyleChange={handleZoneStyleChange} />
-      ) : null}
+      <div className="mt-4 space-y-3">
+        <AdminCollapsiblePanel
+          title="구간 지정"
+          description="작업 텍스트 편집 · 드래그 선택 · 문구 찾기 · 전체 적용"
+          defaultOpen
+        >
+          <label className="grid gap-2 text-xs text-emerald-100/70">
+            작업 텍스트
+            <textarea
+              ref={workTextareaRef}
+              value={fieldValue}
+              data-glitch-work-textarea
+              {...(activeFieldPath ? { "data-glitch-field": activeFieldPath } : {})}
+              onChange={(event) => onFieldValueChange(event.target.value)}
+              onSelect={(event) => updateSelectionFromTextarea(event.currentTarget)}
+              onKeyUp={(event) => updateSelectionFromTextarea(event.currentTarget)}
+              onMouseUp={(event) => updateSelectionFromTextarea(event.currentTarget)}
+              placeholder={
+                activeFieldPath
+                  ? "여기서 텍스트를 고치거나 드래그로 구간을 선택할 수 있어요."
+                  : "먼저 필드를 선택해주세요."
+              }
+              disabled={!activeFieldPath}
+              className="auth-input min-h-32 disabled:cursor-not-allowed disabled:opacity-50"
+              data-text-corruptor-ignore
+            />
+          </label>
 
-      <label className="mt-3 grid gap-2 text-xs text-emerald-100/70">
-        참조 단어 <span className="text-emerald-100/45">(선택 · 오류 메시지를 쓰는 구간만)</span>
-        <textarea
-          value={wordPool}
-          onChange={(event) => {
-            const raw = event.target.value;
-            const next = sanitizePlainText(raw);
-            setWordPool(next);
-            if (zones.length > 0) {
-              commitConfig({ zones, wordPool: next });
-            }
-            if (glitchTextWasSanitized(raw, next)) {
-              notify(
-                "참조 단어는 일반 글자만 넣어주세요. 오류 문구는 자동으로 뒤죽박죽(합성 기호) 처리됩니다.",
-              );
-            }
-          }}
-          placeholder={"한 줄에 하나씩 · 예: 오류\n불완전\nNULL"}
-          className="auth-input min-h-20 max-w-full break-all"
-          data-text-corruptor-ignore
-        />
-      </label>
-
-      {showScrambleSettings && wordPool.trim() ? (
-        <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
-          <legend className="px-1 text-[11px] font-medium text-emerald-100/85">
-            오류 메시지 구성
-          </legend>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <AdminChoiceButton
-              active={scrambleMode === "referenceOnly"}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => handleScrambleModeChange("referenceOnly")}
-            >
-              참조 단어만
-            </AdminChoiceButton>
-            <AdminChoiceButton
-              active={scrambleMode === "referenceWithBuiltin"}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => handleScrambleModeChange("referenceWithBuiltin")}
-            >
-              참조 단어 + 기본 기호
-            </AdminChoiceButton>
-          </div>
-          <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
-            「기본 기호」는 #, ?, ERR, NULL, ??? 같은 기본 제공 문구·기호입니다.
-            {scrambleMode === "referenceOnly"
-              ? " 참조 단어 글자만 무작위로 섞어 구간 길이에 맞춥니다. (오류·불완전·NULL 등 풀 안 글자만 사용)"
-              : " 참조 단어로 문구를 만든 뒤 기본 기호(#, ERR 등)로 일부 글자를 더 섞습니다."}
-          </p>
-        </fieldset>
-      ) : showScrambleSettings ? (
-        <label className="mt-3 flex items-start gap-2 border border-emerald-100/15 bg-black/25 p-3 text-xs text-emerald-100/75">
-          <input
-            type="checkbox"
-            checked={builtinScramble}
-            onChange={(event) => handleBuiltinScrambleChange(event.target.checked)}
-            className="mt-1"
+          <GlitchZoneRangePicker
+            fieldValue={fieldValue}
+            disabled={!activeFieldPath}
+            onSelect={applySelection}
+            onApply={(selection) => handleAddZone(selection)}
+            onNotice={notify}
           />
-          <span>
-            <span className="font-medium text-emerald-50">기본 오류 메시지 사용</span>
-            <span className="mt-1 block text-[11px] leading-5 text-emerald-100/50">
-              「오류 메시지 사용」을 켠 구간에 ERR, NULL, ??? 같은 기본 문구를 넣습니다.
-            </span>
-          </span>
-        </label>
-      ) : null}
+        </AdminCollapsiblePanel>
 
-      {showBuiltinTokenPicker ? (
-        <BuiltinTokenPicker selectedTokens={builtinTokens} onChange={handleBuiltinTokensChange} />
-      ) : null}
+        <AdminCollapsiblePanel
+          title="공통 오류 설정"
+          description="참조 단어 · 오류 메시지 구성 · 전환 간격"
+          defaultOpen={!zones.length || hasScramble || Boolean(wordPool.trim())}
+        >
+          {!activeSelection ? (
+            <GlitchStyleEditor style={zoneStyle} onStyleChange={handleZoneStyleChange} />
+          ) : (
+            <p className="text-[11px] leading-5 text-emerald-100/50">
+              구간을 선택한 상태에서는 아래 「선택 구간 설정」에서 스타일을 바꿀 수 있어요.
+            </p>
+          )}
 
-      {showScrambleSettings && hasScramble ? (
-        <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
-          <legend className="px-1 text-[11px] font-medium text-emerald-100/85">전환 방식</legend>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <AdminChoiceButton
-              active={errorDisplayMode === "alternate"}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => handleErrorDisplayModeChange("alternate")}
-            >
-              원문 ↔ 오류 번갈아
-            </AdminChoiceButton>
-            <AdminChoiceButton
-              active={errorDisplayMode === "randomOnly"}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => handleErrorDisplayModeChange("randomOnly")}
-            >
-              오류만 랜덤
-            </AdminChoiceButton>
-          </div>
-          <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
-            {errorDisplayMode === "alternate"
-              ? "본 페이지처럼 원문과 오류 메시지가 번갈아 보입니다."
-              : "원문 없이 오류 메시지만 계속 바뀝니다."}
-          </p>
-        </fieldset>
-      ) : null}
+          <label className="mt-3 grid gap-2 text-xs text-emerald-100/70">
+            참조 단어 <span className="text-emerald-100/45">(선택 · 오류 메시지를 쓰는 구간만)</span>
+            <textarea
+              value={wordPool}
+              onChange={(event) => {
+                const raw = event.target.value;
+                const next = sanitizePlainText(raw);
+                setWordPool(next);
+                if (zones.length > 0) {
+                  commitConfig({ zones, wordPool: next });
+                }
+                if (glitchTextWasSanitized(raw, next)) {
+                  notify(
+                    "참조 단어는 일반 글자만 넣어주세요. 오류 문구는 자동으로 뒤죽박죽(합성 기호) 처리됩니다.",
+                  );
+                }
+              }}
+              placeholder={"한 줄에 하나씩 · 예: 오류\n불완전\nNULL"}
+              className="auth-input min-h-20 max-w-full break-all"
+              data-text-corruptor-ignore
+            />
+          </label>
 
-      {hasScramble ? (
-        <GlitchTickEditor
-          tickMs={tickMs}
-          onTickMsChange={handleTickMsChange}
-          onTickMsCommit={handleTickMsCommit}
-        />
-      ) : null}
+          {showScrambleSettings && wordPool.trim() ? (
+            <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
+              <legend className="px-1 text-[11px] font-medium text-emerald-100/85">
+                오류 메시지 구성
+              </legend>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <AdminChoiceButton
+                  active={scrambleMode === "referenceOnly"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleScrambleModeChange("referenceOnly")}
+                >
+                  참조 단어만
+                </AdminChoiceButton>
+                <AdminChoiceButton
+                  active={scrambleMode === "referenceWithBuiltin"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleScrambleModeChange("referenceWithBuiltin")}
+                >
+                  참조 단어 + 기본 기호
+                </AdminChoiceButton>
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
+                「기본 기호」는 #, ?, ERR, NULL, ??? 같은 기본 제공 문구·기호입니다.
+                {scrambleMode === "referenceOnly"
+                  ? " 참조 단어 글자만 무작위로 섞어 구간 길이에 맞춥니다."
+                  : " 참조 단어로 문구를 만든 뒤 기본 기호로 일부 글자를 더 섞습니다."}
+              </p>
+            </fieldset>
+          ) : showScrambleSettings ? (
+            <label className="mt-3 flex items-start gap-2 border border-emerald-100/15 bg-black/25 p-3 text-xs text-emerald-100/75">
+              <input
+                type="checkbox"
+                checked={builtinScramble}
+                onChange={(event) => handleBuiltinScrambleChange(event.target.checked)}
+                className="mt-1"
+              />
+              <span>
+                <span className="font-medium text-emerald-50">기본 오류 메시지 사용</span>
+                <span className="mt-1 block text-[11px] leading-5 text-emerald-100/50">
+                  「오류 메시지 사용」을 켠 구간에 ERR, NULL, ??? 같은 기본 문구를 넣습니다.
+                </span>
+              </span>
+            </label>
+          ) : null}
 
-      <label className="mt-4 grid gap-2 text-xs text-emerald-100/70">
-        작업 텍스트
-        <textarea
-          ref={workTextareaRef}
-          value={fieldValue}
-          data-glitch-work-textarea
-          onChange={(event) => onFieldValueChange(event.target.value)}
-          onSelect={(event) => updateSelectionFromTextarea(event.currentTarget)}
-          onKeyUp={(event) => updateSelectionFromTextarea(event.currentTarget)}
-          onMouseUp={(event) => updateSelectionFromTextarea(event.currentTarget)}
-          placeholder={
-            activeFieldPath
-              ? "위 편집 칸과 같은 내용입니다. 여기서도 구간을 선택할 수 있어요."
-              : "먼저 위 편집 칸을 클릭해주세요."
-          }
-          disabled={!activeFieldPath}
-          className="auth-input min-h-32 disabled:cursor-not-allowed disabled:opacity-50"
-          data-text-corruptor-ignore
-        />
-      </label>
+          {showBuiltinTokenPicker ? (
+            <BuiltinTokenPicker selectedTokens={builtinTokens} onChange={handleBuiltinTokensChange} />
+          ) : null}
 
-      <GlitchZoneRangePicker
-        fieldValue={fieldValue}
-        disabled={!activeFieldPath}
-        onSelect={applySelection}
-        onApply={(selection) => handleAddZone(selection)}
-        onNotice={notify}
-      />
+          {showScrambleSettings && hasScramble ? (
+            <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
+              <legend className="px-1 text-[11px] font-medium text-emerald-100/85">전환 방식</legend>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <AdminChoiceButton
+                  active={errorDisplayMode === "alternate"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleErrorDisplayModeChange("alternate")}
+                >
+                  원문 ↔ 오류 번갈아
+                </AdminChoiceButton>
+                <AdminChoiceButton
+                  active={errorDisplayMode === "randomOnly"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleErrorDisplayModeChange("randomOnly")}
+                >
+                  오류만 랜덤
+                </AdminChoiceButton>
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
+                {errorDisplayMode === "alternate"
+                  ? "본 페이지처럼 원문과 오류 메시지가 번갈아 보입니다."
+                  : "원문 없이 오류 메시지만 계속 바뀝니다."}
+              </p>
+            </fieldset>
+          ) : null}
+
+          {hasScramble ? (
+            <GlitchTickEditor
+              tickMs={tickMs}
+              onTickMsChange={handleTickMsChange}
+              onTickMsCommit={handleTickMsCommit}
+            />
+          ) : null}
+        </AdminCollapsiblePanel>
+      </div>
 
       {activeSelection && pendingZonePreview ? (
         <div
@@ -825,86 +859,34 @@ export function TextScrambleTool({
       </div>
 
       {zones.length > 0 && (
-        <div className="mt-4 space-y-2">
-          <p className="text-xs font-medium text-emerald-100/80">저장될 구간</p>
-          {zones.map((zone, index) => (
-            <div
-              key={zone.id}
-              className="overflow-visible border border-emerald-100/15 bg-black/25 px-3 py-2"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0 flex-1 text-xs leading-6 break-all text-emerald-50/90">
-                  <span className="font-semibold text-emerald-100">
-                    구간 {index + 1} · {zone.start + 1}~{zone.end}번째 글자
-                  </span>
-                  <span className="mx-2 text-emerald-100/40">|</span>
-                  <span className="font-mono text-emerald-100/80">
-                    「{truncateMiddle(zone.original)}」
-                  </span>
-                  {zone.errorMessageSource === "custom" && zone.errorMessage ? (
-                    <>
-                      <span className="mx-2 text-emerald-100/40">→</span>
-                      <span className="font-mono text-amber-100/85">
-                        「{truncateMiddle(zone.errorMessage, 24)}」
-                      </span>
-                    </>
-                  ) : null}
-                  {zone.errorMessageSource === "none" ? (
-                    <span className="ml-2 text-emerald-100/45">· 서식만</span>
-                  ) : null}
-                  {resolveZoneLink(zone, linkContext) ? (
-                    <span className="ml-2 text-sky-200/80">
-                      · {formatZoneLinkLabel(resolveZoneLink(zone, linkContext)!, allCharacters)}
-                    </span>
-                  ) : null}
-                  {zone.style || zoneStyle ? (
-                    <>
-                      <span className="mx-2 text-emerald-100/40">|</span>
-                      <GlitchZoneMark
-                        text={truncateMiddle(zone.original, 24)}
-                        original={truncateMiddle(zone.original, 24)}
-                        zoneStyle={zone.style}
-                      />
-                    </>
-                  ) : null}
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <button
-                    type="button"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => handleRemoveZone(zone.id)}
-                    className="admin-ghost-btn px-2 py-1 text-[11px]"
-                  >
-                    제거
-                  </button>
-                </div>
-              </div>
-              <div className="mt-3" onMouseDown={keepAdminTextSelection}>
-                <GlitchStyleEditor
-                  compact
-                  style={zone.style ?? zoneStyle}
-                  onStyleChange={(nextStyle) => handleZoneStyleUpdate(zone.id, nextStyle)}
-                />
-                <ZoneErrorMessageEditor
-                  zone={zone}
-                  wordPool={wordPool}
-                  scrambleMode={scrambleMode}
-                  builtinScramble={builtinScramble}
-                  builtinTokens={builtinTokens}
-                  onChange={(patch) => handleZoneErrorUpdate(zone.id, patch)}
-                />
-                <ZoneLinkEditor
-                  target={resolveZoneLink(zone, linkContext)}
-                  allCharacters={allCharacters}
-                  currentCharacterId={currentCharacterId}
-                  currentSection={currentSection}
-                  onChange={(nextTarget) => handleZoneLinkChange(zone.id, nextTarget)}
-                  immediateApply
-                />
-              </div>
-            </div>
-          ))}
-        </div>
+        <AdminCollapsiblePanel
+          title={`저장될 구간 (${zones.length}개)`}
+          description="구간을 눌러 세부 설정을 펼치거나, 「구간 선택」으로 다시 고칠 수 있어요."
+          defaultOpen
+        >
+          <div className="space-y-2">
+            {zones.map((zone, index) => (
+              <GlitchZoneListItem
+                key={zone.id}
+                zone={zone}
+                index={index}
+                zoneStyle={zoneStyle}
+                wordPool={wordPool}
+                scrambleMode={scrambleMode}
+                builtinScramble={builtinScramble}
+                builtinTokens={builtinTokens}
+                allCharacters={allCharacters}
+                currentCharacterId={currentCharacterId}
+                currentSection={currentSection}
+                onSelectZone={selectZoneForEditing}
+                onRemoveZone={handleRemoveZone}
+                onZoneErrorUpdate={handleZoneErrorUpdate}
+                onZoneStyleUpdate={handleZoneStyleUpdate}
+                onZoneLinkChange={handleZoneLinkChange}
+              />
+            ))}
+          </div>
+        </AdminCollapsiblePanel>
       )}
 
       <div className="mt-4 border border-emerald-100/15 bg-black/40 p-3">

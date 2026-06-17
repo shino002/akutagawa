@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { DocumentTextImport } from "@/components/admin/DocumentTextImport";
 import type { UploadedImage, Work } from "@/lib/types";
-import { thumbnailStyle } from "@/lib/image-helpers";
+import { ThumbnailImage } from "@/components/ThumbnailImage";
 import {
   MAX_UPLOAD_SIZE,
   deleteR2Images,
@@ -173,12 +174,11 @@ export function SubPageMediaEditor({
           {images.map((image) => (
             <article key={image.id} className="gallery-tile">
               <div className="aspect-[3/2] overflow-hidden">
-                {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                <img
+                <ThumbnailImage
+                  image={image}
                   src={image.url}
                   alt={image.name}
-                  className="h-full w-full object-cover opacity-90"
-                  style={thumbnailStyle(image)}
+                  className="opacity-90"
                 />
               </div>
               <div className="p-3 text-sm">
@@ -243,6 +243,17 @@ export function SubPageMediaEditor({
 
       <section className="grid gap-3 border border-emerald-100/10 bg-black/30 p-4">
         <h3 className="text-sm font-semibold text-emerald-50">하위 페이지 글 / 연성</h3>
+        <DocumentTextImport
+          disabled={busy}
+          onNotice={onNotice}
+          onImported={({ text, suggestedTitle }) => {
+            setWorkDraft((current) => ({
+              ...current,
+              title: current.title.trim() || suggestedTitle,
+              body: text,
+            }));
+          }}
+        />
         <div className="grid gap-3">
           <div className="grid gap-3 md:grid-cols-3">
             <input

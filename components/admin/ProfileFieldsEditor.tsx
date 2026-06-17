@@ -1,15 +1,16 @@
 "use client";
 
-import type { ProfileField } from "@/lib/types";
+import { AdminInlineGlitchEditor } from "@/components/admin/AdminInlineGlitchEditor";
+import type { FieldGlitchConfig, ProfileField } from "@/lib/types";
 import { createProfileFieldId, profileFieldGlitchPath } from "@/lib/profile-fields";
 
 type GlitchFieldBindings = {
   "data-glitch-field"?: string;
   onFocus?: () => void;
   onClick?: () => void;
-  onSelect?: (event: React.SyntheticEvent<HTMLInputElement>) => void;
-  onKeyUp?: (event: React.KeyboardEvent<HTMLInputElement>) => void;
-  onMouseUp?: (event: React.MouseEvent<HTMLInputElement>) => void;
+  onSelect?: (event: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
+  onKeyUp?: (event: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
+  onMouseUp?: (event: React.MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => void;
 };
 
 interface ProfileFieldsEditorProps {
@@ -20,6 +21,8 @@ interface ProfileFieldsEditorProps {
   activeGlitchFieldPath?: string | null;
   glitchFieldClass?: (path: string, activePath: string | null, baseClass?: string) => string;
   onValueChange?: (fieldId: string, value: string) => void;
+  getFieldGlitch?: (fieldId: string) => FieldGlitchConfig | undefined;
+  onFieldGlitchChange?: (fieldId: string, config: FieldGlitchConfig | undefined) => void;
 }
 
 export function ProfileFieldsEditor({
@@ -30,6 +33,8 @@ export function ProfileFieldsEditor({
   activeGlitchFieldPath = null,
   glitchFieldClass,
   onValueChange,
+  getFieldGlitch,
+  onFieldGlitchChange,
 }: ProfileFieldsEditorProps) {
   const updateField = (fieldId: string, patch: Partial<Pick<ProfileField, "label" | "value">>) => {
     onFieldsChange(
@@ -75,7 +80,7 @@ export function ProfileFieldsEditor({
           const glitchPath = getFieldGlitchPath(field.id);
           const inputClassName = glitchFieldClass
             ? glitchFieldClass(glitchPath, activeGlitchFieldPath)
-            : "auth-input";
+            : "";
 
           return (
             <article key={field.id} className="grid gap-2 border border-emerald-100/10 bg-black/35 p-3">
@@ -97,19 +102,23 @@ export function ProfileFieldsEditor({
                 placeholder="예: 역할"
                 className="auth-input"
               />
-              <input
+              <AdminInlineGlitchEditor
                 value={field.value}
-                onChange={(event) => {
-                  const nextValue = event.target.value;
+                onChange={(nextValue) => {
                   if (onValueChange) {
                     onValueChange(field.id, nextValue);
                     return;
                   }
                   updateField(field.id, { value: nextValue });
                 }}
+                glitch={getFieldGlitch?.(field.id)}
+                onGlitchChange={(config) => onFieldGlitchChange?.(field.id, config)}
+                glitchBindings={
+                  bindGlitchField ? bindGlitchField(glitchPath) : { "data-glitch-field": glitchPath }
+                }
                 placeholder="값"
-                {...(bindGlitchField ? bindGlitchField(glitchPath) : { "data-glitch-field": glitchPath })}
                 className={inputClassName}
+                minHeightClass="min-h-16"
               />
             </article>
           );

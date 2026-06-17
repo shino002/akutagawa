@@ -11,6 +11,7 @@ import { normalizeProfileFields } from "@/lib/profile-fields";
 import { normalizeRelationshipEntries } from "@/lib/relationship-entries";
 import { normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { normalizeSubPages } from "@/lib/sub-pages";
+import { resolveMetaFields, migrateLegacyMetaFieldGlitch } from "@/lib/meta-fields";
 import { normalizePairMemberIds } from "@/lib/pair-members";
 import { normalizeWorldEntries, normalizeWorks } from "@/utils/normalizers";
 
@@ -46,11 +47,13 @@ const start = () => {
         };
         const resolvedBgmUrl = resolveCharacterBgmUrl(data.bgmUrl);
         const normalizedDetailTheme = normalizeCaseFileDetailTheme(data.detailTheme);
+        const metaFields = resolveMetaFields(data);
         const { bgmUrl: _bgmUrl, profile: legacyProfile, detailTheme: _detailTheme, ...rest } = data;
         return {
           ...rest,
           id: data.id || characterDoc.id,
           kind: normalizeCharacterKind(data.kind),
+          metaFields,
           profileFields: normalizeProfileFields(data.profileFields, legacyProfile),
           works: normalizeWorks(data.works),
           settings: Array.isArray(data.settings) ? data.settings : [],
@@ -61,7 +64,7 @@ const start = () => {
           worldEntries: normalizeWorldEntries(data.worldEntries),
           subPages: normalizeSubPages(data.subPages),
           pairMemberIds: normalizePairMemberIds(data.pairMemberIds),
-          textGlitch: normalizeTextGlitch(data.textGlitch),
+          textGlitch: migrateLegacyMetaFieldGlitch(normalizeTextGlitch(data.textGlitch), metaFields),
           ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : {}),
           ...(normalizedDetailTheme ? { detailTheme: normalizedDetailTheme } : {}),
         };

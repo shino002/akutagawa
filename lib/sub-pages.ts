@@ -1,13 +1,21 @@
+import { DEFAULT_CHARACTER_PALETTE } from "@/lib/character-palette";
 import type { Character, CharacterSubPage, SubPageSourceRef } from "@/lib/types";
+import { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
+import {
+  createDefaultProfileFieldsForSubPage,
+  formatSubPageEntryTitle,
+  normalizeSubPageEntryLabel,
+} from "@/lib/sub-page-kind";
 import { normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
-import { createDefaultProfileFields, normalizeProfileFields } from "@/lib/profile-fields";
+import { normalizeProfileFields } from "@/lib/profile-fields";
 import { normalizeSettingSections } from "@/lib/setting-sections";
 import {
   normalizeRelationshipEntries,
   relationshipEntriesToLegacyLines,
 } from "@/lib/relationship-entries";
 import { normalizeWorks } from "@/utils/normalizers";
+import { normalizeMetaFields, resolveMetaFields, migrateLegacyMetaFieldGlitch } from "@/lib/meta-fields";
 
 export type SharedSubPageCatalogItem = {
   characterId: string;
@@ -20,6 +28,7 @@ export type NavigableSubPageOption = {
   id: string;
   title: string;
   kind: "owned" | "imported" | "shared";
+  entryLabel: string;
 };
 
 function normalizeSubPageSourceRef(raw: unknown): SubPageSourceRef | undefined {
@@ -50,12 +59,14 @@ export function createBlankSubPage(title = ""): CharacterSubPage {
   return {
     id: createSubPageId(),
     displayId: "",
+    entryKind: "",
     title,
     kanjiName: "",
     subtitle: "",
     quote: "",
-    palette: "from-zinc-950 via-black to-zinc-900",
-    profileFields: createDefaultProfileFields(),
+    metaFields: [],
+    palette: DEFAULT_CHARACTER_PALETTE,
+    profileFields: createDefaultProfileFieldsForSubPage(),
     settingSections: [],
     relationships: [],
     relationshipEntries: [],
@@ -75,7 +86,8 @@ export function createSharedSubPageRef(source: SubPageSourceRef): CharacterSubPa
     kanjiName: "",
     subtitle: "",
     quote: "",
-    palette: "from-zinc-950 via-black to-zinc-900",
+    metaFields: [],
+    palette: DEFAULT_CHARACTER_PALETTE,
     profileFields: [],
     settingSections: [],
     relationships: [],
@@ -118,7 +130,7 @@ export function normalizeSubPages(raw: unknown): CharacterSubPage[] {
           kanjiName: "",
           subtitle: "",
           quote: "",
-          palette: "from-zinc-950 via-black to-zinc-900",
+          palette: DEFAULT_CHARACTER_PALETTE,
           profileFields: [],
           settingSections: [],
           relationships: [],
@@ -130,17 +142,21 @@ export function normalizeSubPages(raw: unknown): CharacterSubPage[] {
       }
 
       const legacyProfile = source.profile;
+      const metaFields = resolveMetaFields(source);
+      const resolvedBgmUrl = resolveCharacterBgmUrl(source.bgmUrl);
       const next: CharacterSubPage = {
         id: source.id.trim(),
         displayId: typeof source.displayId === "string" ? source.displayId.trim() : "",
+        entryKind: normalizeSubPageEntryLabel(source.entryKind),
         title: typeof source.title === "string" ? source.title : "",
         kanjiName: typeof source.kanjiName === "string" ? source.kanjiName.trim() : "",
         subtitle: typeof source.subtitle === "string" ? source.subtitle : "",
         quote: typeof source.quote === "string" ? source.quote : "",
+        metaFields,
         palette:
           typeof source.palette === "string" && source.palette.trim()
             ? source.palette.trim()
-            : "from-zinc-950 via-black to-zinc-900",
+            : DEFAULT_CHARACTER_PALETTE,
         profileFields: normalizeProfileFields(source.profileFields, legacyProfile, {
           useDefaultsWhenEmpty: false,
         }),
@@ -156,8 +172,9 @@ export function normalizeSubPages(raw: unknown): CharacterSubPage[] {
         ),
         images: Array.isArray(source.images) ? source.images : [],
         works: normalizeWorks(source.works),
-        textGlitch: normalizeTextGlitch(source.textGlitch),
+        textGlitch: migrateLegacyMetaFieldGlitch(normalizeTextGlitch(source.textGlitch), metaFields),
         isShared: source.isShared === true,
+        ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : {}),
         ...(normalizeCaseFileDetailTheme(source.detailTheme)
           ? { detailTheme: normalizeCaseFileDetailTheme(source.detailTheme) }
           : {}),
@@ -184,7 +201,8 @@ export function compactSubPageForStorage(subPage: CharacterSubPage): CharacterSu
     kanjiName: "",
     subtitle: "",
     quote: "",
-    palette: "from-zinc-950 via-black to-zinc-900",
+    metaFields: [],
+    palette: DEFAULT_CHARACTER_PALETTE,
     profileFields: [],
     settingSections: [],
     relationships: [],
@@ -272,7 +290,10 @@ export function collectSharedSubPageCatalog(
         characterId: character.id,
         characterName: character.name || character.id,
         subPageId: subPage.id,
-        title: subPage.title?.trim() || "제목 없음",
+        title: formatSubPageEntryTitle(
+          subPage.title?.trim() || "제목 없음",
+          normalizeSubPageEntryLabel(subPage.entryKind),
+        ),
       });
     }
   }
@@ -289,15 +310,19 @@ export function listNavigableSubPages(
       const resolved = resolveSubPage(character, entry.id, allCharacters);
       return {
         id: entry.id,
-        title: resolved?.title?.trim() ? `${resolved.title} (불러옴)` : "공용 페이지 (불러옴)",
+        title: resolved?.title?.trim()
+          ? `${formatSubPageEntryTitle(resolved.title, normalizeSubPageEntryLabel(resolved.entryKind))} (불러옴)`
+          : "공용 페이지 (불러옴)",
         kind: "imported" as const,
+        entryLabel: normalizeSubPageEntryLabel(resolved?.entryKind),
       };
     }
 
     return {
       id: entry.id,
-      title: entry.title?.trim() || "제목 없음",
+      title: formatSubPageEntryTitle(entry.title, normalizeSubPageEntryLabel(entry.entryKind)),
       kind: entry.isShared ? ("shared" as const) : ("owned" as const),
+      entryLabel: normalizeSubPageEntryLabel(entry.entryKind),
     };
   });
 }
@@ -320,9 +345,11 @@ export function subPageToDisplayCharacter(parent: Character, subPage: CharacterS
     kind: parent.kind,
     name: subPage.title || displayId || subPage.id,
     kanjiName: subPage.kanjiName?.trim() || undefined,
+    metaFields: resolveMetaFields(subPage),
     subtitle: subPage.subtitle,
     quote: subPage.quote,
     palette: subPage.palette || parent.palette,
+    detailTheme: subPage.detailTheme ?? parent.detailTheme,
     profileFields: subPage.profileFields,
     settings: [],
     settingSections: normalizeSettingSections(subPage.settingSections),

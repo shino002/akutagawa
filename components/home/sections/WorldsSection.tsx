@@ -5,7 +5,7 @@ import { cn } from "@/utils/cn";
 import { ArchiveMotion } from "@/components/home/ArchiveMotion";
 import { GlitchedText } from "@/components/GlitchedText";
 import { characterPaletteStyle } from "@/lib/character-palette";
-import { thumbnailStyle } from "@/lib/image-helpers";
+import { ThumbnailImage } from "@/components/ThumbnailImage";
 import { normalizeWorldEntries } from "@/utils/normalizers";
 import type { Character, CharacterWorldEntry, UploadedImage, World, ZoneLinkTarget } from "@/lib/types";
 import type { ExpressionModalItem, GalleryModalItem, ReaderModalItem } from "@/types/home.types";
@@ -135,12 +135,11 @@ export function WorldsSection({
                     >
                       <div className="world-participant-illustration-frame relative overflow-hidden">
                         {worldMainIllustration ? (
-                          /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
-                          <img
+                          <ThumbnailImage
+                            image={worldMainIllustration}
                             src={worldMainIllustration.url}
                             alt={`${character.name} ${activeWorld.title} 일러스트`}
-                            className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
-                            style={thumbnailStyle(worldMainIllustration)}
+                            className="opacity-95 transition group-hover:opacity-100"
                           />
                         ) : (
                           <div
@@ -177,12 +176,10 @@ export function WorldsSection({
                             key={image.id}
                             className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                            <img
+                            <ThumbnailImage
+                              image={image}
                               src={image.url}
                               alt="스탠딩 이미지"
-                              className="h-full w-full object-cover"
-                              style={thumbnailStyle(image)}
                             />
                           </div>
                         ))}
@@ -212,20 +209,16 @@ export function WorldsSection({
                                   key={image.id}
                                   className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
                                 >
-                                  {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                  <img
+                                  <ThumbnailImage
+                                    image={image}
                                     src={image.url}
                                     alt="첨부 이미지"
-                                    className="h-full w-full object-cover opacity-90"
-                                    style={thumbnailStyle(image)}
+                                    className="opacity-90"
                                   />
                                 </div>
                               ))}
                             </div>
                           )}
-                          <p className="mt-2 line-clamp-2 text-sm leading-7 text-emerald-50/70">
-                            {work.body}
-                          </p>
                         </button>
                       ))}
                     </div>

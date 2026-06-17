@@ -74,3 +74,15 @@ export function readGlitchTextSelection(element: HTMLInputElement | HTMLTextArea
     text: element.value.slice(start, end),
   } satisfies GlitchTextSelection;
 }
+
+/** mouseup 직후에는 selectionStart/End가 아직 갱신되지 않은 경우가 있어 한 틱 미룹니다. */
+export function scheduleReadGlitchTextSelection(
+  element: HTMLInputElement | HTMLTextAreaElement,
+  callback: (selection: GlitchTextSelection | null) => void,
+) {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      callback(readGlitchTextSelection(element));
+    });
+  });
+}

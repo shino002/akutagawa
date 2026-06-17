@@ -1,19 +1,22 @@
 "use client";
 
-import { ChangeEvent, FormEvent, KeyboardEvent, MouseEvent, PointerEvent, SyntheticEvent, WheelEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, KeyboardEvent, MouseEvent, PointerEvent, SyntheticEvent, WheelEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { collection, deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId } from "@/lib/auth-helpers";
 import { normalizeBgmTracks, resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
-import { characterPaletteStyle } from "@/lib/character-palette";
+import { DEFAULT_CHARACTER_PALETTE, extractCharacterPaletteFromImage, normalizeCharacterPaletteInput } from "@/lib/character-palette";
+import { PaletteEditor } from "@/components/admin/PaletteEditor";
 import { compactCaseFileDetailTheme, normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { CaseFileThemeEditor } from "@/components/admin/CaseFileThemeEditor";
-import { clamp, thumbnailStyle } from "@/lib/image-helpers";
+import { clamp } from "@/lib/image-helpers";
+import { ThumbnailImage } from "@/components/ThumbnailImage";
 import { ProfileFieldsEditor, profileFieldGlitchPath } from "@/components/admin/ProfileFieldsEditor";
 import { RelationshipsEditor } from "@/components/admin/RelationshipsEditor";
 import { BgmQuickPicker } from "@/components/admin/BgmQuickPicker";
+import { DocumentTextImport } from "@/components/admin/DocumentTextImport";
 import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import { createDefaultProfileFields, normalizeProfileFields, profileFieldsHaveContent } from "@/lib/profile-fields";
 import {
@@ -22,6 +25,8 @@ import {
   relationshipEntriesToLegacyLines,
   resolveRelationshipEntries,
   relationshipEntryGlitchPath,
+  relationshipEntryLabelGlitchPath,
+  relationshipEntryNameGlitchPath,
 } from "@/lib/relationship-entries";
 import { isAllowedBannerLinkUrl, normalizePersonalHomeBanners } from "@/lib/personal-home-banners";
 import type {
@@ -51,25 +56,44 @@ import {
   getGlitchFieldLabel,
   pruneDraftTextGlitch,
   pruneSubPageTextGlitch,
+  settingSectionExcerptGlitchPath,
   settingSectionGlitchPath,
+  settingSectionTitleGlitchPath,
   updateDraftFieldValue,
   updateDraftGlitchPath,
 } from "@/lib/glitch-fields";
 import { TextScrambleTool } from "@/components/admin/TextScrambleTool";
+import { GlitchSelectionFloatingToolbar } from "@/components/admin/GlitchSelectionFloatingToolbar";
+import { AdminInlineGlitchEditor } from "@/components/admin/AdminInlineGlitchEditor";
+import { SettingSectionOrderButtons } from "@/components/admin/SettingSectionOrderButtons";
+import { GlitchFieldPicker } from "@/components/admin/GlitchFieldPicker";
 import { SubPageEditor } from "@/components/admin/SubPageEditor";
+import { MetaFieldsEditor } from "@/components/admin/MetaFieldsEditor";
 import { PairMemberPicker } from "@/components/admin/PairMemberPicker";
-import { AdminCollapsiblePanel } from "@/components/admin/AdminCollapsiblePanel";
 import {
   CharacterEditSectionNav,
   type CharacterEditSection,
 } from "@/components/admin/CharacterEditSectionNav";
+import {
+  metaFieldGlitchPath,
+  metaFieldsHaveContent,
+  migrateLegacyMetaFieldGlitch,
+  normalizeMetaFields,
+  resolveMetaFields,
+} from "@/lib/meta-fields";
 import { characterFirestorePayload, omitUndefined } from "@/lib/firestore-helpers";
 import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
 import {
   buildTextGlitchFirestorePatch,
   countRemovedGlitchPaths,
 } from "@/lib/text-glitch-persistence";
-import { readGlitchTextSelection, type GlitchTextSelection } from "@/lib/glitch-selection";
+import { readGlitchTextSelection, scheduleReadGlitchTextSelection, type GlitchTextSelection } from "@/lib/glitch-selection";
+import { scheduleReadContentEditableSelection } from "@/lib/contenteditable-glitch";
+import {
+  isGlitchFieldTarget,
+  isGlitchFloatToolbarTarget,
+  readGlitchFieldSelection,
+} from "@/lib/admin-interaction";
 import {
   CHARACTER_KINDS,
   CHARACTER_KIND_ADMIN_LABELS,
@@ -99,6 +123,7 @@ import {
 } from "@/lib/world-glitch-fields";
 import {
   normalizeSettingSections,
+  moveSettingSection as reorderSettingSection,
   resolveDraftSettingSections,
 } from "@/lib/setting-sections";
 import {
@@ -125,21 +150,10 @@ type ThumbnailDragState = {
   startThumbY: number;
 };
 
-type PaletteOption = {
-  label: string;
-  value: string;
-};
 
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
 const MAX_AUDIO_UPLOAD_SIZE = 15 * 1024 * 1024;
-const paletteOptions: PaletteOption[] = [
-  { label: "꺼진 화면", value: "from-zinc-950 via-black to-zinc-900" },
-  { label: "잿빛 흑백", value: "from-zinc-200 via-zinc-800 to-black" },
-  { label: "낡은 필름", value: "from-stone-300 via-zinc-800 to-black" },
-  { label: "먹색 그림자", value: "from-neutral-700 via-neutral-950 to-black" },
-  { label: "푸른 잔상", value: "from-slate-300 via-slate-900 to-black" },
-];
 
 const defaultHomeContent: HomeContent = {
   eyebrow: "",
@@ -157,103 +171,6 @@ function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes}B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
-}
-
-const rgbToHex = (red: number, green: number, blue: number) =>
-  `#${[red, green, blue].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
-
-function createImagePaletteOptions(file: File): Promise<PaletteOption[]> {
-  return new Promise((resolve) => {
-    const image = new Image();
-    const objectUrl = URL.createObjectURL(file);
-
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      const sampleSize = 48;
-      const scale = Math.min(sampleSize / image.width, sampleSize / image.height, 1);
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-
-      if (!context) {
-        URL.revokeObjectURL(objectUrl);
-        resolve([]);
-        return;
-      }
-
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-      const buckets = new Map<string, { count: number; red: number; green: number; blue: number }>();
-
-      for (let index = 0; index < pixels.length; index += 4) {
-        const alpha = pixels[index + 3];
-        if (alpha < 180) continue;
-
-        const red = pixels[index];
-        const green = pixels[index + 1];
-        const blue = pixels[index + 2];
-        const brightness = (red + green + blue) / 3;
-
-        if (brightness < 18 || brightness > 242) continue;
-
-        const key = `${Math.round(red / 32)}-${Math.round(green / 32)}-${Math.round(blue / 32)}`;
-        const bucket = buckets.get(key) ?? { count: 0, red: 0, green: 0, blue: 0 };
-        bucket.count += 1;
-        bucket.red += red;
-        bucket.green += green;
-        bucket.blue += blue;
-        buckets.set(key, bucket);
-      }
-
-      const colors = [...buckets.values()]
-        .sort((left, right) => right.count - left.count)
-        .slice(0, 5)
-        .map((bucket) => ({
-          red: Math.round(bucket.red / bucket.count),
-          green: Math.round(bucket.green / bucket.count),
-          blue: Math.round(bucket.blue / bucket.count),
-        }));
-
-      URL.revokeObjectURL(objectUrl);
-
-      if (colors.length === 0) {
-        resolve([]);
-        return;
-      }
-
-      const darkColor = colors.reduce((darkest, color) =>
-        color.red + color.green + color.blue < darkest.red + darkest.green + darkest.blue
-          ? color
-          : darkest,
-      );
-      const lightColor = colors.reduce((lightest, color) =>
-        color.red + color.green + color.blue > lightest.red + lightest.green + lightest.blue
-          ? color
-          : lightest,
-      );
-      const accentColor = colors[Math.min(1, colors.length - 1)];
-      const shadow = "#020208";
-      const gradients = [
-        `linear-gradient(90deg, ${rgbToHex(lightColor.red, lightColor.green, lightColor.blue)} 0%, ${rgbToHex(accentColor.red, accentColor.green, accentColor.blue)} 48%, ${shadow} 100%)`,
-        `linear-gradient(90deg, ${rgbToHex(accentColor.red, accentColor.green, accentColor.blue)} 0%, ${rgbToHex(darkColor.red, darkColor.green, darkColor.blue)} 54%, ${shadow} 100%)`,
-        `linear-gradient(135deg, ${rgbToHex(lightColor.red, lightColor.green, lightColor.blue)} 0%, ${rgbToHex(darkColor.red, darkColor.green, darkColor.blue)} 58%, ${shadow} 100%)`,
-      ];
-
-      resolve(
-        [...new Set(gradients)].map((value, index) => ({
-          label: `일러스트 기반 ${index + 1}`,
-          value,
-        })),
-      );
-    };
-
-    image.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      resolve([]);
-    };
-
-    image.src = objectUrl;
-  });
 }
 
 function glitchFieldClass(path: string, activePath: string | null, baseClass = "auth-input") {
@@ -291,8 +208,7 @@ function characterToDraft(character: Character): CharacterDraft {
     kind: normalizeCharacterKind(character.kind),
     name: character.name,
     kanjiName: character.kanjiName ?? "",
-    statusTagsText: (character.statusTags ?? []).join("\n"),
-    classification: character.classification ?? "",
+    metaFields: resolveMetaFields(character),
     subtitle: character.subtitle,
     quote: character.quote,
     palette: character.palette,
@@ -300,7 +216,10 @@ function characterToDraft(character: Character): CharacterDraft {
     profileFields: character.profileFields,
     settingSections,
     relationshipEntries,
-    textGlitch: normalizeTextGlitch(character.textGlitch),
+    textGlitch: migrateLegacyMetaFieldGlitch(
+      normalizeTextGlitch(character.textGlitch),
+      resolveMetaFields(character),
+    ),
     subPages: normalizeSubPages(character.subPages),
     pairMemberIds: resolvePairMemberIds(character),
     bgmUrl: character.bgmUrl ?? "",
@@ -327,8 +246,7 @@ function draftBasicsLookEmpty(draft: CharacterDraft) {
     !draft.subtitle.trim() &&
     !profileFieldsHaveContent(draft.profileFields) &&
     !draft.kanjiName.trim() &&
-    !draft.statusTagsText.trim() &&
-    !draft.classification.trim() &&
+    !metaFieldsHaveContent(draft.metaFields) &&
     !relationshipEntriesHaveContent(draft.relationshipEntries) &&
     normalizeSettingSections(draft.settingSections).length === 0
   );
@@ -366,11 +284,10 @@ function createBlankDraft(kind: CharacterKind = "oc"): CharacterDraft {
     kind,
     name: "",
     kanjiName: "",
-    statusTagsText: "",
-    classification: "",
+    metaFields: [],
     subtitle: "",
     quote: "",
-    palette: "from-zinc-950 via-black to-zinc-900",
+    palette: DEFAULT_CHARACTER_PALETTE,
     profileFields: createDefaultProfileFields(),
     settingSections: [],
     relationshipEntries: [],
@@ -401,11 +318,10 @@ function draftToCharacter(
     kind,
     name,
     kanjiName: draft.kanjiName.trim(),
-    statusTags: linesToList(draft.statusTagsText),
-    classification: draft.classification.trim(),
+    metaFields: normalizeMetaFields(draft.metaFields),
     subtitle: draft.subtitle.trim(),
     quote: draft.quote.trim(),
-    palette: draft.palette.trim() || "from-zinc-950 via-black to-zinc-900",
+    palette: normalizeCharacterPaletteInput(draft.palette),
     profileFields: draft.profileFields.map((field) => ({
       id: field.id,
       label: field.label.trim(),
@@ -421,6 +337,7 @@ function draftToCharacter(
     subPages: normalizeSubPages(draft.subPages).map((subPage) => {
       const compacted = compactSubPageForStorage(subPage);
       const subPageGlitch = compactSubPageTextGlitch(compacted);
+      const subPageBgmUrl = resolveCharacterBgmUrl(compacted.bgmUrl);
       const nextSubPage = {
         ...compacted,
         relationshipEntries: normalizeRelationshipEntries(compacted.relationshipEntries, compacted.relationships),
@@ -430,6 +347,7 @@ function draftToCharacter(
         ...(compactCaseFileDetailTheme(compacted.detailTheme)
           ? { detailTheme: compactCaseFileDetailTheme(compacted.detailTheme) }
           : {}),
+        ...(subPageBgmUrl ? { bgmUrl: subPageBgmUrl } : {}),
       };
       return subPageGlitch ? { ...nextSubPage, textGlitch: subPageGlitch } : nextSubPage;
     }),
@@ -608,7 +526,6 @@ export default function AdminPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
-  const [illustrationPaletteOptions, setIllustrationPaletteOptions] = useState<PaletteOption[]>([]);
   const [thumbnailDrag, setThumbnailDrag] = useState<ThumbnailDragState | null>(null);
   const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
@@ -631,8 +548,14 @@ export default function AdminPage() {
   const [activeSubPageId, setActiveSubPageId] = useState("");
   const [activeGlitchFieldPath, setActiveGlitchFieldPath] = useState<string | null>(null);
   const [glitchFieldSelection, setGlitchFieldSelection] = useState<GlitchTextSelection | null>(null);
+  const [glitchFieldAnchorElement, setGlitchFieldAnchorElement] =
+    useState<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
   const [activeWorldGlitchFieldPath, setActiveWorldGlitchFieldPath] = useState<string | null>(null);
   const [worldGlitchFieldSelection, setWorldGlitchFieldSelection] = useState<GlitchTextSelection | null>(null);
+  const [worldGlitchFieldAnchorElement, setWorldGlitchFieldAnchorElement] =
+    useState<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
+  const glitchFieldAnchorRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
+  const worldGlitchFieldAnchorRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
   const [activeCategory, setActiveCategory] = useState<"home" | "archive" | "diary" | "guestbook" | "worlds" | "extract" | "bgm">("home");
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
 
@@ -648,12 +571,34 @@ export default function AdminPage() {
     () => buildGlitchFieldOptionGroups(draft, draft.textGlitch),
     [draft],
   );
+  const glitchFieldPickerGroups = useMemo(
+    () =>
+      glitchFieldOptionGroups.map((group) => ({
+        ...group,
+        options: group.options.map((option) => {
+          const config = getDraftGlitchConfig(draft, option.path);
+          return {
+            ...option,
+            zoneCount: config?.zones?.length ?? 0,
+          };
+        }),
+      })),
+    [draft, glitchFieldOptionGroups],
+  );
   const activeGlitchLabel = activeGlitchFieldPath ? getGlitchFieldLabel(activeGlitchFieldPath) : null;
   const glitchFieldCount = countDraftGlitchFields(draft);
   const subPageCount = draft.subPages.length;
   const worldGlitchFieldOptions = useMemo(
     () => buildWorldGlitchFieldOptions(worldDraft, worldDraft.textGlitch),
     [worldDraft],
+  );
+  const worldGlitchFieldPickerOptions = useMemo(
+    () =>
+      worldGlitchFieldOptions.map((option) => ({
+        ...option,
+        zoneCount: worldDraft.textGlitch[option.path]?.zones?.length ?? 0,
+      })),
+    [worldDraft, worldGlitchFieldOptions],
   );
   const activeWorldGlitchLabel = activeWorldGlitchFieldPath
     ? getWorldGlitchFieldLabel(activeWorldGlitchFieldPath)
@@ -677,15 +622,6 @@ export default function AdminPage() {
     () => normalizeWorldEntries(activeCharacter?.worldEntries).find((entry) => entry.worldId === activeCharacterWorldId),
     [activeCharacter, activeCharacterWorldId],
   );
-  const resolvedPaletteOptions = useMemo(() => {
-    const options = [...paletteOptions, ...illustrationPaletteOptions];
-    const hasCurrentPalette = options.some((option) => option.value === draft.palette);
-
-    return hasCurrentPalette || !draft.palette
-      ? options
-      : [{ label: "저장된 사용자 팔레트", value: draft.palette }, ...options];
-  }, [draft.palette, illustrationPaletteOptions]);
-
   // Auth, 썸네일 드래그, Firestore 컬렉션 구독을 담당하는 효과들입니다.
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -702,6 +638,14 @@ export default function AdminPage() {
       document.body.style.overflow = previousOverflow;
     };
   }, [thumbnailDrag]);
+
+  useEffect(() => {
+    glitchFieldAnchorRef.current = glitchFieldAnchorElement;
+  }, [glitchFieldAnchorElement]);
+
+  useEffect(() => {
+    worldGlitchFieldAnchorRef.current = worldGlitchFieldAnchorElement;
+  }, [worldGlitchFieldAnchorElement]);
 
   useEffect(() => {
     setGlitchFieldSelection(null);
@@ -736,43 +680,187 @@ export default function AdminPage() {
   }, []);
 
   const captureWorldGlitchFieldSelection = useCallback(
-    (element: HTMLInputElement | HTMLTextAreaElement) => {
+    (element: HTMLInputElement | HTMLTextAreaElement | HTMLElement) => {
       const path = element.dataset.glitchField;
       if (!path || element.closest("[data-text-scramble-tool]")) {
         return;
       }
 
-      setActiveWorldGlitchFieldPath(path);
-      setWorldGlitchFieldSelection(readGlitchTextSelection(element));
+      const applySelection = (selection: GlitchTextSelection | null) => {
+        setActiveWorldGlitchFieldPath(path);
+        setWorldGlitchFieldSelection(selection);
+        setWorldGlitchFieldAnchorElement(selection ? element : null);
+      };
+
+      if (element instanceof HTMLElement && element.isContentEditable) {
+        scheduleReadContentEditableSelection(element, applySelection);
+        return;
+      }
+
+      scheduleReadGlitchTextSelection(element as HTMLInputElement | HTMLTextAreaElement, applySelection);
     },
     [],
   );
 
   const captureGlitchFieldSelection = useCallback(
-    (element: HTMLInputElement | HTMLTextAreaElement) => {
+    (element: HTMLInputElement | HTMLTextAreaElement | HTMLElement) => {
       const path = element.dataset.glitchField;
-      if (!path || element.closest("[data-text-scramble-tool]")) {
+      if (!path) {
         return;
       }
 
-      setActiveGlitchFieldPath(path);
-      setGlitchFieldSelection(readGlitchTextSelection(element));
+      if (
+        element.closest("[data-text-scramble-tool]") &&
+        !element.matches("[data-glitch-work-textarea]")
+      ) {
+        return;
+      }
+
+      const applySelection = (selection: GlitchTextSelection | null) => {
+        setActiveGlitchFieldPath(path);
+        setGlitchFieldSelection(selection);
+        setGlitchFieldAnchorElement(selection ? element : null);
+      };
+
+      if (element instanceof HTMLElement && element.isContentEditable) {
+        scheduleReadContentEditableSelection(element, applySelection);
+        return;
+      }
+
+      scheduleReadGlitchTextSelection(element as HTMLInputElement | HTMLTextAreaElement, applySelection);
     },
     [],
   );
+
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    const syncAnchoredSelection = () => {
+      if (document.documentElement.dataset.glitchToolbarActive === "true") {
+        return;
+      }
+
+      const characterAnchor = glitchFieldAnchorRef.current;
+      if (characterAnchor) {
+        const selection = readGlitchFieldSelection(characterAnchor);
+        setGlitchFieldSelection(selection);
+        if (!selection) {
+          setGlitchFieldAnchorElement(null);
+        }
+      }
+
+      const worldAnchor = worldGlitchFieldAnchorRef.current;
+      if (worldAnchor) {
+        const selection = readGlitchFieldSelection(worldAnchor);
+        setWorldGlitchFieldSelection(selection);
+        if (!selection) {
+          setWorldGlitchFieldAnchorElement(null);
+        }
+      }
+    };
+
+    const handleSelectionChange = () => {
+      if (isGlitchFloatToolbarTarget(document.activeElement)) {
+        return;
+      }
+
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement)) {
+        syncAnchoredSelection();
+        return;
+      }
+
+      if (active.isContentEditable && active.dataset.glitchField) {
+        if (active.dataset.glitchScope === "world") {
+          captureWorldGlitchFieldSelection(active);
+        } else {
+          captureGlitchFieldSelection(active);
+        }
+        return;
+      }
+
+      if (!(active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement)) {
+        syncAnchoredSelection();
+        return;
+      }
+
+      if (active.dataset.glitchScope === "world") {
+        captureWorldGlitchFieldSelection(active);
+        return;
+      }
+
+      if (active.dataset.glitchField) {
+        captureGlitchFieldSelection(active);
+        return;
+      }
+
+      syncAnchoredSelection();
+    };
+
+    const clearFloatingSelections = () => {
+      setGlitchFieldSelection(null);
+      setGlitchFieldAnchorElement(null);
+      setWorldGlitchFieldSelection(null);
+      setWorldGlitchFieldAnchorElement(null);
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (isGlitchFloatToolbarTarget(event.target)) {
+        document.documentElement.dataset.glitchToolbarActive = "true";
+        return;
+      }
+
+      delete document.documentElement.dataset.glitchToolbarActive;
+
+      if (isGlitchFieldTarget(event.target)) {
+        return;
+      }
+
+      clearFloatingSelections();
+    };
+
+    const handlePointerUp = () => {
+      delete document.documentElement.dataset.glitchToolbarActive;
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("pointerup", handlePointerUp);
+      delete document.documentElement.dataset.glitchToolbarActive;
+    };
+  }, [captureGlitchFieldSelection, captureWorldGlitchFieldSelection, isAdmin]);
+
+  const openCharacterGlitchAdvanced = useCallback(() => {
+    setCharacterEditSection("glitch");
+    window.requestAnimationFrame(() => {
+      document.getElementById("admin-glitch-tool")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
+
+  const openWorldGlitchAdvanced = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      document.getElementById("admin-world-glitch-tool")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, []);
 
   const bindGlitchField = useCallback(
     (path: string) => ({
       "data-glitch-field": path,
       onFocus: () => setActiveGlitchFieldPath(path),
       onClick: () => setActiveGlitchFieldPath(path),
-      onSelect: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      onSelect: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
-      onKeyUp: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      onKeyUp: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
-      onMouseUp: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      onMouseUp: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
     }),
@@ -785,13 +873,13 @@ export default function AdminPage() {
       "data-glitch-scope": "world",
       onFocus: () => setActiveWorldGlitchFieldPath(path),
       onClick: () => setActiveWorldGlitchFieldPath(path),
-      onSelect: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      onSelect: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
-      onKeyUp: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      onKeyUp: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
-      onMouseUp: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      onMouseUp: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement | HTMLElement>) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
     }),
@@ -814,6 +902,7 @@ export default function AdminPage() {
             ...rest,
             id: data.id || characterDoc.id,
             kanjiName: data.kanjiName ?? "",
+            metaFields: resolveMetaFields(data),
             statusTags: Array.isArray(data.statusTags) ? data.statusTags : [],
             classification: data.classification ?? "",
             profileFields: normalizeProfileFields(data.profileFields, legacyProfile),
@@ -1302,7 +1391,10 @@ export default function AdminPage() {
     }));
   }
 
-  function updateSettingSection(id: string, updates: Partial<Pick<SettingSection, "title" | "body">>) {
+  function updateSettingSection(
+    id: string,
+    updates: Partial<Pick<SettingSection, "title" | "body" | "kind" | "excerpt">>,
+  ) {
     setDraft((current) => ({
       ...current,
       settingSections: current.settingSections.map((section) =>
@@ -1315,6 +1407,13 @@ export default function AdminPage() {
     setDraft((current) => ({
       ...current,
       settingSections: current.settingSections.filter((section) => section.id !== id),
+    }));
+  }
+
+  function moveSettingSection(id: string, direction: "up" | "down") {
+    setDraft((current) => ({
+      ...current,
+      settingSections: reorderSettingSection(current.settingSections, id, direction),
     }));
   }
 
@@ -2075,10 +2174,9 @@ export default function AdminPage() {
       return;
     }
 
-    const nextPaletteOptions = await createImagePaletteOptions(allowedFiles[0]);
-    if (nextPaletteOptions.length > 0) {
-      setIllustrationPaletteOptions(nextPaletteOptions);
-      setDraft((current) => ({ ...current, palette: nextPaletteOptions[0].value }));
+    const extractedPalette = await extractCharacterPaletteFromImage(allowedFiles[0]);
+    if (extractedPalette) {
+      setDraft((current) => ({ ...current, palette: extractedPalette }));
     }
 
     setPendingUploads((current) => [
@@ -2929,17 +3027,25 @@ export default function AdminPage() {
                       <input type="file" accept="image/*" onChange={handleExtractBannerImageChange} className="text-xs" />
                       {(extractBannerImageFile || extractBannerDraft.image) && (
                         <div className="extract-banner-link overflow-hidden">
-                          {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                          <img
-                            src={
-                              extractBannerImageFile
-                                ? URL.createObjectURL(extractBannerImageFile)
-                                : extractBannerDraft.image?.url
-                            }
-                            alt="Banner 미리보기"
-                            className="extract-banner-image"
-                            style={extractBannerDraft.image ? thumbnailStyle(extractBannerDraft.image) : undefined}
-                          />
+                          {extractBannerDraft.image ? (
+                            <ThumbnailImage
+                              image={extractBannerDraft.image}
+                              src={
+                                extractBannerImageFile
+                                  ? URL.createObjectURL(extractBannerImageFile)
+                                  : extractBannerDraft.image.url
+                              }
+                              alt="Banner 미리보기"
+                              className="extract-banner-image"
+                            />
+                          ) : (
+                            /* eslint-disable-next-line @next/next/no-img-element -- Local preview URL for banner upload. */
+                            <img
+                              src={extractBannerImageFile ? URL.createObjectURL(extractBannerImageFile) : ""}
+                              alt="Banner 미리보기"
+                              className="extract-banner-image"
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -3101,27 +3207,37 @@ export default function AdminPage() {
                         </label>
                         <label className="grid gap-2 text-sm text-emerald-100/75">
                           세계관 이름
-                          <input
+                          <AdminInlineGlitchEditor
                             value={worldDraft.title}
-                            onChange={(event) =>
-                              setWorldDraft((current) => updateWorldDraftFieldValue(current, "title", event.target.value))
+                            onChange={(value) =>
+                              setWorldDraft((current) => updateWorldDraftFieldValue(current, "title", value))
                             }
-                            {...bindWorldGlitchField("title")}
+                            glitch={worldDraft.textGlitch.title}
+                            onGlitchChange={(config) =>
+                              setWorldDraft((current) => updateWorldDraftGlitchPath(current, "title", config))
+                            }
+                            glitchBindings={bindWorldGlitchField("title")}
                             placeholder="예: 크툴루 1920"
-                            className={glitchFieldClass("title", activeWorldGlitchFieldPath)}
+                            className={glitchFieldClass("title", activeWorldGlitchFieldPath, "")}
+                            minHeightClass="min-h-10"
                           />
                         </label>
                       </div>
                       <label className="grid gap-2 text-sm text-emerald-100/75">
                         한 줄 설명
-                        <input
+                        <AdminInlineGlitchEditor
                           value={worldDraft.subtitle}
-                          onChange={(event) =>
-                            setWorldDraft((current) => updateWorldDraftFieldValue(current, "subtitle", event.target.value))
+                          onChange={(value) =>
+                            setWorldDraft((current) => updateWorldDraftFieldValue(current, "subtitle", value))
                           }
-                          {...bindWorldGlitchField("subtitle")}
+                          glitch={worldDraft.textGlitch.subtitle}
+                          onGlitchChange={(config) =>
+                            setWorldDraft((current) => updateWorldDraftGlitchPath(current, "subtitle", config))
+                          }
+                          glitchBindings={bindWorldGlitchField("subtitle")}
                           placeholder="세계관을 짧게 설명해주세요."
-                          className={glitchFieldClass("subtitle", activeWorldGlitchFieldPath)}
+                          className={glitchFieldClass("subtitle", activeWorldGlitchFieldPath, "")}
+                          minHeightClass="min-h-10"
                         />
                       </label>
                       <label className="grid gap-2 text-sm text-emerald-100/75">
@@ -3138,16 +3254,27 @@ export default function AdminPage() {
                       </label>
                       <label className="grid gap-2 text-sm text-emerald-100/75">
                         상세 설명
-                        <textarea
+                        <AdminInlineGlitchEditor
                           value={worldDraft.description}
-                          onChange={(event) =>
+                          onChange={(value) =>
                             setWorldDraft((current) =>
-                              updateWorldDraftFieldValue(current, "description", event.target.value),
+                              updateWorldDraftFieldValue(current, "description", value),
                             )
                           }
-                          {...bindWorldGlitchField("description")}
+                          glitch={worldDraft.textGlitch.description}
+                          onGlitchChange={(config) =>
+                            setWorldDraft((current) =>
+                              updateWorldDraftGlitchPath(current, "description", config),
+                            )
+                          }
+                          glitchBindings={bindWorldGlitchField("description")}
                           placeholder="룰, 시대, 분위기, 캠페인 설명 등"
-                          className={glitchFieldClass("description", activeWorldGlitchFieldPath, "auth-input min-h-40")}
+                          className={glitchFieldClass(
+                            "description",
+                            activeWorldGlitchFieldPath,
+                            "",
+                          )}
+                          minHeightClass="min-h-40"
                         />
                       </label>
 
@@ -3159,26 +3286,15 @@ export default function AdminPage() {
                             {worldGlitchFieldCount > 0 ? ` · 적용 중 ${worldGlitchFieldCount}개` : ""}
                           </p>
                         </div>
-                        <label className="grid gap-2 text-sm text-emerald-100/75">
-                          오류 넣을 필드
-                          <select
-                            value={activeWorldGlitchFieldPath ?? ""}
-                            onChange={(event) => {
-                              const path = event.target.value;
-                              setActiveWorldGlitchFieldPath(path || null);
-                              setWorldGlitchFieldSelection(null);
-                            }}
-                            className="auth-input"
-                          >
-                            <option value="">필드를 선택하세요</option>
-                            {worldGlitchFieldOptions.map((option) => (
-                              <option key={option.path} value={option.path}>
-                                {option.label}
-                                {option.hasGlitch ? " · 적용됨" : ""}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <GlitchFieldPicker
+                          groups={worldGlitchFieldPickerOptions.length > 0 ? [{ id: "world", label: "세계관 필드", options: worldGlitchFieldPickerOptions }] : []}
+                          activePath={activeWorldGlitchFieldPath}
+                          onSelect={(path) => {
+                            setActiveWorldGlitchFieldPath(path);
+                            setWorldGlitchFieldSelection(null);
+                          }}
+                        />
+                        <div id="admin-world-glitch-tool">
                         <TextScrambleTool
                           activeFieldPath={activeWorldGlitchFieldPath}
                           fieldValue={
@@ -3214,6 +3330,7 @@ export default function AdminPage() {
                           onNotice={setNotice}
                           allCharacters={characters}
                         />
+                        </div>
                       </section>
                     </section>
                   )}
@@ -3312,86 +3429,102 @@ export default function AdminPage() {
                   </label>
                   <label className="grid gap-2 text-sm text-emerald-100/75 md:col-span-2">
                     {isPairDraft ? "페어 이름" : "이름"}
-                    <input
+                    <AdminInlineGlitchEditor
                       value={draft.name}
-                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "name", event.target.value))}
-                      {...bindGlitchField("name")}
+                      onChange={(value) => setDraft((current) => updateDraftFieldValue(current, "name", value))}
+                      glitch={getDraftGlitchConfig(draft, "name")}
+                      onGlitchChange={(config) =>
+                        setDraft((current) => updateDraftGlitchPath(current, "name", config))
+                      }
+                      glitchBindings={bindGlitchField("name")}
                       placeholder={isPairDraft ? "비우면 멤버 이름으로 자동 표시" : `${kindLabel} 이름`}
-                      className={glitchFieldClass("name", activeGlitchFieldPath)}
+                      className={glitchFieldClass("name", activeGlitchFieldPath, "")}
+                      minHeightClass="min-h-10"
                     />
                   </label>
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     한자 이름
-                    <input
+                    <AdminInlineGlitchEditor
                       value={draft.kanjiName}
-                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "kanjiName", event.target.value))}
-                      {...bindGlitchField("kanjiName")}
+                      onChange={(value) =>
+                        setDraft((current) => updateDraftFieldValue(current, "kanjiName", value))
+                      }
+                      glitch={getDraftGlitchConfig(draft, "kanjiName")}
+                      onGlitchChange={(config) =>
+                        setDraft((current) => updateDraftGlitchPath(current, "kanjiName", config))
+                      }
+                      glitchBindings={bindGlitchField("kanjiName")}
                       placeholder="예: 芥川"
-                      className={glitchFieldClass("kanjiName", activeGlitchFieldPath)}
+                      className={glitchFieldClass("kanjiName", activeGlitchFieldPath, "")}
+                      minHeightClass="min-h-10"
                     />
                   </label>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                   <label className="grid gap-2 text-sm text-emerald-100/75">
                     한 줄 소개
-                    <input
+                    <AdminInlineGlitchEditor
                       value={draft.subtitle}
-                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "subtitle", event.target.value))}
-                      {...bindGlitchField("subtitle")}
+                      onChange={(value) =>
+                        setDraft((current) => updateDraftFieldValue(current, "subtitle", value))
+                      }
+                      glitch={getDraftGlitchConfig(draft, "subtitle")}
+                      onGlitchChange={(config) =>
+                        setDraft((current) => updateDraftGlitchPath(current, "subtitle", config))
+                      }
+                      glitchBindings={bindGlitchField("subtitle")}
                       placeholder="카드에 보일 짧은 소개"
-                      className={glitchFieldClass("subtitle", activeGlitchFieldPath)}
+                      className={glitchFieldClass("subtitle", activeGlitchFieldPath, "")}
+                      minHeightClass="min-h-10"
                     />
                   </label>
                   <div className="grid gap-2">
-                    <label className="text-sm text-emerald-100/75" htmlFor="admin-palette">색 분위기</label>
-                    <select id="admin-palette" value={draft.palette} onChange={(event) => setDraft((current) => ({ ...current, palette: event.target.value }))} className="auth-input">
-                      {resolvedPaletteOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                    <div
-                      className="character-palette-surface h-7 border border-emerald-100/10"
-                      style={characterPaletteStyle(draft.palette)}
+                    <label className="text-sm text-emerald-100/75">색 분위기</label>
+                    <PaletteEditor
+                      palette={draft.palette}
+                      onChange={(palette) => setDraft((current) => ({ ...current, palette }))}
+                      onExtractFromImage={extractCharacterPaletteFromImage}
                     />
                   </div>
                 </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <AdminCollapsiblePanel
-                    title="기록 상태 · 분류"
-                    description="카드에 보이는 기록 태그와 분류입니다. 자주 안 쓰면 접어두세요."
-                  >
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        기록 상태
-                        <textarea
-                          value={draft.statusTagsText}
-                          onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "statusTags", event.target.value))}
-                          {...bindGlitchField("statusTags")}
-                          placeholder={"예: 관찰중\n기록 불완전\n비공개 기록"}
-                          className={glitchFieldClass("statusTags", activeGlitchFieldPath, "auth-input min-h-24")}
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        기록 분류
-                        <input
-                          value={draft.classification}
-                          onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "classification", event.target.value))}
-                          {...bindGlitchField("classification")}
-                          placeholder="예: 개인 기록 / 세계관 관련 / 비밀 파일"
-                          className={glitchFieldClass("classification", activeGlitchFieldPath)}
-                        />
-                      </label>
-                    </div>
-                  </AdminCollapsiblePanel>
-                </div>
+                <MetaFieldsEditor
+                  fields={draft.metaFields}
+                  onFieldsChange={(metaFields) => {
+                    setDraft((current) => {
+                      const removedField = current.metaFields.find(
+                        (field) => !metaFields.some((next) => next.id === field.id),
+                      );
+                      const nextGlitch = { ...current.textGlitch };
+                      if (removedField) {
+                        delete nextGlitch[metaFieldGlitchPath(removedField.id)];
+                      }
+                      return { ...current, metaFields, textGlitch: nextGlitch };
+                    });
+                  }}
+                  bindGlitchField={bindGlitchField}
+                  activeGlitchFieldPath={activeGlitchFieldPath}
+                  glitchFieldClass={glitchFieldClass}
+                  onBodyChange={(fieldId, value) =>
+                    setDraft((current) => updateDraftFieldValue(current, metaFieldGlitchPath(fieldId), value))
+                  }
+                  getFieldGlitch={(fieldId) => getDraftGlitchConfig(draft, metaFieldGlitchPath(fieldId))}
+                  onFieldGlitchChange={(fieldId, config) =>
+                    setDraft((current) => updateDraftGlitchPath(current, metaFieldGlitchPath(fieldId), config))
+                  }
+                />
                 <label className="grid gap-2 text-sm text-emerald-100/75">
                   {isPairDraft ? "페어 대표 대사" : "대표 대사"}
-                  <textarea
+                  <AdminInlineGlitchEditor
                     value={draft.quote}
-                    onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "quote", event.target.value))}
-                    {...bindGlitchField("quote")}
+                    onChange={(value) => setDraft((current) => updateDraftFieldValue(current, "quote", value))}
+                    glitch={getDraftGlitchConfig(draft, "quote")}
+                    onGlitchChange={(config) =>
+                      setDraft((current) => updateDraftGlitchPath(current, "quote", config))
+                    }
+                    glitchBindings={bindGlitchField("quote")}
                     placeholder={isPairDraft ? "페어 관계를 보여 줄 대표 문장" : "캐릭터 상세에 보일 대표 문장"}
-                    className={glitchFieldClass("quote", activeGlitchFieldPath, "auth-input min-h-20")}
+                    className={glitchFieldClass("quote", activeGlitchFieldPath, "")}
+                    minHeightClass="min-h-20"
                   />
                 </label>
                 <CaseFileThemeEditor
@@ -3441,6 +3574,12 @@ export default function AdminPage() {
                   onValueChange={(fieldId, value) =>
                     setDraft((current) => updateDraftFieldValue(current, profileFieldGlitchPath(fieldId), value))
                   }
+                  getFieldGlitch={(fieldId) =>
+                    getDraftGlitchConfig(draft, profileFieldGlitchPath(fieldId))
+                  }
+                  onFieldGlitchChange={(fieldId, config) =>
+                    setDraft((current) => updateDraftGlitchPath(current, profileFieldGlitchPath(fieldId), config))
+                  }
                 />
 
                 <section
@@ -3453,7 +3592,7 @@ export default function AdminPage() {
                       <p className="mt-1 text-xs text-emerald-100/55">
                         {isPairDraft
                           ? "페어 Record 탭에 나올 관계·특징 박스입니다."
-                          : "본 페이지 Record 탭에 나오는 상세 설정 박스입니다. 성격, 외형 등을 추가하세요."}
+                          : "본 페이지 Record 탭에 나오는 상세 설정 박스입니다. ↑↓로 표시 순서를 바꿀 수 있어요."}
                       </p>
                     </div>
                     <button
@@ -3474,40 +3613,148 @@ export default function AdminPage() {
                           <p className="text-xs tracking-[0.22em] text-emerald-100/45 uppercase">
                             레코드 박스 {String(index + 1).padStart(2, "0")}
                           </p>
+                          <div className="flex items-center gap-2">
+                            <SettingSectionOrderButtons
+                              index={index}
+                              total={draft.settingSections.length}
+                              onMoveUp={() => moveSettingSection(section.id, "up")}
+                              onMoveDown={() => moveSettingSection(section.id, "down")}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeSettingSection(section.id)}
+                              className="text-xs text-stone-300/70"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        </div>
+                        <AdminInlineGlitchEditor
+                          value={section.title}
+                          onChange={(value) =>
+                            setDraft((current) =>
+                              updateDraftFieldValue(
+                                current,
+                                settingSectionTitleGlitchPath(section.id),
+                                value,
+                              ),
+                            )
+                          }
+                          glitch={getDraftGlitchConfig(
+                            draft,
+                            settingSectionTitleGlitchPath(section.id),
+                          )}
+                          onGlitchChange={(config) =>
+                            setDraft((current) =>
+                              updateDraftGlitchPath(
+                                current,
+                                settingSectionTitleGlitchPath(section.id),
+                                config,
+                              ),
+                            )
+                          }
+                          glitchBindings={bindGlitchField(settingSectionTitleGlitchPath(section.id))}
+                          placeholder="예: 성격"
+                          className={glitchFieldClass(
+                            settingSectionTitleGlitchPath(section.id),
+                            activeGlitchFieldPath,
+                            "",
+                          )}
+                          minHeightClass="min-h-10"
+                        />
+                        <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() => removeSettingSection(section.id)}
-                            className="text-xs text-stone-300/70"
+                            onClick={() => updateSettingSection(section.id, { kind: "record", excerpt: "" })}
+                            className={`border px-3 py-1.5 text-xs ${
+                              (section.kind ?? "record") === "record"
+                                ? "border-emerald-200/45 text-emerald-50"
+                                : "border-stone-400/25 text-stone-300/70"
+                            }`}
                           >
-                            삭제
+                            일반 레코드
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSettingSection(section.id, { kind: "story" })}
+                            className={`border px-3 py-1.5 text-xs ${
+                              section.kind === "story"
+                                ? "border-emerald-200/45 text-emerald-50"
+                                : "border-stone-400/25 text-stone-300/70"
+                            }`}
+                          >
+                            스토리 창
                           </button>
                         </div>
-                        <input
-                          value={section.title}
-                          onChange={(event) =>
-                            updateSettingSection(section.id, { title: event.target.value })
-                          }
-                          placeholder="예: 성격"
-                          className="auth-input"
-                        />
-                        <textarea
+                        {section.kind === "story" && (
+                          <AdminInlineGlitchEditor
+                            value={section.excerpt ?? ""}
+                            onChange={(value) =>
+                              setDraft((current) =>
+                                updateDraftFieldValue(
+                                  current,
+                                  settingSectionExcerptGlitchPath(section.id),
+                                  value,
+                                ),
+                              )
+                            }
+                            glitch={getDraftGlitchConfig(
+                              draft,
+                              settingSectionExcerptGlitchPath(section.id),
+                            )}
+                            onGlitchChange={(config) =>
+                              setDraft((current) =>
+                                updateDraftGlitchPath(
+                                  current,
+                                  settingSectionExcerptGlitchPath(section.id),
+                                  config,
+                                ),
+                              )
+                            }
+                            glitchBindings={bindGlitchField(settingSectionExcerptGlitchPath(section.id))}
+                            placeholder="Record Box에 보일 짧은 소개 (비우면 본문 앞부분이 자동으로 사용됩니다)"
+                            className={glitchFieldClass(
+                              settingSectionExcerptGlitchPath(section.id),
+                              activeGlitchFieldPath,
+                              "",
+                            )}
+                            minHeightClass="min-h-16"
+                          />
+                        )}
+                        <AdminInlineGlitchEditor
                           value={section.body}
-                          onChange={(event) =>
+                          onChange={(value) =>
                             setDraft((current) =>
                               updateDraftFieldValue(
                                 current,
                                 settingSectionGlitchPath(section.id),
-                                event.target.value,
+                                value,
                               ),
                             )
                           }
-                          {...bindGlitchField(settingSectionGlitchPath(section.id))}
-                          placeholder="이 박스 안에 들어갈 내용을 입력"
+                          glitch={getDraftGlitchConfig(draft, settingSectionGlitchPath(section.id))}
+                          onGlitchChange={(config) =>
+                            setDraft((current) =>
+                              updateDraftGlitchPath(
+                                current,
+                                settingSectionGlitchPath(section.id),
+                                config,
+                              ),
+                            )
+                          }
+                          glitchBindings={bindGlitchField(settingSectionGlitchPath(section.id))}
+                          placeholder={
+                            section.kind === "story"
+                              ? "스토리 본문. * ** *** $ $ 문법 또는 드래그 후 툴바 사용"
+                              : "내용 입력. 드래그 후 툴바로 서식 적용"
+                          }
                           className={glitchFieldClass(
                             settingSectionGlitchPath(section.id),
                             activeGlitchFieldPath,
-                            "auth-input min-h-24",
+                            "",
                           )}
+                          minHeightClass={section.kind === "story" ? "min-h-40" : "min-h-24"}
+                          storyMarkup={section.kind === "story"}
                         />
                       </article>
                     ))}
@@ -3529,6 +3776,8 @@ export default function AdminPage() {
                       const nextGlitch = { ...current.textGlitch };
                       if (removedEntry) {
                         delete nextGlitch[relationshipEntryGlitchPath(removedEntry.id)];
+                        delete nextGlitch[relationshipEntryNameGlitchPath(removedEntry.id)];
+                        delete nextGlitch[relationshipEntryLabelGlitchPath(removedEntry.id)];
                       }
                       return { ...current, relationshipEntries };
                     })
@@ -3542,8 +3791,12 @@ export default function AdminPage() {
                   bindGlitchField={bindGlitchField}
                   activeGlitchFieldPath={activeGlitchFieldPath}
                   glitchFieldClass={glitchFieldClass}
-                  onBodyChange={(entryId, value) =>
-                    setDraft((current) => updateDraftFieldValue(current, relationshipEntryGlitchPath(entryId), value))
+                  onEntryFieldValueChange={(path, value) =>
+                    setDraft((current) => updateDraftFieldValue(current, path, value))
+                  }
+                  getGlitchByPath={(path) => getDraftGlitchConfig(draft, path)}
+                  onGlitchPathChange={(path, config) =>
+                    setDraft((current) => updateDraftGlitchPath(current, path, config))
                   }
                 />
                 </>
@@ -3577,33 +3830,18 @@ export default function AdminPage() {
                 <div>
                   <h2 className="board-title">텍스트 오류 · 서식</h2>
                   <p className="mt-1 text-xs leading-5 text-emerald-100/55">
-                    1. 필드 선택 → 2. 참조 단어 입력 → 3. 「전체에 바로 적용」 또는 문구 찾기
+                    텍스트를 드래그하면 노션처럼 떠오르는 툴바로 서식·오류를 바로 적용할 수 있어요. 상세 설정은 「상세」 또는 이 탭에서.
                   </p>
                 </div>
-                <label className="grid gap-2 text-sm text-emerald-100/75">
-                  오류 넣을 필드
-                  <select
-                    value={activeGlitchFieldPath ?? ""}
-                    onChange={(event) => {
-                      const path = event.target.value;
-                      setActiveGlitchFieldPath(path || null);
-                      setGlitchFieldSelection(null);
-                    }}
-                    className="auth-input"
-                  >
-                    <option value="">필드를 선택하세요</option>
-                    {glitchFieldOptionGroups.map((group) => (
-                      <optgroup key={group.id} label={group.label}>
-                        {group.options.map((option) => (
-                          <option key={option.path} value={option.path}>
-                            {option.label}
-                            {option.hasGlitch ? " · 적용됨" : ""}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                </label>
+                <GlitchFieldPicker
+                  groups={glitchFieldPickerGroups}
+                  activePath={activeGlitchFieldPath}
+                  onSelect={(path) => {
+                    setActiveGlitchFieldPath(path);
+                    setGlitchFieldSelection(null);
+                  }}
+                />
+                <div id="admin-glitch-tool">
                 <TextScrambleTool
                   activeFieldPath={activeGlitchFieldPath}
                   fieldValue={
@@ -3633,6 +3871,7 @@ export default function AdminPage() {
                   currentCharacterId={draft.id}
                   currentSection={characterKindToSection(normalizeCharacterKind(draft.kind))}
                 />
+                </div>
                 </>
                 )}
 
@@ -3641,7 +3880,8 @@ export default function AdminPage() {
                 <div>
                   <h2 className="board-title">상세 페이지</h2>
                   <p className="mt-1 text-xs leading-5 text-emerald-100/55">
-                    이 캐릭터 전용 상세 페이지를 만듭니다. 각 페이지에서 그림·글을 넣을 수 있고, 공용으로 설정하면 다른 캐릭터가 그 페이지만 불러와 쓸 수 있어요.
+                    서브 캐릭터, 물건, 능력, 장소 등을 각각 상세 페이지로 추가할 수 있어요. 자캐 본
+                    페이지와 같은 카드·레코드·그림·BGM·오류 설정을 모두 쓸 수 있습니다.
                   </p>
                 </div>
                 <SubPageEditor
@@ -3658,6 +3898,19 @@ export default function AdminPage() {
                   parentCharacterId={draft.id}
                   allCharacters={characters}
                   onNotice={setNotice}
+                  bgmOptions={bgmCharacterOptions}
+                  onBgmQuickUpload={quickAddCharacterBgm}
+                  bindGlitchField={bindGlitchField}
+                  activeGlitchFieldPath={activeGlitchFieldPath}
+                  glitchFieldClass={glitchFieldClass}
+                  onGlitchFieldValueChange={(path, value) =>
+                    setDraft((current) => updateDraftFieldValue(current, path, value))
+                  }
+                  getFieldGlitch={(path) => getDraftGlitchConfig(draft, path)}
+                  onFieldGlitchChange={(path, config) =>
+                    setDraft((current) => updateDraftGlitchPath(current, path, config))
+                  }
+                  isSaving={isSaving}
                 />
                 </>
                 )}
@@ -3725,8 +3978,7 @@ export default function AdminPage() {
                         {(activeCharacterWorldEntry?.images ?? []).map((image) => (
                           <article key={image.id} className="gallery-tile">
                             <div className="aspect-[3/2] overflow-hidden">
-                              {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                              <img src={image.url} alt={image.name} className="h-full w-full object-cover opacity-90" style={thumbnailStyle(image)} />
+                              <ThumbnailImage image={image} src={image.url} alt={image.name} className="opacity-90" />
                             </div>
                             <div className="p-3 text-sm">
                               <form
@@ -3769,6 +4021,17 @@ export default function AdminPage() {
                           <input value={worldWorkDraft.kind} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, kind: event.target.value }))} placeholder="종류" className="auth-input" />
                           <input value={worldWorkDraft.date} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, date: event.target.value }))} placeholder="날짜" className="auth-input" />
                         </div>
+                        <DocumentTextImport
+                          disabled={isSaving}
+                          onNotice={setNotice}
+                          onImported={({ text, suggestedTitle }) => {
+                            setWorldWorkDraft((current) => ({
+                              ...current,
+                              title: current.title.trim() || suggestedTitle,
+                              body: text,
+                            }));
+                          }}
+                        />
                         <textarea value={worldWorkDraft.body} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, body: event.target.value }))} placeholder="세계관 연성/로그 내용" className="auth-input min-h-28" />
                         <label className="grid gap-2 text-sm text-emerald-100/75">
                           세계관 연성 첨부 사진
@@ -3804,13 +4067,11 @@ export default function AdminPage() {
                               <div className="mt-3 grid grid-cols-4 gap-2">
                                 {work.images?.map((image) => (
                                   <div key={image.id} className="aspect-square overflow-hidden border border-stone-400/15 bg-black">
-                                    {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                    <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                    <ThumbnailImage image={image} src={image.url} alt={image.name} />
                                   </div>
                                 ))}
                               </div>
                             )}
-                            <p className="mt-3 leading-6 text-emerald-50/70">{work.body}</p>
                           </article>
                         ))}
                       </div>
@@ -3885,12 +4146,11 @@ export default function AdminPage() {
                                 onWheel={(event) => zoomThumbnail(upload, event)}
                                 title="드래그로 위치 조정, 휠로 확대/축소"
                               >
-                                {/* eslint-disable-next-line @next/next/no-img-element -- Local preview URL for thumbnail adjustment. */}
-                                <img
+                                <ThumbnailImage
+                                  image={upload}
                                   src={upload.previewUrl}
                                   alt={upload.file.name}
-                                  className="h-full w-full select-none object-cover opacity-90"
-                                  style={thumbnailStyle(upload)}
+                                  className="select-none opacity-90"
                                   draggable={false}
                                 />
                               </div>
@@ -3956,13 +4216,7 @@ export default function AdminPage() {
                       {(activeCharacter.images ?? []).map((image) => (
                         <article key={image.id} className="gallery-tile">
                           <div className="aspect-[3/2] overflow-hidden">
-                            {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                            <img
-                              src={image.url}
-                              alt={image.name}
-                              className="h-full w-full object-cover opacity-90"
-                              style={thumbnailStyle(image)}
-                            />
+                            <ThumbnailImage image={image} src={image.url} alt={image.name} className="opacity-90" />
                           </div>
                           <div className="p-3 text-sm">
                             <form
@@ -4002,6 +4256,17 @@ export default function AdminPage() {
                         <input value={workDraft.kind} onChange={(event) => setWorkDraft((current) => ({ ...current, kind: event.target.value }))} placeholder="종류" className="auth-input" />
                         <input value={workDraft.date} onChange={(event) => setWorkDraft((current) => ({ ...current, date: event.target.value }))} placeholder="날짜" className="auth-input" />
                       </div>
+                      <DocumentTextImport
+                        disabled={isSaving}
+                        onNotice={setNotice}
+                        onImported={({ text, suggestedTitle }) => {
+                          setWorkDraft((current) => ({
+                            ...current,
+                            title: current.title.trim() || suggestedTitle,
+                            body: text,
+                          }));
+                        }}
+                      />
                       <textarea value={workDraft.body} onChange={(event) => setWorkDraft((current) => ({ ...current, body: event.target.value }))} placeholder="글/연성 내용" className="auth-input min-h-28" />
                       <label className="grid gap-2 text-sm text-emerald-100/75">
                         글 첨부 사진
@@ -4036,13 +4301,11 @@ export default function AdminPage() {
                             <div className="mt-3 grid grid-cols-4 gap-2">
                               {work.images?.map((image) => (
                                 <div key={image.id} className="aspect-square overflow-hidden border border-stone-400/15 bg-black">
-                                  {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                                  <img src={image.url} alt={image.name} className="h-full w-full object-cover" style={thumbnailStyle(image)} />
+                                  <ThumbnailImage image={image} src={image.url} alt={image.name} />
                                 </div>
                               ))}
                             </div>
                           )}
-                          <p className="mt-3 leading-6 text-emerald-50/70">{work.body}</p>
                         </article>
                       ))}
                     </div>
@@ -4057,6 +4320,60 @@ export default function AdminPage() {
           </div>
         )}
       </section>
+
+      {isAdmin && adminPanel === "characters" && activeCharacterId && (
+        <GlitchSelectionFloatingToolbar
+          anchorElement={glitchFieldAnchorElement}
+          selection={glitchFieldSelection}
+          fieldValue={
+            activeGlitchFieldPath ? getCharacterDraftFieldValue(draft, activeGlitchFieldPath) : ""
+          }
+          fieldLabel={activeGlitchLabel}
+          glitchConfig={
+            activeGlitchFieldPath ? getDraftGlitchConfig(draft, activeGlitchFieldPath) : undefined
+          }
+          onApply={(config, message) => {
+            if (!activeGlitchFieldPath) {
+              return;
+            }
+
+            setDraft((current) => updateDraftGlitchPath(current, activeGlitchFieldPath, config));
+            setNotice(message);
+          }}
+          onNotice={setNotice}
+        />
+      )}
+
+      {isAdmin && activeCategory === "worlds" && (
+        <GlitchSelectionFloatingToolbar
+          anchorElement={worldGlitchFieldAnchorElement}
+          selection={worldGlitchFieldSelection}
+          fieldValue={
+            activeWorldGlitchFieldPath
+              ? getWorldDraftFieldValue(worldDraft, activeWorldGlitchFieldPath)
+              : ""
+          }
+          fieldLabel={
+            activeWorldGlitchFieldPath ? getGlitchFieldLabel(activeWorldGlitchFieldPath) : null
+          }
+          glitchConfig={
+            activeWorldGlitchFieldPath
+              ? worldDraft.textGlitch[activeWorldGlitchFieldPath]
+              : undefined
+          }
+          onApply={(config, message) => {
+            if (!activeWorldGlitchFieldPath) {
+              return;
+            }
+
+            setWorldDraft((current) =>
+              updateWorldDraftGlitchPath(current, activeWorldGlitchFieldPath, config),
+            );
+            setNotice(message);
+          }}
+          onNotice={setNotice}
+        />
+      )}
     </main>
   );
 }

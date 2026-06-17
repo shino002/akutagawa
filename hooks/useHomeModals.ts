@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { clamp } from "@/lib/image-helpers";
-import type { ExpressionModalItem, GalleryModalItem, ReaderModalItem } from "@/types/home.types";
+import type { ExpressionModalItem, GalleryModalItem, ReaderModalItem, StoryModalItem } from "@/types/home.types";
 
 /**
  * 공개 페이지에서 열리는 세 종류 모달(이미지 확대, 스탠딩 표정, 이북 리더)의 상태를 관리합니다.
@@ -12,10 +12,11 @@ export const useHomeModals = () => {
   const [galleryModalItem, setGalleryModalItem] = useState<GalleryModalItem | null>(null);
   const [expressionModalItem, setExpressionModalItem] = useState<ExpressionModalItem | null>(null);
   const [readerModalItem, setReaderModalItem] = useState<ReaderModalItem | null>(null);
+  const [storyModalItem, setStoryModalItem] = useState<StoryModalItem | null>(null);
   const [galleryZoom, setGalleryZoom] = useState(1);
 
   useEffect(() => {
-    if (!galleryModalItem) return;
+    if (!galleryModalItem && !storyModalItem) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -23,7 +24,7 @@ export const useHomeModals = () => {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [galleryModalItem]);
+  }, [galleryModalItem, storyModalItem]);
 
   const openGalleryModal = (item: GalleryModalItem) => {
     setGalleryZoom(1);
@@ -41,6 +42,8 @@ export const useHomeModals = () => {
     setExpressionModalItem,
     readerModalItem,
     setReaderModalItem,
+    storyModalItem,
+    setStoryModalItem,
     galleryZoom,
     openGalleryModal,
     updateGalleryZoom,

@@ -3,24 +3,32 @@
 import { type FormEvent, useMemo } from "react";
 import { Explora } from "next/font/google";
 import { cn } from "@/utils/cn";
-import { thumbnailStyle } from "@/lib/image-helpers";
+import { ThumbnailImage } from "@/components/ThumbnailImage";
 import { characterPaletteStyle } from "@/lib/character-palette";
 import { caseFileDetailThemeStyle } from "@/lib/case-file-theme";
 import { emptyCharacter } from "@/constants/home";
 import { TextGlitch } from "@/components/TextGlitch";
 import { GlitchedText } from "@/components/GlitchedText";
-import { glitchConfigSignature, settingSectionGlitchPath } from "@/lib/glitch-fields";
+import { StoryFormattedText } from "@/components/StoryFormattedText";
+import { glitchConfigSignature, settingSectionExcerptGlitchPath, settingSectionGlitchPath, settingSectionTitleGlitchPath } from "@/lib/glitch-fields";
 import { profileFieldGlitchPath } from "@/lib/profile-fields";
+import { metaFieldGlitchPath, resolveMetaFields } from "@/lib/meta-fields";
 import {
   normalizeRelationshipEntries,
   relationshipEntryGlitchPath,
 } from "@/lib/relationship-entries";
 import { normalizeSettingSections } from "@/lib/setting-sections";
 import { ArchiveMotion } from "@/components/home/ArchiveMotion";
+import { StoryRecordCard } from "@/components/home/StoryRecordCard";
 import { normalizeWorldEntries } from "@/utils/normalizers";
 import type { Character, UploadedImage, World, ZoneLinkTarget } from "@/lib/types";
 import type { CharacterDetailSection } from "@/lib/zone-links";
 import { findSubPage, listNavigableSubPages, resolveSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
+import {
+  getSubPageEntryCopy,
+  getSubPageEntryKicker,
+  normalizeSubPageEntryLabel,
+} from "@/lib/sub-page-kind";
 import {
   formatPairDisplayName,
   formatPairMemberLabel,
@@ -33,6 +41,7 @@ import type {
   ExpressionModalItem,
   GalleryModalItem,
   ReaderModalItem,
+  StoryModalItem,
 } from "@/types/home.types";
 
 const TAB_LABELS: Record<CharacterDetailTab, string> = {
@@ -91,6 +100,7 @@ interface CharactersSectionProps {
   onOpenGallery: (item: GalleryModalItem) => void;
   onOpenExpression: (item: ExpressionModalItem) => void;
   onOpenReader: (item: ReaderModalItem) => void;
+  onOpenStory: (item: StoryModalItem) => void;
   className?: string;
 }
 
@@ -123,6 +133,7 @@ export function CharactersSection({
   onOpenGallery,
   onOpenExpression,
   onOpenReader,
+  onOpenStory,
   className,
 }: CharactersSectionProps) {
   const resolvedParentCharacter = useMemo(
@@ -224,6 +235,8 @@ export function CharactersSection({
     (!activeCharacterWorldPassword || unlockedWorldIds[activeCharacterWorldEntry.worldId]),
   );
   const isSubPageView = Boolean(activeSubPageId && activeSubPage);
+  const activeSubPageEntryLabel = normalizeSubPageEntryLabel(activeSubPage?.entryKind);
+  const activeSubPageCopy = isSubPageView ? getSubPageEntryCopy() : null;
   const visibleTabs = isSubPageView ? TAB_ORDER.filter((tab) => tab !== "worlds") : TAB_ORDER;
   const backButtonLabel = useMemo(() => {
     if (hasDetailNavHistory) {
@@ -272,6 +285,10 @@ export function CharactersSection({
     [activeSubPage?.detailTheme, resolvedParentCharacter.detailTheme],
   );
   const activeSettingSections = normalizeSettingSections(activeCharacter.settingSections);
+  const activeMetaFields = useMemo(
+    () => resolveMetaFields(activeCharacter),
+    [activeCharacter],
+  );
   const activeRelationshipEntries = useMemo(
     () =>
       normalizeRelationshipEntries(activeCharacter.relationshipEntries, activeCharacter.relationships),
@@ -324,12 +341,6 @@ export function CharactersSection({
               const cardName = isPairCharacter(character)
                 ? formatPairDisplayName(character, allCharacters)
                 : character.name;
-              const cardSubtitle = isPairCharacter(character)
-                ? resolveLinkedPairMembers(character, allCharacters)
-                    .map(formatPairMemberLabel)
-                    .filter((label) => label !== "이름 없음")
-                    .join(" · ") || character.subtitle
-                : character.subtitle;
 
               return (
                 <button
@@ -340,19 +351,16 @@ export function CharactersSection({
                     setActiveSubPageId?.("");
                     setActiveTab("settings");
                   }}
-                  className={`archive-character-card text-left ${activeCharacterId === character.id ? "is-active" : ""}`}
+                  className={`archive-character-card character-palette-scope text-left ${activeCharacterId === character.id ? "is-active" : ""}`}
+                  style={characterPaletteStyle(character.palette)}
                 >
-                  <div
-                    className="archive-character-card-image character-palette-surface"
-                    style={characterPaletteStyle(character.palette)}
-                  >
+                  <div className="character-palette-backdrop" aria-hidden="true" />
+                  <div className="archive-character-card-image">
                     {cardImage && (
-                      /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
-                      <img
+                      <ThumbnailImage
+                        image={cardImage}
                         src={cardImage.url}
                         alt={`${character.name} 대표 그림`}
-                        className="h-full w-full object-cover"
-                        style={thumbnailStyle(cardImage)}
                       />
                     )}
                   </div>
@@ -378,13 +386,6 @@ export function CharactersSection({
                         </span>
                       )}
                     </h4>
-                    <div className="archive-card-intro" data-text-corruptor-ignore>
-                      <GlitchedText
-                        text={cardSubtitle}
-                        glitch={character.textGlitch?.subtitle}
-                        className="block w-full"
-                      />
-                    </div>
                   </div>
                 </button>
               );
@@ -402,23 +403,24 @@ export function CharactersSection({
         style={detailThemeStyle}
       >
         <div className="case-file-hero" data-character-id={heroCharacterId}>
-          <div
-            className="character-palette-surface absolute inset-0"
-            style={characterPaletteStyle(activeCharacter.palette)}
-          />
           {activeMainIllustration && (
-            /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
-            <img
+            <ThumbnailImage
+              image={activeMainIllustration}
               src={activeMainIllustration.url}
               alt={`${activeCharacter.name} 대표 그림`}
-              className="case-file-hero-image"
-              style={thumbnailStyle(activeMainIllustration)}
+              wrapperClassName="case-file-hero-image"
             />
           )}
           <div className="case-file-hero-grid" />
           <div className="case-file-title-block">
             <p className="case-file-kicker">
-              <TextGlitch text="Private Archive / Case File" />
+              <TextGlitch
+                text={
+                  isSubPageView
+                    ? getSubPageEntryKicker(activeSubPageEntryLabel)
+                    : "Private Archive / Case File"
+                }
+              />
               {isPairView && !isSubPageView && (
                 <>
                   {" "}
@@ -449,11 +451,14 @@ export function CharactersSection({
               )}
             </h3>
             <div className="case-file-intro">
-              <p className="case-file-intro-label">한 줄 소개</p>
+              <p className="case-file-intro-label">
+                {isSubPageView && activeSubPageCopy ? activeSubPageCopy.subtitleLabel : "한 줄 소개"}
+              </p>
               <p className="case-file-intro-text" data-text-corruptor-ignore>
                 <GlitchedText
                   text={activeCharacter.subtitle}
                   glitch={activeCharacter.textGlitch?.subtitle}
+                  preserveWhitespace
                   {...zoneLinkProps}
                 />
               </p>
@@ -505,57 +510,58 @@ export function CharactersSection({
           )}
 
           <div className="case-file-meta">
-            <span>NO. {activeCharacter.id || "UNREGISTERED"}</span>
-            {activeCharacter.classification && (
-              <span>
-                분류:{" "}
-                <GlitchedText
-                  text={activeCharacter.classification}
-                  glitch={activeCharacter.textGlitch?.classification}
-                  {...zoneLinkProps}
-                />
-              </span>
+            <span className="case-file-meta-line">NO. {activeCharacter.id || "UNREGISTERED"}</span>
+            {isSubPageView && activeSubPageEntryLabel && (
+              <span className="case-file-meta-line">유형: {activeSubPageEntryLabel}</span>
             )}
-            {(activeCharacter.statusTags ?? []).length > 0 && (
-              <span>
-                상태:{" "}
-                <GlitchedText
-                  text={(activeCharacter.statusTags ?? []).join("\n")}
-                  glitch={activeCharacter.textGlitch?.statusTags}
-                  preserveWhitespace
-                  {...zoneLinkProps}
-                />
-              </span>
+            {activeMetaFields.map((field) =>
+              field.body.trim() ? (
+                <span key={field.id} className="case-file-meta-line">
+                  {field.label.trim() || "기록"}:{" "}
+                  <GlitchedText
+                    text={field.body}
+                    glitch={activeCharacter.textGlitch?.[metaFieldGlitchPath(field.id)]}
+                    preserveWhitespace={field.body.includes("\n")}
+                    {...zoneLinkProps}
+                  />
+                </span>
+              ) : null,
             )}
           </div>
 
           {activeCharacter.quote.trim() ? (
-            <figure className="case-file-voice">
-              <figcaption className="case-file-voice-label">한마디</figcaption>
-              <blockquote className="case-file-voice-text" data-text-corruptor-ignore>
-                <GlitchedText
+            <div className="case-file-intro case-file-voice">
+              <p className="case-file-intro-label">
+                {isSubPageView && activeSubPageCopy ? activeSubPageCopy.quoteLabel : "한마디"}
+              </p>
+              <blockquote className="case-file-intro-text" data-text-corruptor-ignore>
+                <StoryFormattedText
                   text={activeCharacter.quote}
                   glitch={activeCharacter.textGlitch?.quote}
+                  preserveWhitespace
                   {...zoneLinkProps}
                 />
               </blockquote>
-            </figure>
+            </div>
           ) : null}
 
-          <dl className="case-profile-grid">
-            {activeCharacter.profileFields.map((field) => (
-              <div key={field.id} className="case-profile-cell">
-                <dt>{field.label || "-"}</dt>
-                <dd>
-                  <GlitchedText
-                    text={field.value || "-"}
-                    glitch={activeCharacter.textGlitch?.[profileFieldGlitchPath(field.id)]}
-                    {...zoneLinkProps}
-                  />
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <section className="case-profile-panel" aria-label="프로필">
+            <p className="case-profile-kicker">Profile Data</p>
+            <div className="case-profile-grid">
+              {activeCharacter.profileFields.map((field) => (
+                <div key={field.id} className="case-profile-chip">
+                  <span className="case-profile-chip-label">{field.label || "-"}</span>
+                  <span className="case-profile-chip-value">
+                    <GlitchedText
+                      text={field.value || "-"}
+                      glitch={activeCharacter.textGlitch?.[profileFieldGlitchPath(field.id)]}
+                      {...zoneLinkProps}
+                    />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
 
           <div className="case-tab-strip">
             {visibleTabs.map((tab) => (
@@ -585,19 +591,48 @@ export function CharactersSection({
                   </p>
                   <div className="mt-3 grid gap-3">
                     {activeSettingSections.length > 0 ? (
-                      activeSettingSections.map((section, index) => (
-                        <article key={section.id || `${section.title}-${index}`} className="static-record-panel">
-                          <span className="block text-xs tracking-[0.25em] text-emerald-100/45 uppercase mb-2">{section.title || `RECORD ${String(index + 1).padStart(2, "0")}`}</span>
-                          <p className="whitespace-pre-line text-sm leading-7 text-emerald-50/80">
-                            <GlitchedText
-                              text={section.body || "-"}
-                              glitch={activeCharacter.textGlitch?.[settingSectionGlitchPath(section.id)]}
-                              preserveWhitespace
-                              {...zoneLinkProps}
-                            />
-                          </p>
-                        </article>
-                      ))
+                      activeSettingSections.map((section, index) =>
+                        section.kind === "story" ? (
+                          <StoryRecordCard
+                            key={section.id || `${section.title}-${index}`}
+                            section={section}
+                            index={index}
+                            titleGlitch={
+                              activeCharacter.textGlitch?.[settingSectionTitleGlitchPath(section.id)]
+                            }
+                            excerptGlitch={
+                              activeCharacter.textGlitch?.[settingSectionExcerptGlitchPath(section.id)]
+                            }
+                            onOpen={() => onOpenStory({ character: activeCharacter, section })}
+                          />
+                        ) : (
+                          <article key={section.id || `${section.title}-${index}`} className="static-record-panel">
+                            <span className="mb-2 block whitespace-pre-line text-xs tracking-[0.25em] text-emerald-100/45 uppercase">
+                              {section.title ? (
+                                <GlitchedText
+                                  text={section.title}
+                                  glitch={
+                                    activeCharacter.textGlitch?.[
+                                      settingSectionTitleGlitchPath(section.id)
+                                    ]
+                                  }
+                                  preserveWhitespace
+                                />
+                              ) : (
+                                `RECORD ${String(index + 1).padStart(2, "0")}`
+                              )}
+                            </span>
+                            <p className="whitespace-pre-line text-sm leading-7 text-emerald-50/80">
+                              <StoryFormattedText
+                                text={section.body || "-"}
+                                glitch={activeCharacter.textGlitch?.[settingSectionGlitchPath(section.id)]}
+                                preserveWhitespace
+                                {...zoneLinkProps}
+                              />
+                            </p>
+                          </article>
+                        ),
+                      )
                     ) : activeCharacter.settings.length > 0 ? (
                       activeCharacter.settings.map((setting, index) => (
                         <div key={setting} className="static-record-panel">
@@ -624,18 +659,14 @@ export function CharactersSection({
                   >
                     <div className="relative h-96 overflow-hidden md:h-[520px]">
                       {activeMainIllustration ? (
-                        /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
-                        <img
+                        <ThumbnailImage
+                          image={activeMainIllustration}
                           src={activeMainIllustration.url}
                           alt={`${activeCharacter.name} 일러스트`}
-                          className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
-                          style={thumbnailStyle(activeMainIllustration)}
+                          className="opacity-95 transition group-hover:opacity-100"
                         />
                       ) : (
-                          <div
-                            className="character-palette-surface h-full w-full"
-                            style={characterPaletteStyle(activeCharacter.palette)}
-                          />
+                          <div className="h-full w-full bg-black/20" aria-hidden="true" />
                       )}
                       <span className="case-evidence-stamp">VISUAL RECORD</span>
                       {activeMainIllustration && imageCreditName(activeMainIllustration) && (
@@ -666,12 +697,10 @@ export function CharactersSection({
                             key={image.id}
                             className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                            <img
+                            <ThumbnailImage
+                              image={image}
                               src={image.url}
                               alt="스탠딩 이미지"
-                              className="h-full w-full object-cover"
-                              style={thumbnailStyle(image)}
                             />
                           </div>
                         ))}
@@ -711,7 +740,7 @@ export function CharactersSection({
                         </div>
                         {entry.body && (
                           <p className="mt-3 whitespace-pre-line text-sm leading-7 text-emerald-50/80">
-                            <GlitchedText
+                            <StoryFormattedText
                               text={entry.body}
                               glitch={activeCharacter.textGlitch?.[relationshipEntryGlitchPath(entry.id)]}
                               preserveWhitespace
@@ -787,12 +816,11 @@ export function CharactersSection({
                         onClick={() => onOpenGallery({ image, character: activeCharacter })}
                         className="relative block w-full overflow-hidden text-left"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                        <img
+                        <ThumbnailImage
+                          image={image}
                           src={image.url}
                           alt={`${activeCharacter.name} 그림 ${index + 1}`}
-                          className="h-64 w-full object-cover opacity-90 transition duration-300 group-hover:scale-105 group-hover:opacity-100"
-                          style={thumbnailStyle(image)}
+                          className="h-64 w-full opacity-90 transition duration-300 group-hover:opacity-100"
                         />
                         {imageCreditName(image) && (
                           <span className="image-credit-label">{imageCreditName(image)}</span>
@@ -841,12 +869,11 @@ export function CharactersSection({
                             key={image.id}
                             className="relative aspect-square overflow-hidden border border-stone-400/15 bg-black"
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                            <img
+                            <ThumbnailImage
+                              image={image}
                               src={image.url}
                               alt="첨부 이미지"
-                              className="h-full w-full object-cover opacity-90"
-                              style={thumbnailStyle(image)}
+                              className="opacity-90"
                             />
                             {imageCreditName(image) && (
                               <span className="image-credit-label image-credit-label-compact">
@@ -857,9 +884,6 @@ export function CharactersSection({
                         ))}
                       </div>
                     )}
-                    <p className="mt-3 line-clamp-3 text-sm leading-7 text-emerald-50/75">
-                      {work.body}
-                    </p>
                   </button>
                 ))}
                 {activeWorks.length === 0 && (
@@ -985,18 +1009,14 @@ export function CharactersSection({
                                 >
                                   <div className="relative h-96 overflow-hidden md:h-[520px]">
                                     {activeWorldMainIllustration ? (
-                                      /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
-                                      <img
+                                      <ThumbnailImage
+                                        image={activeWorldMainIllustration}
                                         src={activeWorldMainIllustration.url}
                                         alt={`${activeCharacter.name} 세계관 일러스트`}
-                                        className="h-full w-full object-cover opacity-95 transition group-hover:scale-105"
-                                        style={thumbnailStyle(activeWorldMainIllustration)}
+                                        className="opacity-95 transition group-hover:opacity-100"
                                       />
                                     ) : (
-                                      <div
-                                        className="character-palette-surface h-full w-full"
-                                        style={characterPaletteStyle(activeCharacter.palette)}
-                                      />
+                                      <div className="h-full w-full bg-black/20" aria-hidden="true" />
                                     )}
                                     {activeWorldMainIllustration &&
                                       imageCreditName(activeWorldMainIllustration) && (

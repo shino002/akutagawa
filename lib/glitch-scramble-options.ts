@@ -50,7 +50,11 @@ export function ensureZoneErrorAlternation(
   }
 
   return zones.map((zone) => {
-    if (zone.errorMessageSource !== "none") {
+    if (zone.errorMessageSource === "none") {
+      return zone;
+    }
+
+    if (zone.errorMessageSource !== undefined) {
       return zone;
     }
 

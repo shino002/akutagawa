@@ -17,17 +17,85 @@ export function createBlankRelationshipEntry(): RelationshipEntry {
   };
 }
 
+export type RelationshipEntryGlitchField = "body" | "name" | "label";
+
 export function relationshipEntryGlitchPath(entryId: string) {
   return `relationships.${entryId}`;
 }
 
-export function parseRelationshipEntryGlitchPath(path: string) {
+export function relationshipEntryNameGlitchPath(entryId: string) {
+  return `relationships.${entryId}.name`;
+}
+
+export function relationshipEntryLabelGlitchPath(entryId: string) {
+  return `relationships.${entryId}.label`;
+}
+
+export function parseRelationshipEntryGlitchPath(
+  path: string,
+): { entryId: string; field: RelationshipEntryGlitchField } | null {
   if (!path.startsWith("relationships.")) {
     return null;
   }
 
-  const entryId = path.slice("relationships.".length);
-  return entryId || null;
+  const rest = path.slice("relationships.".length);
+  if (!rest) {
+    return null;
+  }
+
+  if (rest.endsWith(".name")) {
+    return { entryId: rest.slice(0, -".name".length), field: "name" };
+  }
+
+  if (rest.endsWith(".label")) {
+    return { entryId: rest.slice(0, -".label".length), field: "label" };
+  }
+
+  return { entryId: rest, field: "body" };
+}
+
+export function getRelationshipEntryFieldValue(
+  entries: RelationshipEntry[],
+  entryId: string,
+  field: RelationshipEntryGlitchField,
+) {
+  const entry = entries.find((item) => item.id === entryId);
+  if (!entry) {
+    return "";
+  }
+
+  if (field === "name") {
+    return entry.name;
+  }
+
+  if (field === "label") {
+    return entry.label;
+  }
+
+  return entry.body;
+}
+
+export function setRelationshipEntryFieldValue(
+  entries: RelationshipEntry[],
+  entryId: string,
+  field: RelationshipEntryGlitchField,
+  value: string,
+): RelationshipEntry[] {
+  return entries.map((entry) => {
+    if (entry.id !== entryId) {
+      return entry;
+    }
+
+    if (field === "name") {
+      return { ...entry, name: value };
+    }
+
+    if (field === "label") {
+      return { ...entry, label: value };
+    }
+
+    return { ...entry, body: value };
+  });
 }
 
 function normalizeRelationshipEntry(raw: unknown): RelationshipEntry | null {
@@ -111,7 +179,7 @@ export function relationshipEntriesToLegacyLines(entries: RelationshipEntry[]) {
 }
 
 export function getRelationshipEntryBody(entries: RelationshipEntry[], entryId: string) {
-  return entries.find((entry) => entry.id === entryId)?.body ?? "";
+  return getRelationshipEntryFieldValue(entries, entryId, "body");
 }
 
 export function setRelationshipEntryBody(
@@ -119,7 +187,7 @@ export function setRelationshipEntryBody(
   entryId: string,
   body: string,
 ): RelationshipEntry[] {
-  return entries.map((entry) => (entry.id === entryId ? { ...entry, body } : entry));
+  return setRelationshipEntryFieldValue(entries, entryId, "body", body);
 }
 
 export function updateRelationshipEntry(

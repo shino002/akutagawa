@@ -20,7 +20,7 @@ const BASE_SECTIONS: Array<{
 }> = [
   { id: "basics", label: "카드 · 레코드", hint: "카드 정보 + 레코드 박스" },
   { id: "glitch", label: "오류", hint: "텍스트 오류·서식" },
-  { id: "subpages", label: "상세 페이지", hint: "이 항목 안의 추가 상세" },
+  { id: "subpages", label: "상세 페이지", hint: "서브캐·물건·능력·장소" },
   { id: "members", label: "연결 캐릭터", hint: "OC · Another 선택" },
   { id: "world", label: "세계관", hint: "World별 기록" },
   { id: "images", label: "그림", hint: "업로드·연성" },
