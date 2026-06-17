@@ -3,10 +3,11 @@
 import { type FormEvent, useMemo } from "react";
 import { cn } from "@/utils/cn";
 import { ArchiveMotion } from "@/components/home/ArchiveMotion";
+import { GlitchedText } from "@/components/GlitchedText";
 import { characterPaletteStyle } from "@/lib/character-palette";
 import { thumbnailStyle } from "@/lib/image-helpers";
 import { normalizeWorldEntries } from "@/utils/normalizers";
-import type { Character, CharacterWorldEntry, UploadedImage, World } from "@/lib/types";
+import type { Character, CharacterWorldEntry, UploadedImage, World, ZoneLinkTarget } from "@/lib/types";
 import type { ExpressionModalItem, GalleryModalItem, ReaderModalItem } from "@/types/home.types";
 
 const imageCreditName = (image: UploadedImage) => image.name?.trim() ?? "";
@@ -21,10 +22,12 @@ interface WorldsSectionProps {
   unlockedWorldIds: Record<string, boolean>;
   canUnlockWorlds: boolean;
   onUnlockWorld: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  onRequireAuth: () => void;
   onViewParticipant: (characterId: string, worldId: string) => void;
   onOpenGallery: (item: GalleryModalItem) => void;
   onOpenExpression: (item: ExpressionModalItem) => void;
   onOpenReader: (item: ReaderModalItem) => void;
+  onZoneLinkNavigate?: (target: ZoneLinkTarget) => void;
   className?: string;
 }
 
@@ -38,10 +41,12 @@ export function WorldsSection({
   unlockedWorldIds,
   canUnlockWorlds,
   onUnlockWorld,
+  onRequireAuth,
   onViewParticipant,
   onOpenGallery,
   onOpenExpression,
   onOpenReader,
+  onZoneLinkNavigate,
   className,
 }: WorldsSectionProps) {
   const activeWorld = useMemo(
@@ -78,40 +83,47 @@ export function WorldsSection({
 
         return (
           <article key={`${activeWorld.id}-${character.id}`} className="world-participant-entry">
-            <section className="case-setting-note">
-              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <p className="archive-kicker">{character.id}</p>
-                  <h4 className="mt-2 text-2xl font-semibold">{character.name}</h4>
-                  <p className="mt-1 text-sm text-emerald-100/60">{character.subtitle}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onViewParticipant(character.id, entry.worldId)}
-                  className="archive-submit-button px-4 py-2 text-sm"
-                >
-                  자캐 상세로 보기
-                </button>
-              </div>
+            <section className="world-participant-body">
+              <button
+                type="button"
+                onClick={() => onViewParticipant(character.id, entry.worldId)}
+                className="archive-submit-button world-participant-detail-link px-4 py-2 text-sm"
+              >
+                자캐 상세로 보기
+              </button>
 
-              <div className="mt-7">
-                <div className="grid items-start gap-4 xl:grid-cols-[0.9fr_1fr]">
-                  <div className="space-y-3">
-                    {entry.settings.length > 0 ? (
-                      entry.settings.map((setting) => (
-                        <p
-                          key={setting}
-                          className="border border-stone-400/20 bg-black/35 p-4 text-sm leading-8 text-emerald-50/75"
-                        >
-                          {setting}
+              <div className="case-setting-note world-participant-profile">
+                <div className="world-participant-layout">
+                  <div className="world-participant-left">
+                    <div className="world-participant-head">
+                      <div className="world-detail-participant-name-row">
+                        <h4 className="world-detail-participant-name text-2xl font-semibold">{character.name}</h4>
+                        <span className="archive-kicker world-detail-participant-id">{character.id}</span>
+                      </div>
+                      {character.subtitle ? (
+                        <p className="world-detail-participant-subtitle mt-1 text-sm text-emerald-100/60">
+                          {character.subtitle}
                         </p>
-                      ))
-                    ) : (
-                      <p className="case-empty-note">등록된 세계관 설정이 없어요.</p>
-                    )}
+                      ) : null}
+                    </div>
+
+                    <div className="world-participant-settings">
+                      {entry.settings.length > 0 ? (
+                        entry.settings.map((setting) => (
+                          <p
+                            key={setting}
+                            className="border border-stone-400/20 bg-black/35 p-4 text-sm leading-8 text-emerald-50/75"
+                          >
+                            {setting}
+                          </p>
+                        ))
+                      ) : (
+                        <p className="plain-empty-note">등록된 세계관 설정이 없어요.</p>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="space-y-4">
+                  <div className="world-participant-illustration">
                     <button
                       type="button"
                       onClick={() =>
@@ -121,7 +133,7 @@ export function WorldsSection({
                       className="gallery-tile group block w-full text-left"
                       disabled={!worldMainIllustration}
                     >
-                      <div className="relative h-96 overflow-hidden md:h-[520px]">
+                      <div className="world-participant-illustration-frame relative overflow-hidden">
                         {worldMainIllustration ? (
                           /* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */
                           <img
@@ -144,37 +156,43 @@ export function WorldsSection({
                       </div>
                       <p className="truncate p-3 text-xs text-emerald-50">세계관 일러스트</p>
                     </button>
+                  </div>
+                </div>
+              </div>
 
-                    {worldStandings.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenExpression({ character, images: worldStandings })}
-                        className="case-side-record text-left transition hover:border-stone-400/35"
-                      >
-                        <p className="text-xs tracking-[0.25em] text-stone-300/55 uppercase">
-                          World Standing Expressions
-                        </p>
-                        <div className="mt-3 grid grid-cols-4 gap-2">
-                          {worldStandings.slice(0, 4).map((image) => (
-                            <div
-                              key={image.id}
-                              className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
-                              <img
-                                src={image.url}
-                                alt="스탠딩 이미지"
-                                className="h-full w-full object-cover"
-                                style={thumbnailStyle(image)}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                        <p className="mt-3 text-sm text-emerald-50/75">
-                          세계관 스탠딩 표정 {worldStandings.length}장 보기
-                        </p>
-                      </button>
-                    )}
+              {(worldStandings.length > 0 || entry.works.length > 0) && (
+                <div className="world-participant-extra">
+                  {worldStandings.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenExpression({ character, images: worldStandings })}
+                      className="case-side-record text-left transition hover:border-stone-400/35"
+                    >
+                      <p className="text-xs tracking-[0.25em] text-stone-300/55 uppercase">
+                        World Standing Expressions
+                      </p>
+                      <div className="mt-3 grid grid-cols-4 gap-2">
+                        {worldStandings.slice(0, 4).map((image) => (
+                          <div
+                            key={image.id}
+                            className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                            <img
+                              src={image.url}
+                              alt="스탠딩 이미지"
+                              className="h-full w-full object-cover"
+                              style={thumbnailStyle(image)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-3 text-sm text-emerald-50/75">
+                        세계관 스탠딩 표정 {worldStandings.length}장 보기
+                      </p>
+                    </button>
+                  )}
+                  {entry.works.length > 0 && (
                     <div className="space-y-3">
                       {entry.works.map((work, index) => (
                         <button
@@ -211,9 +229,9 @@ export function WorldsSection({
                         </button>
                       ))}
                     </div>
-                  </div>
+                  )}
                 </div>
-              </div>
+              )}
             </section>
           </article>
         );
@@ -243,20 +261,34 @@ export function WorldsSection({
               key={world.id}
               type="button"
               onClick={() => setActiveWorldId(world.id)}
-              className={`archive-row p-5 text-left ${
-                activeWorld?.id === world.id
-                  ? "border-blue-400/70 bg-blue-950/20"
-                  : "hover:border-blue-400/45"
+              className={`archive-row archive-world-card text-left ${
+                activeWorld?.id === world.id ? "is-active" : ""
               }`}
             >
-              <p className="text-xs tracking-[0.25em] text-emerald-100/40 uppercase">{world.id}</p>
-              <h4 className="mt-2 text-xl font-semibold leading-snug">{world.title}</h4>
-              <p className="blue-emphasis mt-2 text-sm leading-6">{world.subtitle}</p>
-              {world.password?.trim() && (
-                <p className="mt-3 inline-block border border-stone-400/20 bg-black/35 px-2 py-1 text-[10px] tracking-[0.18em] text-stone-300/70 uppercase">
-                  Locked
+              <div className="archive-world-card-body">
+                <p className="archive-world-card-id">{world.id}</p>
+                <h4 className="archive-world-card-title">
+                  <GlitchedText
+                    text={world.title}
+                    glitch={world.textGlitch?.title}
+                    className="block w-full"
+                    onZoneLinkClick={onZoneLinkNavigate}
+                  />
+                </h4>
+                <p className="archive-world-card-subtitle blue-emphasis">
+                  <GlitchedText
+                    text={world.subtitle}
+                    glitch={world.textGlitch?.subtitle}
+                    className="block w-full"
+                    onZoneLinkClick={onZoneLinkNavigate}
+                  />
                 </p>
-              )}
+                {world.password?.trim() && (
+                  <p className="archive-world-card-locked mt-1 inline-block border border-stone-400/20 bg-black/35 px-2 py-1 text-[10px] tracking-[0.18em] text-stone-300/70 uppercase">
+                    Locked
+                  </p>
+                )}
+              </div>
             </button>
           ))}
         </ArchiveMotion>
@@ -272,29 +304,48 @@ export function WorldsSection({
           as="section"
           motionKey={activeWorld.id}
           variant="scan"
-          className="glass-card p-6 md:p-8"
+          className="glass-card world-detail-panel p-6 md:p-8"
         >
-          <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px] md:items-start">
-            <div>
-              <p className="archive-kicker">
-                Selected World
-              </p>
-              <h3 className="archive-title mt-2 max-w-3xl font-serif text-4xl leading-tight md:text-5xl">{activeWorld.title}</h3>
-              <p className="blue-emphasis mt-3 max-w-2xl text-base leading-7">{activeWorld.subtitle}</p>
-              {activeWorld.description && (
-                <p className="world-description mt-5 max-w-3xl text-sm leading-8 whitespace-pre-line text-emerald-50/75">
-                  {activeWorld.description}
+          <div className="world-detail-stack">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px] md:items-start">
+              <div className="world-detail-intro flex flex-col gap-2">
+                <p className="archive-kicker">Selected World</p>
+                <h3 className="archive-title world-detail-title m-0 max-w-3xl text-4xl leading-tight md:text-5xl">
+                  <GlitchedText
+                    text={activeWorld.title}
+                    glitch={activeWorld.textGlitch?.title}
+                    className="block w-full"
+                    onZoneLinkClick={onZoneLinkNavigate}
+                  />
+                </h3>
+                <p className="blue-emphasis world-detail-subtitle mt-3 text-base leading-7">
+                  <GlitchedText
+                    text={activeWorld.subtitle}
+                    glitch={activeWorld.textGlitch?.subtitle}
+                    className="block w-full"
+                    onZoneLinkClick={onZoneLinkNavigate}
+                  />
                 </p>
-              )}
+              </div>
+              <p className="world-participant-count text-sm text-emerald-100/75">
+                {isActiveWorldUnlocked
+                  ? `참가 자캐 ${activeWorldParticipants.length}명`
+                  : "기록 잠김"}
+              </p>
             </div>
-            <p className="world-participant-count text-sm text-emerald-100/75">
-              {isActiveWorldUnlocked
-                ? `참가 자캐 ${activeWorldParticipants.length}명`
-                : "기록 잠김"}
-            </p>
-          </div>
+            {activeWorld.description && (
+              <p className="world-description mt-5 w-full text-sm leading-8 whitespace-pre-line text-emerald-50/75">
+                <GlitchedText
+                  text={activeWorld.description}
+                  glitch={activeWorld.textGlitch?.description}
+                  preserveWhitespace
+                  className="block w-full"
+                  onZoneLinkClick={onZoneLinkNavigate}
+                />
+              </p>
+            )}
 
-          {!isActiveWorldUnlocked ? (
+            {!isActiveWorldUnlocked ? (
             <form
               onSubmit={onUnlockWorld}
               className="archive-panel mt-6 grid gap-3 p-5"
@@ -313,7 +364,11 @@ export function WorldsSection({
                   className="auth-input auth-input-compact"
                   disabled={!canUnlockWorlds}
                 />
-                <button className="archive-submit-button px-5 py-2 text-sm">
+                <button
+                  type={canUnlockWorlds ? "submit" : "button"}
+                  onClick={canUnlockWorlds ? undefined : onRequireAuth}
+                  className="archive-submit-button px-5 py-2 text-sm"
+                >
                   {canUnlockWorlds ? "기록 열기" : "로그인 창 열기"}
                 </button>
               </div>
@@ -327,6 +382,7 @@ export function WorldsSection({
               {participantListContent}
             </ArchiveMotion>
           )}
+          </div>
         </ArchiveMotion>
       )}
     </section>

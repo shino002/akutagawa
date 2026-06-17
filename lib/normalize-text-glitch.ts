@@ -1,8 +1,11 @@
 import type { FieldGlitchConfig, GlitchZone } from "@/lib/types";
+import { normalizeZoneLinkTarget } from "@/lib/zone-links";
 import {
   normalizeErrorMessageSource,
+  normalizeErrorDisplayMode,
   normalizeScrambleMode,
 } from "@/lib/glitch-scramble-options";
+import { normalizeBuiltinTokens } from "@/lib/text-scramble";
 import {
   clampGlitchTickMs,
   hasGlitchPresentation,
@@ -30,9 +33,14 @@ function normalizeZone(zone: GlitchZone, wordPool: string): GlitchZone {
   const style = normalizeGlitchZoneStyle(zone.style);
   const errorMessage = typeof zone.errorMessage === "string" ? zone.errorMessage.trim() : "";
   const explicitSource = normalizeErrorMessageSource(zone.errorMessageSource);
+  const linkTarget = normalizeZoneLinkTarget(zone.linkTarget);
+  const legacyLinkSubPageId =
+    typeof zone.linkSubPageId === "string" && zone.linkSubPageId.trim()
+      ? zone.linkSubPageId.trim()
+      : undefined;
   const errorMessageSource =
     explicitSource ??
-    (errorMessage ? "custom" : wordPool.trim() ? "auto" : hasGlitchPresentation(style) ? "none" : "auto");
+    (errorMessage ? "custom" : hasGlitchPresentation(style) ? "none" : "auto");
 
   const next: GlitchZone = {
     id: zone.id,
@@ -41,6 +49,12 @@ function normalizeZone(zone: GlitchZone, wordPool: string): GlitchZone {
     original: zone.original,
     errorMessageSource,
   };
+
+  if (linkTarget) {
+    next.linkTarget = linkTarget;
+  } else if (legacyLinkSubPageId) {
+    next.linkSubPageId = legacyLinkSubPageId;
+  }
 
   if (style) {
     next.style = style;
@@ -83,6 +97,8 @@ export function normalizeFieldGlitchConfig(config: unknown): FieldGlitchConfig |
     ? normalizeScrambleMode(source.scrambleMode) ?? "referenceWithBuiltin"
     : undefined;
   const builtinScramble = source.builtinScramble !== false;
+  const errorDisplayMode = normalizeErrorDisplayMode(source.errorDisplayMode);
+  const builtinTokens = normalizeBuiltinTokens(source.builtinTokens);
 
   if (zones.length === 0) {
     return undefined;
@@ -94,6 +110,8 @@ export function normalizeFieldGlitchConfig(config: unknown): FieldGlitchConfig |
     zones,
     builtinScramble,
     defaultStyle,
+    ...(errorDisplayMode === "randomOnly" ? { errorDisplayMode } : {}),
+    ...(builtinTokens ? { builtinTokens } : {}),
     ...(scrambleMode ? { scrambleMode } : {}),
   };
 
@@ -107,8 +125,16 @@ export function normalizeFieldGlitchConfig(config: unknown): FieldGlitchConfig |
     builtinScramble,
   };
 
+  if (errorDisplayMode === "randomOnly") {
+    next.errorDisplayMode = "randomOnly";
+  }
+
   if (scrambleMode) {
     next.scrambleMode = scrambleMode;
+  }
+
+  if (builtinTokens) {
+    next.builtinTokens = builtinTokens;
   }
 
   if (source.tickMs !== undefined) {

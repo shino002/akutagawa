@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AdminChoiceButton } from "@/components/admin/AdminChoiceButton";
 import type { GlitchErrorMessageSource, GlitchScrambleMode, GlitchZone } from "@/lib/types";
 import { generateErrorMessageCandidates } from "@/lib/text-scramble";
 
@@ -9,13 +10,17 @@ interface ZoneErrorMessageEditorProps {
   wordPool: string;
   scrambleMode: GlitchScrambleMode;
   builtinScramble: boolean;
+  builtinTokens?: string[];
   onChange: (patch: Partial<GlitchZone>) => void;
 }
 
-const SOURCE_OPTIONS: Array<{ value: GlitchErrorMessageSource; label: string; hint: string }> = [
-  { value: "auto", label: "자동 생성", hint: "설정에 맞게 매번 바뀝니다" },
+const MESSAGE_MODE_OPTIONS: Array<{
+  value: Exclude<GlitchErrorMessageSource, "none">;
+  label: string;
+  hint: string;
+}> = [
+  { value: "auto", label: "자동 생성", hint: "참조 단어·기본 문구로 매번 바뀝니다" },
   { value: "custom", label: "직접 지정", hint: "고른 문구를 고정합니다" },
-  { value: "none", label: "전환 없음", hint: "원문 유지 · 서식만" },
 ];
 
 export function ZoneErrorMessageEditor({
@@ -23,9 +28,13 @@ export function ZoneErrorMessageEditor({
   wordPool,
   scrambleMode,
   builtinScramble,
+  builtinTokens,
   onChange,
 }: ZoneErrorMessageEditorProps) {
-  const source = zone.errorMessageSource ?? "auto";
+  const source = zone.errorMessageSource ?? "none";
+  const usesErrorMessage = source !== "none";
+  const messageMode: Exclude<GlitchErrorMessageSource, "none"> =
+    source === "custom" ? "custom" : "auto";
   const [candidates, setCandidates] = useState<string[]>([]);
 
   const refreshCandidates = () => {
@@ -35,6 +44,7 @@ export function ZoneErrorMessageEditor({
         {
           wordPool: wordPool.trim() ? wordPool : undefined,
           scrambleMode,
+          builtinTokens,
         },
         4,
       ),
@@ -42,96 +52,123 @@ export function ZoneErrorMessageEditor({
   };
 
   useEffect(() => {
-    if (source === "auto") {
+    if (usesErrorMessage && messageMode === "auto") {
       refreshCandidates();
     }
-  }, [zone.original, wordPool, scrambleMode, builtinScramble, source]);
+  }, [zone.original, wordPool, scrambleMode, builtinScramble, builtinTokens, usesErrorMessage, messageMode]);
+
+  const enableErrorMessage = () => {
+    onChange({
+      errorMessageSource: zone.errorMessage?.trim() ? "custom" : "auto",
+      errorMessage: zone.errorMessage?.trim() ? zone.errorMessage : undefined,
+    });
+  };
+
+  const disableErrorMessage = () => {
+    onChange({
+      errorMessageSource: "none",
+      errorMessage: undefined,
+    });
+  };
 
   return (
     <div className="mt-3 space-y-3 border border-emerald-100/15 bg-black/20 p-3">
       <div>
         <p className="text-[11px] font-medium text-emerald-100/85">오류 메시지</p>
         <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
-          원문과 번갈아 보일 문구를 고릅니다.
+          글자색·굵게만 쓰려면 「사용 안 함」을 고르세요. 오류 문구 전환이 필요할 때만 켭니다.
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
-        {SOURCE_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() =>
-              onChange({
-                errorMessageSource: option.value,
-                errorMessage: option.value === "custom" ? zone.errorMessage ?? candidates[0] ?? "" : undefined,
-              })
-            }
-            className={
-              source === option.value
-                ? "bg-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-950"
-                : "border border-emerald-100/20 px-2 py-1 text-[11px] text-emerald-50"
-            }
-            title={option.hint}
-          >
-            {option.label}
-          </button>
-        ))}
+        <AdminChoiceButton
+          active={!usesErrorMessage}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={disableErrorMessage}
+        >
+          사용 안 함 (서식만)
+        </AdminChoiceButton>
+        <AdminChoiceButton
+          active={usesErrorMessage}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={enableErrorMessage}
+        >
+          오류 메시지 사용
+        </AdminChoiceButton>
       </div>
 
-      {source === "auto" ? (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] text-emerald-100/60">후보에서 선택하면 직접 지정으로 고정됩니다.</p>
-            <button
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={refreshCandidates}
-              className="border border-emerald-100/20 px-2 py-1 text-[11px] text-emerald-50"
-            >
-              다시 뽑기
-            </button>
-          </div>
+      {usesErrorMessage ? (
+        <>
           <div className="flex flex-wrap gap-2">
-            {candidates.map((candidate, index) => (
-              <button
-                key={`${candidate}-${index}`}
-                type="button"
+            {MESSAGE_MODE_OPTIONS.map((option) => (
+              <AdminChoiceButton
+                key={option.value}
+                active={messageMode === option.value}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() =>
                   onChange({
-                    errorMessageSource: "custom",
-                    errorMessage: candidate,
+                    errorMessageSource: option.value,
+                    errorMessage:
+                      option.value === "custom" ? zone.errorMessage ?? candidates[0] ?? "" : undefined,
                   })
                 }
-                className="border border-emerald-100/20 px-2 py-1 font-mono text-[11px] text-emerald-50"
+                title={option.hint}
               >
-                {candidate}
-              </button>
+                {option.label}
+              </AdminChoiceButton>
             ))}
           </div>
-        </div>
-      ) : null}
 
-      {source === "custom" ? (
-        <label className="grid gap-1 text-[11px] text-emerald-100/70">
-          고정 오류 메시지
-          <input
-            type="text"
-            value={zone.errorMessage ?? ""}
-            onChange={(event) => onChange({ errorMessage: event.target.value })}
-            className="auth-input min-h-8 px-2 py-1 text-[11px]"
-            data-text-corruptor-ignore
-          />
-        </label>
-      ) : null}
-
-      {source === "none" ? (
+          {messageMode === "auto" ? (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] text-emerald-100/60">
+                  아래 참조 단어·기본 문구 설정을 사용합니다. 후보를 누르면 직접 지정으로 고정됩니다.
+                </p>
+                <AdminChoiceButton
+                  variant="ghost"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={refreshCandidates}
+                >
+                  다시 뽑기
+                </AdminChoiceButton>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {candidates.map((candidate, index) => (
+                  <AdminChoiceButton
+                    key={`${candidate}-${index}`}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() =>
+                      onChange({
+                        errorMessageSource: "custom",
+                        errorMessage: candidate,
+                      })
+                    }
+                    className="font-mono"
+                  >
+                    {candidate}
+                  </AdminChoiceButton>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <label className="grid gap-1 text-[11px] text-emerald-100/70">
+              고정 오류 메시지
+              <input
+                type="text"
+                value={zone.errorMessage ?? ""}
+                onChange={(event) => onChange({ errorMessage: event.target.value })}
+                className="auth-input min-h-8 px-2 py-1 text-[11px]"
+                data-text-corruptor-ignore
+              />
+            </label>
+          )}
+        </>
+      ) : (
         <p className="text-[11px] leading-5 text-emerald-100/55">
-          이 구간은 글자 내용이 바뀌지 않고 서식만 적용됩니다.
+          이 구간은 원문 그대로 두고 색·굵게·기울임·페이지 이동만 적용됩니다.
         </p>
-      ) : null}
+      )}
     </div>
   );
 }

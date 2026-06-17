@@ -1,10 +1,20 @@
 "use client";
 
-import { type Dispatch, type FormEvent, type SetStateAction } from "react";
+import {
+  type CSSProperties,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import type { User } from "firebase/auth";
 import { cn } from "@/utils/cn";
 import { ADMIN_LOGIN_ID, displayLoginId } from "@/lib/auth-helpers";
-import { sections, type SectionId } from "@/constants/home";
+import { sections, archiveSubSections, type ArchiveSubSectionId, type SectionId } from "@/constants/home";
 import type { HomeContent } from "@/lib/types";
 
 type AuthMode = "login" | "signup";
@@ -34,7 +44,9 @@ interface SideMenuProps {
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
   archiveContent: HomeContent;
   activeSection: SectionId;
+  activeArchiveSub: ArchiveSubSectionId;
   onSelectSection: (section: SectionId) => void;
+  onSelectArchiveSub: (sub: ArchiveSubSectionId) => void;
   auth: SideMenuAuthApi;
   isAdmin: boolean;
   authNotice: string;
@@ -46,7 +58,9 @@ export function SideMenu({
   setMenuOpen,
   archiveContent,
   activeSection,
+  activeArchiveSub,
   onSelectSection,
+  onSelectArchiveSub,
   auth,
   isAdmin,
   authNotice,
@@ -66,6 +80,48 @@ export function SideMenu({
     submitAuth,
     logout,
   } = auth;
+
+  const [archiveSubMenuOpen, setArchiveSubMenuOpen] = useState(false);
+  const archiveSubMenuInnerRef = useRef<HTMLDivElement>(null);
+  const [archiveSubMenuHeight, setArchiveSubMenuHeight] = useState(0);
+
+  const syncArchiveSubMenuHeight = useCallback(() => {
+    const inner = archiveSubMenuInnerRef.current;
+    if (!inner) {
+      return;
+    }
+
+    if (!archiveSubMenuOpen) {
+      setArchiveSubMenuHeight(0);
+      return;
+    }
+
+    setArchiveSubMenuHeight(0);
+    requestAnimationFrame(() => {
+      setArchiveSubMenuHeight(inner.scrollHeight);
+    });
+  }, [archiveSubMenuOpen]);
+
+  useLayoutEffect(() => {
+    syncArchiveSubMenuHeight();
+  }, [syncArchiveSubMenuHeight, archiveSubSections.length]);
+
+  useEffect(() => {
+    if (!archiveSubMenuOpen) {
+      return;
+    }
+
+    const inner = archiveSubMenuInnerRef.current;
+    if (!inner || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const observer = new ResizeObserver(() => {
+      setArchiveSubMenuHeight(inner.scrollHeight);
+    });
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, [archiveSubMenuOpen]);
 
   return (
     <aside
@@ -95,21 +151,75 @@ export function SideMenu({
         </div>
 
         <nav className="space-y-2">
-          {sections.map((section) => (
-            <button
-              key={section.id}
-              type="button"
-              onClick={() => onSelectSection(section.id)}
-              className={`archive-row group flex w-full items-center justify-between px-4 py-2.5 text-left text-sm ${
-                activeSection === section.id
-                  ? "border-stone-400/35 bg-stone-800/20 text-stone-100"
-                  : "text-emerald-50/75 hover:text-white"
-              }`}
-            >
-              <span>{section.label}</span>
-              <span className="text-xs opacity-60">›</span>
-            </button>
-          ))}
+          {sections.map((section) => {
+            if (section.id === "archive") {
+              return (
+                <div key={section.id} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => setArchiveSubMenuOpen((open) => !open)}
+                    aria-expanded={archiveSubMenuOpen}
+                    className={`archive-row group flex w-full items-center justify-between px-4 py-2.5 text-left text-sm ${
+                      activeSection === "archive"
+                        ? "border-stone-400/35 bg-stone-800/20 text-stone-100"
+                        : "text-emerald-50/75 hover:text-white"
+                    }`}
+                  >
+                    <span>{section.label}</span>
+                    <span
+                      className={`archive-submenu-mark text-xs opacity-60 ${archiveSubMenuOpen ? "is-open" : ""}`}
+                      aria-hidden="true"
+                    >
+                      +
+                    </span>
+                  </button>
+                  <div
+                    className={`archive-submenu ${archiveSubMenuOpen ? "is-open" : "is-collapsed"}`}
+                    style={{ maxHeight: archiveSubMenuHeight }}
+                    aria-hidden={!archiveSubMenuOpen}
+                  >
+                    <div
+                      ref={archiveSubMenuInnerRef}
+                      className="archive-submenu-inner space-y-1 border-l border-stone-400/15 pl-3"
+                    >
+                      {archiveSubSections.map((sub, index) => (
+                        <button
+                          key={sub.id}
+                          type="button"
+                          onClick={() => onSelectArchiveSub(sub.id)}
+                          className={`archive-row archive-submenu-item flex w-full items-center justify-between px-3 py-2 text-left text-xs ${
+                            activeSection === "archive" && activeArchiveSub === sub.id
+                              ? "border-stone-400/30 bg-stone-800/15 text-stone-100"
+                              : "text-emerald-50/65 hover:text-white"
+                          }`}
+                          style={{ "--archive-submenu-delay": `${index * 45}ms` } as CSSProperties}
+                        >
+                          <span>{sub.label}</span>
+                          <span className="text-[10px] opacity-50">›</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => onSelectSection(section.id)}
+                className={`archive-row group flex w-full items-center justify-between px-4 py-2.5 text-left text-sm ${
+                  activeSection === section.id
+                    ? "border-stone-400/35 bg-stone-800/20 text-stone-100"
+                    : "text-emerald-50/75 hover:text-white"
+                }`}
+              >
+                <span>{section.label}</span>
+                <span className="text-xs opacity-60">›</span>
+              </button>
+            );
+          })}
         </nav>
 
         <section

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { keepAdminTextSelection } from "@/lib/admin-interaction";
 import {
   GlitchStyleEditor,
   GlitchTickEditor,
@@ -9,11 +10,14 @@ import {
 import { GlitchZoneMark } from "@/components/GlitchZoneMark";
 import { GlitchedText } from "@/components/GlitchedText";
 import { ZoneErrorMessageEditor } from "@/components/admin/ZoneErrorMessageEditor";
+import { BuiltinTokenPicker } from "@/components/admin/BuiltinTokenPicker";
 import { GlitchZoneRangePicker } from "@/components/admin/GlitchZoneRangePicker";
 import {
   DEFAULT_GLITCH_TICK_MS,
   clampGlitchTickMs,
   fieldGlitchHasScramble,
+  glitchZoneStyleSignature,
+  glitchZoneStylesEqual,
   hasGlitchPresentation,
   normalizeGlitchZoneStyle,
 } from "@/lib/glitch-style";
@@ -22,7 +26,37 @@ import { getGlitchFieldLabel, glitchConfigSignature } from "@/lib/glitch-fields"
 import type { GlitchTextSelection } from "@/lib/glitch-selection";
 import { readGlitchTextSelection } from "@/lib/glitch-selection";
 import { normalizeFieldGlitchConfig } from "@/lib/normalize-text-glitch";
-import type { FieldGlitchConfig, GlitchScrambleMode, GlitchZoneStyle } from "@/lib/types";
+import type {
+  FieldGlitchConfig,
+  GlitchErrorDisplayMode,
+  GlitchErrorMessageSource,
+  GlitchScrambleMode,
+  GlitchZoneStyle,
+  Character,
+  ZoneLinkTarget,
+} from "@/lib/types";
+import {
+  formatZoneLinkLabel,
+  normalizeZoneLinkTarget,
+  resolveZoneLink,
+  type CharacterDetailSection,
+} from "@/lib/zone-links";
+import { AdminChoiceButton } from "@/components/admin/AdminChoiceButton";
+import { ZoneLinkEditor } from "@/components/admin/ZoneLinkEditor";
+
+interface PendingZoneDraft {
+  style: GlitchZoneStyle;
+  errorMessageSource: GlitchErrorMessageSource;
+  errorMessage?: string;
+  linkTarget?: ZoneLinkTarget;
+}
+
+function createDefaultPendingZoneDraft(style: GlitchZoneStyle): PendingZoneDraft {
+  return {
+    style,
+    errorMessageSource: "none",
+  };
+}
 
 interface TextScrambleToolConfigOptions {
   wordPool: string;
@@ -31,6 +65,8 @@ interface TextScrambleToolConfigOptions {
   defaultStyle?: GlitchZoneStyle;
   scrambleMode?: GlitchScrambleMode;
   builtinScramble?: boolean;
+  errorDisplayMode?: GlitchErrorDisplayMode;
+  builtinTokens?: string[];
 }
 
 function buildConfig({
@@ -40,6 +76,8 @@ function buildConfig({
   defaultStyle,
   scrambleMode,
   builtinScramble,
+  errorDisplayMode,
+  builtinTokens,
 }: TextScrambleToolConfigOptions): FieldGlitchConfig | undefined {
   if (zones.length === 0) {
     return undefined;
@@ -52,23 +90,9 @@ function buildConfig({
     defaultStyle,
     scrambleMode: wordPool.trim() ? scrambleMode ?? "referenceWithBuiltin" : undefined,
     builtinScramble,
+    errorDisplayMode,
+    builtinTokens: builtinTokens?.length ? builtinTokens : undefined,
   });
-}
-
-function inferErrorMessageSource(
-  pool: string,
-  builtinScramble: boolean,
-  normalizedStyle: ReturnType<typeof normalizeGlitchZoneStyle>,
-) {
-  const hasPresentation = hasGlitchPresentation(normalizedStyle);
-  const wantsReference = Boolean(pool);
-  const wantsBuiltin = !pool && builtinScramble;
-
-  if (wantsReference || wantsBuiltin) {
-    return "auto" as const;
-  }
-
-  return hasPresentation ? ("none" as const) : ("auto" as const);
 }
 
 interface TextScrambleToolProps {
@@ -80,6 +104,9 @@ interface TextScrambleToolProps {
   glitchConfig?: FieldGlitchConfig;
   onGlitchChange: (config: FieldGlitchConfig | undefined) => void;
   onNotice?: (message: string) => void;
+  allCharacters?: Character[];
+  currentCharacterId?: string;
+  currentSection?: CharacterDetailSection;
 }
 
 function truncateMiddle(text: string, maxLength = 40) {
@@ -108,21 +135,29 @@ export function TextScrambleTool({
   glitchConfig,
   onGlitchChange,
   onNotice,
+  allCharacters = [],
+  currentCharacterId = "",
+  currentSection = "characters",
 }: TextScrambleToolProps) {
   const defaults = createDefaultGlitchDraft();
   const [wordPool, setWordPool] = useState(glitchConfig?.wordPool ?? "");
   const [scrambleMode, setScrambleMode] = useState<GlitchScrambleMode>(
     glitchConfig?.scrambleMode ?? "referenceWithBuiltin",
   );
-  const [builtinScramble, setBuiltinScramble] = useState(glitchConfig?.builtinScramble !== false);
+  const [builtinScramble, setBuiltinScramble] = useState(glitchConfig?.builtinScramble === true);
+  const [errorDisplayMode, setErrorDisplayMode] = useState<GlitchErrorDisplayMode>(
+    glitchConfig?.errorDisplayMode ?? "alternate",
+  );
+  const [builtinTokens, setBuiltinTokens] = useState<string[]>(glitchConfig?.builtinTokens ?? []);
   const [workSelection, setWorkSelection] = useState<GlitchTextSelection | null>(null);
   const [toolNotice, setToolNotice] = useState("");
   const [tickMs, setTickMs] = useState(glitchConfig?.tickMs ?? DEFAULT_GLITCH_TICK_MS);
   const [zoneStyle, setZoneStyle] = useState<GlitchZoneStyle>(
     glitchConfig?.defaultStyle ?? defaults.zoneStyle,
   );
-  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
-  const [editingZoneStyle, setEditingZoneStyle] = useState<GlitchZoneStyle | null>(null);
+  const [pendingZoneDraft, setPendingZoneDraft] = useState<PendingZoneDraft>(() =>
+    createDefaultPendingZoneDraft(glitchConfig?.defaultStyle ?? defaults.zoneStyle),
+  );
   const workTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const zones = glitchConfig?.zones ?? [];
@@ -131,8 +166,20 @@ export function TextScrambleTool({
     zones,
     builtinScramble,
     scrambleMode,
+    errorDisplayMode,
+    builtinTokens,
   };
-  const hasScramble = fieldGlitchHasScramble(glitchConfig ?? draftConfig);
+  const hasScramble = fieldGlitchHasScramble(draftConfig);
+  const pendingUsesError = pendingZoneDraft.errorMessageSource !== "none";
+  const showScrambleSettings =
+    hasScramble ||
+    pendingUsesError ||
+    Boolean(wordPool.trim()) ||
+    builtinScramble;
+  const showBuiltinTokenPicker = Boolean(
+    showScrambleSettings &&
+      (wordPool.trim() ? scrambleMode === "referenceWithBuiltin" : builtinScramble),
+  );
   const activeSelection = workSelection ?? externalSelection;
   const zoneFingerprint = zones
     .map((zone) => `${zone.id}:${zone.start}:${zone.end}:${zone.original}`)
@@ -147,9 +194,11 @@ export function TextScrambleTool({
             defaultStyle: zoneStyle,
             scrambleMode,
             builtinScramble,
+            errorDisplayMode,
+            builtinTokens,
           })
         : undefined,
-    [builtinScramble, scrambleMode, tickMs, wordPool, zoneStyle, zones],
+    [builtinScramble, builtinTokens, errorDisplayMode, scrambleMode, tickMs, wordPool, zoneStyle, zones],
   );
   const previewLoopSignature = useMemo(
     () => glitchConfigSignature(fieldValue, previewConfig ?? glitchConfig),
@@ -159,31 +208,62 @@ export function TextScrambleTool({
       glitchConfig?.wordPool,
       glitchConfig?.scrambleMode,
       glitchConfig?.builtinScramble,
+      glitchConfig?.builtinTokens,
+      glitchConfig?.errorDisplayMode,
       glitchConfig?.tickMs,
       glitchConfig?.defaultStyle,
       zoneFingerprint,
     ],
   );
   const activeFieldLabel = activeFieldPath ? getGlitchFieldLabel(activeFieldPath) : null;
-  const selectionStyle = normalizeGlitchZoneStyle(zoneStyle);
+  const selectionStyle = normalizeGlitchZoneStyle(pendingZoneDraft.style);
   const canPreviewSelection = Boolean(activeSelection && hasGlitchPresentation(selectionStyle));
+  const pendingZonePreview: GlitchZone | null = activeSelection
+    ? {
+        id: "pending",
+        start: activeSelection.start,
+        end: activeSelection.end,
+        original: activeSelection.text,
+        style: pendingZoneDraft.style,
+        errorMessageSource: pendingZoneDraft.errorMessageSource,
+        ...(pendingZoneDraft.errorMessage ? { errorMessage: pendingZoneDraft.errorMessage } : {}),
+        ...(pendingZoneDraft.linkTarget ? { linkTarget: pendingZoneDraft.linkTarget } : {}),
+      }
+    : null;
 
   const notify = (message: string) => {
     setToolNotice(message);
     onNotice?.(message);
   };
 
+  const defaultStyleSignature = glitchZoneStyleSignature(glitchConfig?.defaultStyle);
+
   useEffect(() => {
     setWordPool(glitchConfig?.wordPool ?? "");
     setScrambleMode(glitchConfig?.scrambleMode ?? "referenceWithBuiltin");
-    setBuiltinScramble(glitchConfig?.builtinScramble !== false);
+    setBuiltinScramble(glitchConfig?.builtinScramble === true);
+    setErrorDisplayMode(glitchConfig?.errorDisplayMode ?? "alternate");
+    setBuiltinTokens(glitchConfig?.builtinTokens ?? []);
     setTickMs(glitchConfig?.tickMs ?? DEFAULT_GLITCH_TICK_MS);
-    setZoneStyle(glitchConfig?.defaultStyle ?? defaults.zoneStyle);
+    setZoneStyle((current) => {
+      const next = glitchConfig?.defaultStyle ?? defaults.zoneStyle;
+      return glitchZoneStylesEqual(current, next) ? current : next;
+    });
+    setPendingZoneDraft((current) => {
+      const nextStyle = glitchConfig?.defaultStyle ?? defaults.zoneStyle;
+      if (glitchZoneStylesEqual(current.style, nextStyle)) {
+        return current;
+      }
+
+      return createDefaultPendingZoneDraft(nextStyle);
+    });
     setWorkSelection(null);
   }, [
     activeFieldPath,
     glitchConfig?.builtinScramble,
-    glitchConfig?.defaultStyle,
+    glitchConfig?.builtinTokens,
+    defaultStyleSignature,
+    glitchConfig?.errorDisplayMode,
     glitchConfig?.scrambleMode,
     glitchConfig?.tickMs,
     glitchConfig?.wordPool,
@@ -198,14 +278,59 @@ export function TextScrambleTool({
         defaultStyle: options.defaultStyle ?? zoneStyle,
         scrambleMode: options.scrambleMode ?? scrambleMode,
         builtinScramble: options.builtinScramble ?? builtinScramble,
+        errorDisplayMode: options.errorDisplayMode ?? errorDisplayMode,
+        builtinTokens: options.builtinTokens ?? builtinTokens,
       }),
     );
   };
 
+  const handleErrorDisplayModeChange = (nextMode: GlitchErrorDisplayMode) => {
+    setErrorDisplayMode(nextMode);
+    if (zones.length > 0) {
+      commitConfig({ zones, errorDisplayMode: nextMode });
+    }
+  };
+
+  const handleBuiltinTokensChange = (nextTokens: string[]) => {
+    setBuiltinTokens(nextTokens);
+    if (zones.length > 0) {
+      commitConfig({ zones, builtinTokens: nextTokens });
+    }
+  };
+
   useEffect(() => {
-    setEditingZoneId(null);
-    setEditingZoneStyle(null);
-  }, [activeFieldPath]);
+    setPendingZoneDraft((current) => {
+      if (glitchZoneStylesEqual(current.style, zoneStyle)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        style: zoneStyle,
+      };
+    });
+  }, [zoneStyle]);
+
+  useEffect(() => {
+    if (!activeSelection) {
+      return;
+    }
+
+    setPendingZoneDraft((current) => {
+      if (glitchZoneStylesEqual(current.style, zoneStyle)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        style: zoneStyle,
+      };
+    });
+  }, [activeSelection?.start, activeSelection?.end, activeSelection?.text, zoneStyle]);
+
+  const updatePendingZoneDraft = (patch: Partial<PendingZoneDraft>) => {
+    setPendingZoneDraft((current) => ({ ...current, ...patch }));
+  };
 
   const updateSelectionFromTextarea = (element: HTMLTextAreaElement) => {
     setWorkSelection(readGlitchTextSelection(element));
@@ -221,8 +346,13 @@ export function TextScrambleTool({
 
   const handleZoneStyleChange = (nextStyle: GlitchZoneStyle) => {
     const normalized = normalizeGlitchZoneStyle(nextStyle) ?? {};
+    if (glitchZoneStylesEqual(normalized, zoneStyle)) {
+      return;
+    }
+
     setZoneStyle(normalized);
-    if (zones.length > 0 && !editingZoneId) {
+    updatePendingZoneDraft({ style: normalized });
+    if (zones.length > 0) {
       commitConfig({ zones, defaultStyle: normalized });
     }
   };
@@ -270,18 +400,22 @@ export function TextScrambleTool({
       return;
     }
 
-    const normalizedStyle = normalizeGlitchZoneStyle(zoneStyle);
+    const normalizedStyle = normalizeGlitchZoneStyle(pendingZoneDraft.style);
     const pool = wordPool.trim();
     const wantsReference = Boolean(pool);
     const wantsBuiltin = !pool && builtinScramble;
     const hasPresentation = hasGlitchPresentation(normalizedStyle);
+    const hasLink = Boolean(normalizeZoneLinkTarget(pendingZoneDraft.linkTarget));
 
-    if (!wantsReference && !wantsBuiltin && !hasPresentation) {
-      notify("참조 단어, 기본 오류 전환, 서식 중 하나 이상을 설정해주세요.");
+    if (!wantsReference && !wantsBuiltin && !hasPresentation && !hasLink) {
+      notify("참조 단어, 기본 오류, 서식, 페이지 이동 연결 중 하나 이상을 설정해주세요.");
       return;
     }
 
-    const errorMessageSource = inferErrorMessageSource(pool, builtinScramble, normalizedStyle);
+    const errorMessageSource = pendingZoneDraft.errorMessageSource;
+    const customMessage =
+      errorMessageSource === "custom" ? pendingZoneDraft.errorMessage?.trim() : undefined;
+    const linkTarget = normalizeZoneLinkTarget(pendingZoneDraft.linkTarget);
 
     const matchingZone = zones.find(
       (zone) =>
@@ -292,18 +426,21 @@ export function TextScrambleTool({
     if (matchingZone) {
       const nextZones = zones.map((zone) =>
         zone.id === matchingZone.id
-          ? { ...zone, style: normalizedStyle, errorMessageSource }
+          ? {
+              ...zone,
+              style: normalizedStyle,
+              errorMessageSource,
+              ...(customMessage ? { errorMessage: customMessage } : { errorMessage: undefined }),
+              ...(linkTarget ? { linkTarget, linkSubPageId: undefined } : { linkTarget: undefined, linkSubPageId: undefined }),
+            }
           : zone,
       );
       commitConfig({ zones: nextZones, defaultStyle: normalizedStyle ?? zoneStyle });
-      setEditingZoneId(matchingZone.id);
-      notify("선택한 구간의 스타일을 갱신했어요.");
+      notify("선택한 구간 설정을 갱신했어요.");
       return;
     }
 
-    const overlaps = zones.some(
-      (zone) => zone.id !== editingZoneId && zonesOverlap(zone, selection),
-    );
+    const overlaps = zones.some((zone) => zonesOverlap(zone, selection));
     if (overlaps) {
       notify("이미 적용된 구간과 겹칩니다. 「스타일 수정」으로 바꾸거나 다른 구간을 선택해주세요.");
       return;
@@ -316,15 +453,20 @@ export function TextScrambleTool({
       original: selection.text,
       style: normalizedStyle,
       errorMessageSource,
+      ...(customMessage ? { errorMessage: customMessage } : {}),
+      ...(linkTarget ? { linkTarget } : {}),
     };
 
     const nextZones = [...zones, nextZone].sort((left, right) => left.start - right.start);
     commitConfig({ zones: nextZones, defaultStyle: normalizedStyle ?? zoneStyle });
+    setPendingZoneDraft(createDefaultPendingZoneDraft(normalizedStyle ?? zoneStyle));
 
     notify(
-      wantsReference || wantsBuiltin
+      wantsReference || wantsBuiltin || errorMessageSource === "custom"
         ? `${activeFieldLabel} · ${selection.start + 1}~${selection.end}번째 글자에 오류를 지정했어요.`
-        : `${activeFieldLabel} · ${selection.start + 1}~${selection.end}번째 글자에 서식을 적용했어요.`,
+        : hasLink
+          ? `${activeFieldLabel} · ${selection.start + 1}~${selection.end}번째 글자에 페이지 이동을 연결했어요.`
+          : `${activeFieldLabel} · ${selection.start + 1}~${selection.end}번째 글자에 서식을 적용했어요.`,
     );
   };
 
@@ -339,34 +481,65 @@ export function TextScrambleTool({
     if (nextZones.length === 0) {
       onGlitchChange(undefined);
       setZoneStyle(defaults.zoneStyle);
-      closeZoneStyleEditor();
+      setPendingZoneDraft(createDefaultPendingZoneDraft(defaults.zoneStyle));
       notify("이 필드의 적용 구간을 모두 제거했어요.");
       return;
     }
 
     commitConfig({ zones: nextZones });
-    if (editingZoneId === zoneId) {
-      closeZoneStyleEditor();
-    }
     notify("선택한 구간을 제거했어요.");
   };
 
   const handleClearAllZones = () => {
     onGlitchChange(undefined);
     setZoneStyle(defaults.zoneStyle);
-    closeZoneStyleEditor();
+    setPendingZoneDraft(createDefaultPendingZoneDraft(defaults.zoneStyle));
     notify("이 필드의 적용 구간을 모두 제거했어요.");
   };
 
   const handleZoneErrorUpdate = (zoneId: string, patch: Partial<GlitchZone>) => {
     const nextZones = zones.map((zone) => (zone.id === zoneId ? { ...zone, ...patch } : zone));
     commitConfig({ zones: nextZones });
-    setEditingZoneId(zoneId);
   };
+
+  const handleZoneLinkChange = (zoneId: string, target: ZoneLinkTarget | undefined) => {
+    const nextZones = zones.map((zone) => {
+      if (zone.id !== zoneId) {
+        return zone;
+      }
+
+      if (!target) {
+        const { linkTarget: _linkTarget, linkSubPageId: _linkSubPageId, ...rest } = zone;
+        return rest;
+      }
+
+      return {
+        ...zone,
+        linkTarget: target,
+        linkSubPageId: undefined,
+      };
+    });
+
+    commitConfig({ zones: nextZones });
+    notify(
+      target
+        ? `「${zones.find((zone) => zone.id === zoneId)?.original ?? ""}」 → ${formatZoneLinkLabel(target, allCharacters)}`
+        : "페이지 이동 연결을 해제했어요.",
+    );
+  };
+
+  const linkContext = useMemo(
+    () => ({ section: currentSection, characterId: currentCharacterId }),
+    [currentCharacterId, currentSection],
+  );
 
   const handleZoneStyleUpdate = (zoneId: string, nextStyle: GlitchZoneStyle) => {
     const normalizedStyle = normalizeGlitchZoneStyle(nextStyle);
-    setEditingZoneStyle(normalizedStyle ?? nextStyle);
+    const currentZone = zones.find((zone) => zone.id === zoneId);
+    if (glitchZoneStylesEqual(normalizedStyle, currentZone?.style)) {
+      return;
+    }
+
     const nextZones = zones.map((zone) => {
       if (zone.id !== zoneId) {
         return zone;
@@ -375,22 +548,6 @@ export function TextScrambleTool({
       return normalizedStyle ? { ...zone, style: normalizedStyle } : { ...zone, style: undefined };
     });
     commitConfig({ zones: nextZones });
-    setEditingZoneId(zoneId);
-  };
-
-  const openZoneStyleEditor = (zoneId: string) => {
-    const zone = zones.find((item) => item.id === zoneId);
-    const nextStyle = zone?.style ?? glitchConfig?.defaultStyle ?? defaults.zoneStyle;
-    setEditingZoneId(zoneId);
-    setEditingZoneStyle(nextStyle);
-    setZoneStyle(nextStyle);
-    setWorkSelection(null);
-    onExternalSelectionClear?.();
-  };
-
-  const closeZoneStyleEditor = () => {
-    setEditingZoneId(null);
-    setEditingZoneStyle(null);
   };
 
   return (
@@ -401,8 +558,8 @@ export function TextScrambleTool({
     >
       <h3 className="text-sm font-semibold text-emerald-50">텍스트 오류 · 서식 도구</h3>
       <p className="mt-2 text-xs leading-6 text-emerald-100/60">
-        필드를 고른 뒤 아래에서 구간을 지정하세요. 드래그 없이도 전체 적용, 문구 찾기, 글자
-        번호로 지정할 수 있습니다.
+        필드를 고른 뒤 구간을 선택하고, 적용 전에 스타일·오류 메시지·페이지 이동을 모두 설정할 수
+        있습니다.
       </p>
 
       {activeFieldPath ? (
@@ -418,19 +575,12 @@ export function TextScrambleTool({
         </p>
       )}
 
-      <GlitchStyleEditor
-        style={zoneStyle}
-        onStyleChange={handleZoneStyleChange}
-      />
-
-      {editingZoneId ? (
-        <p className="mt-2 border border-emerald-200/20 bg-emerald-950/20 px-3 py-2 text-[11px] leading-5 text-emerald-100/70">
-          구간 스타일을 편집 중입니다. 아래 「저장될 구간」에서 색·굵게·기울임을 바꿔도 패널이 닫히지 않습니다.
-        </p>
+      {!activeSelection ? (
+        <GlitchStyleEditor style={zoneStyle} onStyleChange={handleZoneStyleChange} />
       ) : null}
 
       <label className="mt-3 grid gap-2 text-xs text-emerald-100/70">
-        참조 단어 <span className="text-emerald-100/45">(선택 · 오류 메시지 재료)</span>
+        참조 단어 <span className="text-emerald-100/45">(선택 · 오류 메시지를 쓰는 구간만)</span>
         <textarea
           value={wordPool}
           onChange={(event) => {
@@ -446,34 +596,24 @@ export function TextScrambleTool({
         />
       </label>
 
-      {wordPool.trim() ? (
+      {showScrambleSettings && wordPool.trim() ? (
         <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
           <legend className="px-1 text-[11px] font-medium text-emerald-100/85">오류 메시지 구성</legend>
           <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
+            <AdminChoiceButton
+              active={scrambleMode === "referenceOnly"}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => handleScrambleModeChange("referenceOnly")}
-              className={
-                scrambleMode === "referenceOnly"
-                  ? "bg-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-950"
-                  : "border border-emerald-100/20 px-2 py-1 text-[11px] text-emerald-50"
-              }
             >
               참조 단어만
-            </button>
-            <button
-              type="button"
+            </AdminChoiceButton>
+            <AdminChoiceButton
+              active={scrambleMode === "referenceWithBuiltin"}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => handleScrambleModeChange("referenceWithBuiltin")}
-              className={
-                scrambleMode === "referenceWithBuiltin"
-                  ? "bg-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-950"
-                  : "border border-emerald-100/20 px-2 py-1 text-[11px] text-emerald-50"
-              }
             >
               참조 단어 + 기본 기호
-            </button>
+            </AdminChoiceButton>
           </div>
           <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
             「기본 기호」는 #, ?, ERR, NULL, ??? 같은 기본 제공 문구·기호입니다.
@@ -482,7 +622,7 @@ export function TextScrambleTool({
               : null}
           </p>
         </fieldset>
-      ) : (
+      ) : showScrambleSettings ? (
         <label className="mt-3 flex items-start gap-2 border border-emerald-100/15 bg-black/25 p-3 text-xs text-emerald-100/75">
           <input
             type="checkbox"
@@ -491,13 +631,47 @@ export function TextScrambleTool({
             className="mt-1"
           />
           <span>
-            <span className="font-medium text-emerald-50">기본 오류 메시지로 전환</span>
+            <span className="font-medium text-emerald-50">기본 오류 메시지 사용</span>
             <span className="mt-1 block text-[11px] leading-5 text-emerald-100/50">
-              참조 단어 없이 ERR, NULL, ???, # 같은 기본 제공 문구만 사용합니다.
+              「오류 메시지 사용」을 켠 구간에 ERR, NULL, ??? 같은 기본 문구를 넣습니다.
             </span>
           </span>
         </label>
-      )}
+      ) : null}
+
+      {showBuiltinTokenPicker ? (
+        <BuiltinTokenPicker
+          selectedTokens={builtinTokens}
+          onChange={handleBuiltinTokensChange}
+        />
+      ) : null}
+
+      {showScrambleSettings && hasScramble ? (
+        <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
+          <legend className="px-1 text-[11px] font-medium text-emerald-100/85">전환 방식</legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <AdminChoiceButton
+              active={errorDisplayMode === "alternate"}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => handleErrorDisplayModeChange("alternate")}
+            >
+              원문 ↔ 오류 번갈아
+            </AdminChoiceButton>
+            <AdminChoiceButton
+              active={errorDisplayMode === "randomOnly"}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => handleErrorDisplayModeChange("randomOnly")}
+            >
+              오류만 랜덤
+            </AdminChoiceButton>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
+            {errorDisplayMode === "alternate"
+              ? "본 페이지처럼 원문과 오류 메시지가 번갈아 보입니다."
+              : "원문 없이 오류 메시지만 계속 바뀝니다."}
+          </p>
+        </fieldset>
+      ) : null}
 
       {hasScramble ? <GlitchTickEditor tickMs={tickMs} onTickMsChange={handleTickMsChange} /> : null}
 
@@ -530,10 +704,11 @@ export function TextScrambleTool({
         onNotice={notify}
       />
 
-      {activeSelection ? (
-        <div className="mt-3 border border-amber-300/35 bg-amber-950/25 p-3">
+      {activeSelection && pendingZonePreview ? (
+        <div className="mt-3 border border-amber-300/35 bg-amber-950/25 p-3" onMouseDown={keepAdminTextSelection}>
           <p className="text-xs font-medium text-amber-100">
-            선택한 구간 · {activeSelection.start + 1}~{activeSelection.end}번째 글자 ({activeSelection.text.length}자)
+            선택 구간 설정 · {activeSelection.start + 1}~{activeSelection.end}번째 글자 (
+            {activeSelection.text.length}자)
           </p>
           <p className="mt-2 break-all text-sm leading-7 text-emerald-50/90">
             {fieldValue.slice(Math.max(0, activeSelection.start - 24), activeSelection.start)}
@@ -542,7 +717,7 @@ export function TextScrambleTool({
           </p>
           {canPreviewSelection ? (
             <div className="mt-3 border border-emerald-100/15 bg-black/30 p-2">
-              <p className="text-[11px] text-emerald-100/55">선택 구간 서식 미리보기</p>
+              <p className="text-[11px] text-emerald-100/55">서식 미리보기</p>
               <p className="mt-2 text-sm leading-7 text-emerald-50/90">
                 <GlitchZoneMark
                   text={activeSelection.text}
@@ -552,30 +727,58 @@ export function TextScrambleTool({
               </p>
             </div>
           ) : null}
+          <GlitchStyleEditor
+            compact
+            style={pendingZoneDraft.style}
+            onStyleChange={(nextStyle) => {
+              handleZoneStyleChange(nextStyle);
+            }}
+          />
+          <ZoneErrorMessageEditor
+            zone={pendingZonePreview}
+            wordPool={wordPool}
+            scrambleMode={scrambleMode}
+            builtinScramble={builtinScramble}
+            builtinTokens={builtinTokens}
+            onChange={(patch) =>
+              updatePendingZoneDraft({
+                errorMessageSource: patch.errorMessageSource ?? pendingZoneDraft.errorMessageSource,
+                errorMessage: patch.errorMessage,
+              })
+            }
+          />
+          <ZoneLinkEditor
+            target={pendingZoneDraft.linkTarget}
+            allCharacters={allCharacters}
+            currentCharacterId={currentCharacterId}
+            currentSection={currentSection}
+            onChange={(nextTarget) => updatePendingZoneDraft({ linkTarget: nextTarget })}
+            immediateApply
+          />
         </div>
       ) : (
         <p className="mt-3 border border-stone-500/20 bg-stone-950/30 p-3 text-xs leading-6 text-stone-300">
           위 「드래그 없이 구간 지정」에서 전체 적용, 문구 찾기, 글자 번호를 사용하거나 작업 텍스트를
-          드래그해도 됩니다.
+          드래그한 뒤, 여기서 스타일·오류·이동 연결을 먼저 설정하세요.
         </p>
       )}
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <button
-          type="button"
+        <AdminChoiceButton
+          variant="primary"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => handleAddZone()}
           disabled={!activeFieldPath || !activeSelection}
-          className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950 disabled:cursor-not-allowed disabled:opacity-50"
+          className="px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
         >
           이 구간에 적용
-        </button>
+        </AdminChoiceButton>
         <button
           type="button"
           onMouseDown={(event) => event.preventDefault()}
           onClick={handleClearAllZones}
           disabled={!activeFieldPath || zones.length === 0}
-          className="border border-emerald-100/20 px-3 py-2 text-xs text-emerald-50 disabled:cursor-not-allowed disabled:opacity-40"
+          className="admin-ghost-btn px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40"
         >
           이 필드 전부 제거
         </button>
@@ -584,20 +787,10 @@ export function TextScrambleTool({
       {zones.length > 0 && (
         <div className="mt-4 space-y-2">
           <p className="text-xs font-medium text-emerald-100/80">저장될 구간</p>
-          {zones.map((zone, index) => {
-            const isEditing = editingZoneId === zone.id;
-            const zoneEditorStyle = isEditing
-              ? editingZoneStyle ?? zone.style ?? zoneStyle
-              : zone.style ?? zoneStyle;
-
-            return (
+          {zones.map((zone, index) => (
             <div
               key={zone.id}
-              className={
-                isEditing
-                  ? "border border-emerald-200/35 bg-emerald-950/25 px-3 py-2"
-                  : "border border-emerald-100/15 bg-black/25 px-3 py-2"
-              }
+              className="border border-emerald-100/15 bg-black/25 px-3 py-2"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0 text-xs leading-6 text-emerald-50/90">
@@ -615,6 +808,11 @@ export function TextScrambleTool({
                   {zone.errorMessageSource === "none" ? (
                     <span className="ml-2 text-emerald-100/45">· 서식만</span>
                   ) : null}
+                  {resolveZoneLink(zone, linkContext) ? (
+                    <span className="ml-2 text-sky-200/80">
+                      · {formatZoneLinkLabel(resolveZoneLink(zone, linkContext)!, allCharacters)}
+                    </span>
+                  ) : null}
                   {zone.style || zoneStyle ? (
                     <>
                       <span className="mx-2 text-emerald-100/40">|</span>
@@ -627,54 +825,41 @@ export function TextScrambleTool({
                   ) : null}
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  {!isEditing ? (
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={() => openZoneStyleEditor(zone.id)}
-                      className="border border-emerald-100/20 px-2 py-1 text-[11px] text-emerald-50"
-                    >
-                      스타일 · 오류 수정
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onMouseDown={(event) => event.preventDefault()}
-                      onClick={closeZoneStyleEditor}
-                      className="border border-emerald-200/30 bg-emerald-200/10 px-2 py-1 text-[11px] text-emerald-50"
-                    >
-                      편집 끝내기
-                    </button>
-                  )}
                   <button
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => handleRemoveZone(zone.id)}
-                    className="border border-emerald-100/20 px-2 py-1 text-[11px] text-emerald-50"
+                    className="admin-ghost-btn px-2 py-1 text-[11px]"
                   >
                     제거
                   </button>
                 </div>
               </div>
-              {isEditing ? (
-                <div className="mt-3" onMouseDown={(event) => event.preventDefault()}>
-                  <GlitchStyleEditor
-                    compact
-                    style={zoneEditorStyle}
-                    onStyleChange={(nextStyle) => handleZoneStyleUpdate(zone.id, nextStyle)}
-                  />
-                  <ZoneErrorMessageEditor
-                    zone={zone}
-                    wordPool={wordPool}
-                    scrambleMode={scrambleMode}
-                    builtinScramble={builtinScramble}
-                    onChange={(patch) => handleZoneErrorUpdate(zone.id, patch)}
-                  />
-                </div>
-              ) : null}
+              <div className="mt-3" onMouseDown={keepAdminTextSelection}>
+                <GlitchStyleEditor
+                  compact
+                  style={zone.style ?? zoneStyle}
+                  onStyleChange={(nextStyle) => handleZoneStyleUpdate(zone.id, nextStyle)}
+                />
+                <ZoneErrorMessageEditor
+                  zone={zone}
+                  wordPool={wordPool}
+                  scrambleMode={scrambleMode}
+                  builtinScramble={builtinScramble}
+                  builtinTokens={builtinTokens}
+                  onChange={(patch) => handleZoneErrorUpdate(zone.id, patch)}
+                />
+                <ZoneLinkEditor
+                  target={resolveZoneLink(zone, linkContext)}
+                  allCharacters={allCharacters}
+                  currentCharacterId={currentCharacterId}
+                  currentSection={currentSection}
+                  onChange={(nextTarget) => handleZoneLinkChange(zone.id, nextTarget)}
+                  immediateApply
+                />
+              </div>
             </div>
-            );
-          })}
+          ))}
         </div>
       )}
 
@@ -682,7 +867,9 @@ export function TextScrambleTool({
         <p className="text-xs font-medium text-emerald-100/80">본 페이지 미리보기</p>
         <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
           {hasScramble
-            ? "본 페이지와 같이 원문 ↔ 오류 메시지가 번갈아 바뀝니다."
+            ? errorDisplayMode === "alternate"
+              ? "본 페이지와 같이 원문 ↔ 오류 메시지가 번갈아 바뀝니다."
+              : "본 페이지와 같이 오류 메시지만 계속 랜덤으로 바뀝니다."
             : "본 페이지와 같이 서식·색상이 적용된 모습입니다."}
         </p>
         <p className="mt-3 min-h-16 whitespace-pre-wrap break-all text-sm leading-7 text-emerald-50/90">

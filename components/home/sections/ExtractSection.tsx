@@ -2,12 +2,19 @@
 
 import { cn } from "@/utils/cn";
 import { ArchiveMotion } from "@/components/home/ArchiveMotion";
+import { thumbnailStyle } from "@/lib/image-helpers";
+import type { PersonalHomeBanner } from "@/lib/types";
 
 interface ExtractSectionProps {
+  banners: PersonalHomeBanner[];
   className?: string;
 }
 
-export function ExtractSection({ className }: ExtractSectionProps) {
+function bannerOpensInNewTab(linkUrl: string) {
+  return !linkUrl.startsWith("/") || linkUrl.startsWith("//");
+}
+
+export function ExtractSection({ banners, className }: ExtractSectionProps) {
   return (
     <ArchiveMotion
       as="section"
@@ -15,11 +22,39 @@ export function ExtractSection({ className }: ExtractSectionProps) {
       motionKey="extract"
       className={cn("glass-card p-6 md:p-8", className)}
     >
-      <p className="archive-kicker">@/1_R#0?/@...</p>
-      <h3 className="archive-title mt-3 font-serif text-5xl">아직 공사중</h3>
-      <p className="archive-panel mt-5 p-5 text-sm leading-7 text-emerald-50/70">
-        아직 무슨 기능을 넣을지 정하지 않았어요.
-      </p>
+      <p className="archive-kicker">BANNER</p>
+      <h3 className="archive-title mt-3 font-serif text-5xl">Banner</h3>
+
+      <ArchiveMotion
+        variant="stagger"
+        motionKey={`extract-banners-${banners.length}`}
+        className="mt-5 flex flex-col gap-3"
+      >
+        {banners.length > 0 ? (
+          banners.map((banner) => (
+            <a
+              key={banner.id}
+              href={banner.linkUrl}
+              target={bannerOpensInNewTab(banner.linkUrl) ? "_blank" : undefined}
+              rel={bannerOpensInNewTab(banner.linkUrl) ? "noopener noreferrer" : undefined}
+              title={banner.label || undefined}
+              className="extract-banner-link group"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+              <img
+                src={banner.image.url}
+                alt={banner.label || "Banner"}
+                className="extract-banner-image"
+                style={thumbnailStyle(banner.image)}
+              />
+            </a>
+          ))
+        ) : (
+          <p className="archive-panel p-5 text-sm text-emerald-100/60">
+            아직 등록된 배너가 없어요.
+          </p>
+        )}
+      </ArchiveMotion>
     </ArchiveMotion>
   );
 }

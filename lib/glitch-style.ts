@@ -1,11 +1,17 @@
 import type { CSSProperties } from "react";
 import type { FieldGlitchConfig, GlitchMarkdown, GlitchZoneStyle } from "@/lib/types";
 import { fieldConfigHasScrambleAlternation } from "@/lib/glitch-scramble-options";
+import { fieldGlitchHasLinks } from "@/lib/zone-links";
 
 export const DEFAULT_GLITCH_TICK_MS = 800;
 export const MIN_GLITCH_TICK_MS = 100;
 export const MAX_GLITCH_TICK_MS = 10000;
 export const GLITCH_TICK_PULSE_MS = 100;
+
+export const MIN_DECORATION_THICKNESS_PX = 0.5;
+export const MAX_DECORATION_THICKNESS_PX = 12;
+export const DEFAULT_DECORATION_THICKNESS_PX = 2;
+export const DECORATION_THICKNESS_STEP_PX = 0.5;
 
 export const GLITCH_STYLE_PRESETS: Record<string, GlitchZoneStyle> = {
   inherit: {},
@@ -41,6 +47,24 @@ export function normalizeColorInput(value: string | undefined) {
   return HEX_COLOR_PATTERN.test(withHash) ? withHash : undefined;
 }
 
+export function clampDecorationThicknessPx(value: number | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return undefined;
+  }
+
+  const stepped =
+    Math.round(value / DECORATION_THICKNESS_STEP_PX) * DECORATION_THICKNESS_STEP_PX;
+
+  return Math.min(
+    MAX_DECORATION_THICKNESS_PX,
+    Math.max(MIN_DECORATION_THICKNESS_PX, stepped),
+  );
+}
+
+export function formatDecorationThicknessPx(value: number) {
+  return Number.isInteger(value) ? `${value}px` : `${value.toFixed(1)}px`;
+}
+
 function normalizeMarkdown(value: unknown): GlitchMarkdown | undefined {
   if (!value || typeof value !== "object") {
     return undefined;
@@ -51,6 +75,8 @@ function normalizeMarkdown(value: unknown): GlitchMarkdown | undefined {
 
   if (markdown.bold) next.bold = true;
   if (markdown.italic) next.italic = true;
+  if (markdown.underline) next.underline = true;
+  if (markdown.strikethrough) next.strikethrough = true;
 
   return Object.keys(next).length > 0 ? next : undefined;
 }
@@ -65,6 +91,10 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
   const raw = value as GlitchZoneStyle & { backgroundColor?: string };
   const next: GlitchZoneStyle = {};
   const textColor = normalizeColorInput(raw.textColor);
+  const underlineColor = normalizeColorInput(raw.underlineColor);
+  const strikethroughColor = normalizeColorInput(raw.strikethroughColor);
+  const underlineThickness = clampDecorationThicknessPx(raw.underlineThickness);
+  const strikethroughThickness = clampDecorationThicknessPx(raw.strikethroughThickness);
   const markdown = normalizeMarkdown(raw.markdown);
   const hadLegacyPaint = Boolean(raw.backgroundColor?.trim());
   const isLegacyErrorColor = Boolean(
@@ -75,11 +105,35 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
     next.textColor = textColor;
   }
 
+  if (underlineColor) {
+    next.underlineColor = underlineColor;
+  }
+
+  if (strikethroughColor) {
+    next.strikethroughColor = strikethroughColor;
+  }
+
+  if (underlineThickness) {
+    next.underlineThickness = underlineThickness;
+  }
+
+  if (strikethroughThickness) {
+    next.strikethroughThickness = strikethroughThickness;
+  }
+
   if (markdown) {
     next.markdown = markdown;
   }
 
   return Object.keys(next).length > 0 ? next : undefined;
+}
+
+export function glitchZoneStyleSignature(style?: GlitchZoneStyle) {
+  return JSON.stringify(normalizeGlitchZoneStyle(style) ?? null);
+}
+
+export function glitchZoneStylesEqual(left?: GlitchZoneStyle, right?: GlitchZoneStyle) {
+  return glitchZoneStyleSignature(left) === glitchZoneStyleSignature(right);
 }
 
 export function mergeGlitchZoneStyles(
@@ -111,19 +165,25 @@ export function mergeGlitchZoneStyles(
   };
 }
 
-export function resolveGlitchZonePresentation(zoneStyle?: GlitchZoneStyle) {
+export function resolveGlitchZonePresentation(
+  zoneStyle?: GlitchZoneStyle,
+  options?: { linkUnderline?: boolean },
+) {
   const normalized = normalizeGlitchZoneStyle(zoneStyle);
   const markdown = normalized?.markdown;
+  const wantsUnderline = Boolean(markdown?.underline || options?.linkUnderline);
 
-  const inlineStyle: CSSProperties = {
+  const inlineStyle: CSSProperties & Record<string, string | number | undefined> = {
     backgroundColor: "transparent",
     background: "none",
     boxShadow: "none",
     textShadow: "none",
+    "--glitch-decoration-color": "currentColor",
   };
 
   if (normalized?.textColor) {
     inlineStyle.color = normalized.textColor;
+    inlineStyle["--glitch-decoration-color"] = normalized.textColor;
   }
 
   if (markdown?.bold) {
@@ -134,9 +194,36 @@ export function resolveGlitchZonePresentation(zoneStyle?: GlitchZoneStyle) {
     inlineStyle.fontStyle = "italic";
   }
 
+  if (wantsUnderline) {
+    if (normalized?.underlineColor) {
+      inlineStyle["--glitch-underline-color"] = normalized.underlineColor;
+      inlineStyle.textDecorationColor = normalized.underlineColor;
+    }
+
+    const underlineThickness = normalized?.underlineThickness ?? DEFAULT_DECORATION_THICKNESS_PX;
+    inlineStyle["--glitch-underline-thickness"] = formatDecorationThicknessPx(underlineThickness);
+    inlineStyle.textDecorationThickness = underlineThickness;
+  }
+
+  if (markdown?.strikethrough) {
+    if (normalized?.strikethroughColor) {
+      inlineStyle["--glitch-strikethrough-color"] = normalized.strikethroughColor;
+    }
+
+    const strikethroughThickness =
+      normalized?.strikethroughThickness ?? DEFAULT_DECORATION_THICKNESS_PX;
+    inlineStyle["--glitch-strikethrough-thickness"] =
+      formatDecorationThicknessPx(strikethroughThickness);
+  }
+
   return {
     merged: normalized ?? {},
     inlineStyle,
+    decoration: {
+      underline: wantsUnderline && !options?.linkUnderline,
+      linkUnderline: Boolean(options?.linkUnderline && wantsUnderline),
+      strikethrough: Boolean(markdown?.strikethrough),
+    },
   };
 }
 
@@ -157,7 +244,13 @@ export function hasGlitchPresentation(style?: GlitchZoneStyle): boolean {
   return Boolean(
     normalized.textColor ||
       markdown?.bold ||
-      markdown?.italic,
+      markdown?.italic ||
+      markdown?.underline ||
+      markdown?.strikethrough ||
+      normalized.underlineColor ||
+      normalized.strikethroughColor ||
+      normalized.underlineThickness ||
+      normalized.strikethroughThickness,
   );
 }
 
@@ -182,5 +275,9 @@ export function fieldGlitchHasScramble(
 export function isValidFieldGlitchConfig(
   config?: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble" | "zones" | "defaultStyle">,
 ) {
-  return fieldGlitchHasScramble(config) || fieldGlitchHasPresentation(config);
+  return (
+    fieldGlitchHasScramble(config) ||
+    fieldGlitchHasPresentation(config) ||
+    fieldGlitchHasLinks(config)
+  );
 }

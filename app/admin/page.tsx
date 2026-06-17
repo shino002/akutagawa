@@ -5,29 +5,56 @@ import Link from "next/link";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import { collection, deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId } from "@/lib/auth-helpers";
-import { CHARACTER_ONLY_BGM_OPTIONS, SITE_BGM_OPTIONS, resolveCharacterBgmUrl } from "@/lib/bgm-playlist";
+import { normalizeBgmTracks, resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { characterPaletteStyle } from "@/lib/character-palette";
 import { clamp, thumbnailStyle } from "@/lib/image-helpers";
-import type { Character, CharacterWorldEntry, DiaryEntry, GuestbookEntry, HomeContent, SettingSection, UploadedImage, Work, World } from "@/lib/types";
+import { ProfileFieldsEditor, profileFieldGlitchPath } from "@/components/admin/ProfileFieldsEditor";
+import { BgmQuickPicker } from "@/components/admin/BgmQuickPicker";
+import { useBgmCatalog } from "@/hooks/useBgmCatalog";
+import { createDefaultProfileFields, normalizeProfileFields, profileFieldsHaveContent } from "@/lib/profile-fields";
+import { isAllowedBannerLinkUrl, normalizePersonalHomeBanners } from "@/lib/personal-home-banners";
+import type {
+  Character,
+  CharacterKind,
+  CharacterWorldEntry,
+  DiaryEntry,
+  ExtractContent,
+  GuestbookEntry,
+  HomeContent,
+  BgmTrack,
+  BgmTrackScope,
+  PersonalHomeBanner,
+  SettingSection,
+  UploadedImage,
+  Work,
+  World,
+} from "@/lib/types";
 import type { CharacterDraft } from "@/lib/character-draft";
 import {
   compactDraftTextGlitch,
-  buildGlitchFieldOptions,
+  compactSubPageTextGlitch,
+  buildGlitchFieldOptionGroups,
+  countDraftGlitchFields,
   getCharacterDraftFieldValue,
+  getDraftGlitchConfig,
   getGlitchFieldLabel,
+  parseSubPageGlitchPath,
   pruneDraftTextGlitch,
+  pruneSubPageTextGlitch,
   settingSectionGlitchPath,
   updateDraftFieldValue,
   updateDraftGlitchPath,
 } from "@/lib/glitch-fields";
 import { TextScrambleTool } from "@/components/admin/TextScrambleTool";
+import { SubPageEditor } from "@/components/admin/SubPageEditor";
+import { PairMemberPicker } from "@/components/admin/PairMemberPicker";
 import { AdminCollapsiblePanel } from "@/components/admin/AdminCollapsiblePanel";
 import {
   CharacterEditSectionNav,
   type CharacterEditSection,
 } from "@/components/admin/CharacterEditSectionNav";
-import { omitUndefined } from "@/lib/firestore-helpers";
+import { characterFirestorePayload, omitUndefined } from "@/lib/firestore-helpers";
 import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
 import {
   buildTextGlitchFirestorePatch,
@@ -35,10 +62,40 @@ import {
 } from "@/lib/text-glitch-persistence";
 import { readGlitchTextSelection, type GlitchTextSelection } from "@/lib/glitch-selection";
 import {
-  legacySettingsToSections,
+  CHARACTER_KINDS,
+  CHARACTER_KIND_ADMIN_LABELS,
+  filterCharactersByKind,
+  filterPairLinkableCharacters,
+  normalizeCharacterKind,
+} from "@/lib/character-kind";
+import { characterKindToSection } from "@/lib/zone-links";
+import { normalizeSubPages } from "@/lib/sub-pages";
+import {
+  formatPairDisplayName,
+  normalizePairMemberIds,
+  resolvePairMemberIds,
+} from "@/lib/pair-members";
+import {
+  buildWorldGlitchFieldOptions,
+  compactWorldDraftTextGlitch,
+  countWorldDraftGlitchFields,
+  createBlankWorldDraft,
+  getWorldDraftFieldValue,
+  getWorldGlitchFieldLabel,
+  pruneWorldDraftTextGlitch,
+  updateWorldDraftFieldValue,
+  updateWorldDraftGlitchPath,
+  worldToDraft,
+  type WorldDraft,
+} from "@/lib/world-glitch-fields";
+import {
   normalizeSettingSections,
   resolveDraftSettingSections,
 } from "@/lib/setting-sections";
+import {
+  canRecoverFromLegacyPairMembers,
+  recoverCharacterFromLegacyPairMember,
+} from "@/lib/legacy-pair-member-recovery";
 
 // 관리자 페이지에서만 쓰는 업로드 대기/폼 입력 타입입니다.
 type PendingUpload = {
@@ -64,16 +121,9 @@ type PaletteOption = {
   value: string;
 };
 
-type WorldDraft = {
-  id: string;
-  title: string;
-  subtitle: string;
-  description: string;
-  password: string;
-};
-
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+const MAX_AUDIO_UPLOAD_SIZE = 15 * 1024 * 1024;
 const paletteOptions: PaletteOption[] = [
   { label: "꺼진 화면", value: "from-zinc-950 via-black to-zinc-900" },
   { label: "잿빛 흑백", value: "from-zinc-200 via-zinc-800 to-black" },
@@ -218,13 +268,14 @@ function linesToList(value: string) {
 }
 
 function characterToDraft(character: Character): CharacterDraft {
-  const { settingSections, settingsText } = resolveDraftSettingSections(
+  const { settingSections } = resolveDraftSettingSections(
     character.settingSections,
     character.settings,
   );
 
   return {
     id: character.id,
+    kind: normalizeCharacterKind(character.kind),
     name: character.name,
     kanjiName: character.kanjiName ?? "",
     statusTagsText: (character.statusTags ?? []).join("\n"),
@@ -232,14 +283,12 @@ function characterToDraft(character: Character): CharacterDraft {
     subtitle: character.subtitle,
     quote: character.quote,
     palette: character.palette,
-    age: character.profile.age,
-    height: character.profile.height,
-    role: character.profile.role,
-    keyword: character.profile.keyword,
-    settingsText,
+    profileFields: character.profileFields,
     settingSections,
     relationshipsText: character.relationships.join("\n"),
     textGlitch: normalizeTextGlitch(character.textGlitch),
+    subPages: normalizeSubPages(character.subPages),
+    pairMemberIds: resolvePairMemberIds(character),
     bgmUrl: character.bgmUrl ?? "",
   };
 }
@@ -251,10 +300,49 @@ function getLegacySettingsMigrationNotice(character: Character) {
     : null;
 }
 
+function draftBasicsLookEmpty(draft: CharacterDraft) {
+  return (
+    !draft.quote.trim() &&
+    !draft.subtitle.trim() &&
+    !profileFieldsHaveContent(draft.profileFields) &&
+    !draft.kanjiName.trim() &&
+    !draft.statusTagsText.trim() &&
+    !draft.classification.trim() &&
+    !draft.relationshipsText.trim() &&
+    normalizeSettingSections(draft.settingSections).length === 0
+  );
+}
+
+function draftBasicsHaveContent(draft: CharacterDraft) {
+  return !draftBasicsLookEmpty(draft);
+}
+
+/** 분류만 바꾸다 빈 폼이 저장되며 카드·레코드가 지워지는 실수를 막습니다. */
+function mergeDraftForKindMigration(draft: CharacterDraft, existing: Character): CharacterDraft {
+  const existingDraft = characterToDraft(existing);
+  const kindChanged = normalizeCharacterKind(draft.kind) !== normalizeCharacterKind(existing.kind);
+
+  if (!kindChanged || !draftBasicsLookEmpty(draft) || !draftBasicsHaveContent(existingDraft)) {
+    return draft;
+  }
+
+  return {
+    ...existingDraft,
+    kind: draft.kind,
+    id: draft.id.trim() || existingDraft.id,
+    name: draft.name.trim() || existingDraft.name,
+    pairMemberIds: draft.kind === "pair" ? existingDraft.pairMemberIds : ["", ""],
+    textGlitch: Object.keys(draft.textGlitch).length > 0 ? draft.textGlitch : existingDraft.textGlitch,
+    subPages: draft.subPages.length > 0 ? draft.subPages : existingDraft.subPages,
+    bgmUrl: draft.bgmUrl.trim() ? draft.bgmUrl : existingDraft.bgmUrl,
+  };
+}
+
 // Firestore 문서와 관리자 입력 폼 사이를 오가는 변환 함수들입니다.
-function createBlankDraft(): CharacterDraft {
+function createBlankDraft(kind: CharacterKind = "oc"): CharacterDraft {
   return {
     id: "",
+    kind,
     name: "",
     kanjiName: "",
     statusTagsText: "",
@@ -262,14 +350,12 @@ function createBlankDraft(): CharacterDraft {
     subtitle: "",
     quote: "",
     palette: "from-zinc-950 via-black to-zinc-900",
-    age: "",
-    height: "",
-    role: "",
-    keyword: "",
-    settingsText: "",
+    profileFields: createDefaultProfileFields(),
     settingSections: [],
     relationshipsText: "",
     textGlitch: {},
+    subPages: [],
+    pairMemberIds: ["", ""],
     bgmUrl: "",
   };
 }
@@ -279,15 +365,19 @@ function draftToCharacter(
   currentWorks: Work[] = [],
   currentImages: UploadedImage[] = [],
   currentWorldEntries: CharacterWorldEntry[] = [],
+  existingCharacter?: Character,
+  allCharacters: Character[] = [],
 ): Character {
   const name = draft.name.trim();
   const id = slugifyId(draft.id || name);
+  const kind = normalizeCharacterKind(draft.kind);
 
   const textGlitch = compactDraftTextGlitch(draft.textGlitch, draft);
   const bgmUrl = resolveCharacterBgmUrl(draft.bgmUrl);
 
   const characterBase: Character = {
     id,
+    kind,
     name,
     kanjiName: draft.kanjiName.trim(),
     statusTags: linesToList(draft.statusTagsText),
@@ -295,19 +385,37 @@ function draftToCharacter(
     subtitle: draft.subtitle.trim(),
     quote: draft.quote.trim(),
     palette: draft.palette.trim() || "from-zinc-950 via-black to-zinc-900",
-    profile: {
-      age: draft.age.trim(),
-      height: draft.height.trim(),
-      role: draft.role.trim(),
-      keyword: draft.keyword.trim(),
-    },
-    settings: linesToList(draft.settingsText),
+    profileFields: draft.profileFields.map((field) => ({
+      id: field.id,
+      label: field.label.trim(),
+      value: field.value.trim(),
+    })),
+    settings: [],
     settingSections: normalizeSettingSections(draft.settingSections),
     relationships: linesToList(draft.relationshipsText),
     images: currentImages,
     works: currentWorks,
     worldEntries: currentWorldEntries,
+    subPages: normalizeSubPages(draft.subPages).map((subPage) => {
+      const subPageGlitch = compactSubPageTextGlitch(subPage);
+      return subPageGlitch ? { ...subPage, textGlitch: subPageGlitch } : subPage;
+    }),
   };
+
+  if (kind === "pair") {
+    const pairMemberIds = normalizePairMemberIds(draft.pairMemberIds);
+    const pairCharacter: Character = {
+      ...characterBase,
+      name: name || formatPairDisplayName({ ...characterBase, pairMemberIds }, allCharacters),
+      pairMemberIds,
+    };
+
+    return {
+      ...pairCharacter,
+      ...(bgmUrl ? { bgmUrl } : {}),
+      ...(textGlitch ? { textGlitch } : {}),
+    };
+  }
 
   const character: Character = {
     ...characterBase,
@@ -327,23 +435,53 @@ function createBlankDiaryEntry(): DiaryEntry {
   };
 }
 
-function createBlankWorldDraft(): WorldDraft {
+type ExtractBannerDraft = {
+  id: string;
+  label: string;
+  linkUrl: string;
+  image: UploadedImage | null;
+};
+
+function createBlankExtractBannerDraft(): ExtractBannerDraft {
   return {
     id: "",
-    title: "",
-    subtitle: "",
-    description: "",
-    password: "",
+    label: "",
+    linkUrl: "",
+    image: null,
   };
 }
 
-function worldToDraft(world: World): WorldDraft {
+function extractBannerDraftFromBanner(banner: PersonalHomeBanner): ExtractBannerDraft {
   return {
-    id: world.id,
-    title: world.title,
-    subtitle: world.subtitle,
-    description: world.description,
-    password: world.password ?? "",
+    id: banner.id,
+    label: banner.label,
+    linkUrl: banner.linkUrl,
+    image: banner.image,
+  };
+}
+
+type BgmTrackDraft = {
+  id: string;
+  label: string;
+  url: string;
+  scope: BgmTrackScope;
+};
+
+function createBlankBgmTrackDraft(): BgmTrackDraft {
+  return {
+    id: "",
+    label: "",
+    url: "",
+    scope: "site",
+  };
+}
+
+function bgmTrackDraftFromTrack(track: BgmTrack): BgmTrackDraft {
+  return {
+    id: track.id,
+    label: track.label,
+    url: track.url,
+    scope: track.scope,
   };
 }
 
@@ -440,23 +578,62 @@ export default function AdminPage() {
   const [guestbookReplyDrafts, setGuestbookReplyDrafts] = useState<Record<string, string>>({});
   const [activeDiaryId, setActiveDiaryId] = useState("");
   const [diaryDraft, setDiaryDraft] = useState<DiaryEntry>(() => createBlankDiaryEntry());
+  const [extractBanners, setExtractBanners] = useState<PersonalHomeBanner[]>([]);
+  const [activeExtractBannerId, setActiveExtractBannerId] = useState("");
+  const [extractBannerDraft, setExtractBannerDraft] = useState<ExtractBannerDraft>(() => createBlankExtractBannerDraft());
+  const [extractBannerImageFile, setExtractBannerImageFile] = useState<File | null>(null);
+  const [bgmTracks, setBgmTracks] = useState<BgmTrack[]>([]);
+  const [activeBgmTrackId, setActiveBgmTrackId] = useState("");
+  const [bgmTrackDraft, setBgmTrackDraft] = useState<BgmTrackDraft>(() => createBlankBgmTrackDraft());
+  const [bgmAudioFile, setBgmAudioFile] = useState<File | null>(null);
   const [adminPanel, setAdminPanel] = useState<"categories" | "characters">("categories");
   const [characterEditSection, setCharacterEditSection] = useState<CharacterEditSection>("basics");
+  const [activeCharacterKind, setActiveCharacterKind] = useState<CharacterKind>("oc");
+  const [activeSubPageId, setActiveSubPageId] = useState("");
   const [activeGlitchFieldPath, setActiveGlitchFieldPath] = useState<string | null>(null);
   const [glitchFieldSelection, setGlitchFieldSelection] = useState<GlitchTextSelection | null>(null);
-  const [activeCategory, setActiveCategory] = useState<"home" | "archive" | "diary" | "guestbook" | "worlds">("home");
+  const [activeWorldGlitchFieldPath, setActiveWorldGlitchFieldPath] = useState<string | null>(null);
+  const [worldGlitchFieldSelection, setWorldGlitchFieldSelection] = useState<GlitchTextSelection | null>(null);
+  const [activeCategory, setActiveCategory] = useState<"home" | "archive" | "diary" | "guestbook" | "worlds" | "extract" | "bgm">("home");
+  const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
 
   const isAdmin = authUser?.email === ADMIN_AUTH_EMAIL;
   const activeCharacter = useMemo(
-    () => characters.find((character) => character.id === activeCharacterId) ?? characters[0],
+    () =>
+      activeCharacterId
+        ? characters.find((character) => character.id === activeCharacterId)
+        : undefined,
     [activeCharacterId, characters],
   );
-  const glitchFieldOptions = useMemo(
-    () => buildGlitchFieldOptions(draft, draft.textGlitch),
+  const glitchFieldOptionGroups = useMemo(
+    () => buildGlitchFieldOptionGroups(draft, draft.textGlitch),
     [draft],
   );
   const activeGlitchLabel = activeGlitchFieldPath ? getGlitchFieldLabel(activeGlitchFieldPath) : null;
-  const glitchFieldCount = Object.keys(draft.textGlitch).length;
+  const glitchFieldCount = countDraftGlitchFields(draft);
+  const subPageCount = draft.subPages.length;
+  const worldGlitchFieldOptions = useMemo(
+    () => buildWorldGlitchFieldOptions(worldDraft, worldDraft.textGlitch),
+    [worldDraft],
+  );
+  const activeWorldGlitchLabel = activeWorldGlitchFieldPath
+    ? getWorldGlitchFieldLabel(activeWorldGlitchFieldPath)
+    : null;
+  const worldGlitchFieldCount = countWorldDraftGlitchFields(worldDraft);
+  const kindLabel = CHARACTER_KIND_ADMIN_LABELS[normalizeCharacterKind(draft.kind)];
+  const isPairDraft = normalizeCharacterKind(draft.kind) === "pair";
+  const filteredCharacters = useMemo(
+    () => filterCharactersByKind(characters, activeCharacterKind),
+    [activeCharacterKind, characters],
+  );
+  const pairLinkableCharacters = useMemo(
+    () => filterPairLinkableCharacters(characters),
+    [characters],
+  );
+  const canRecoverLegacyPairMember = useMemo(
+    () => (activeCharacter ? canRecoverFromLegacyPairMembers(activeCharacter) : false),
+    [activeCharacter],
+  );
   const activeCharacterWorldEntry = useMemo(
     () => normalizeWorldEntries(activeCharacter?.worldEntries).find((entry) => entry.worldId === activeCharacterWorldId),
     [activeCharacter, activeCharacterWorldId],
@@ -492,6 +669,10 @@ export default function AdminPage() {
   }, [activeGlitchFieldPath]);
 
   useEffect(() => {
+    setWorldGlitchFieldSelection(null);
+  }, [activeWorldGlitchFieldPath]);
+
+  useEffect(() => {
     const handleFocusIn = (event: FocusEvent) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
@@ -503,12 +684,30 @@ export default function AdminPage() {
         return;
       }
 
+      if (target.dataset.glitchScope === "world") {
+        setActiveWorldGlitchFieldPath(path);
+        return;
+      }
+
       setActiveGlitchFieldPath(path);
     };
 
     document.addEventListener("focusin", handleFocusIn);
     return () => document.removeEventListener("focusin", handleFocusIn);
   }, []);
+
+  const captureWorldGlitchFieldSelection = useCallback(
+    (element: HTMLInputElement | HTMLTextAreaElement) => {
+      const path = element.dataset.glitchField;
+      if (!path || element.closest("[data-text-scramble-tool]")) {
+        return;
+      }
+
+      setActiveWorldGlitchFieldPath(path);
+      setWorldGlitchFieldSelection(readGlitchTextSelection(element));
+    },
+    [],
+  );
 
   const captureGlitchFieldSelection = useCallback(
     (element: HTMLInputElement | HTMLTextAreaElement) => {
@@ -541,39 +740,58 @@ export default function AdminPage() {
     [captureGlitchFieldSelection],
   );
 
+  const bindWorldGlitchField = useCallback(
+    (path: string) => ({
+      "data-glitch-field": path,
+      "data-glitch-scope": "world",
+      onFocus: () => setActiveWorldGlitchFieldPath(path),
+      onClick: () => setActiveWorldGlitchFieldPath(path),
+      onSelect: (event: SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        captureWorldGlitchFieldSelection(event.currentTarget);
+      },
+      onKeyUp: (event: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        captureWorldGlitchFieldSelection(event.currentTarget);
+      },
+      onMouseUp: (event: MouseEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        captureWorldGlitchFieldSelection(event.currentTarget);
+      },
+    }),
+    [captureWorldGlitchFieldSelection],
+  );
+
   useEffect(() => {
     const db = getFirebaseDb();
     return onSnapshot(
       collection(db, "characters"),
       (snapshot) => {
         const nextCharacters = snapshot.docs.map((characterDoc) => {
-          const data = characterDoc.data() as Character;
+          const data = characterDoc.data() as Character & {
+            profile?: { age?: string; height?: string; role?: string; keyword?: string };
+          };
+          const resolvedBgmUrl = resolveCharacterBgmUrl(data.bgmUrl);
+          const { bgmUrl: _bgmUrl, profile: legacyProfile, ...rest } = data;
           return {
-            ...data,
+            ...rest,
             id: data.id || characterDoc.id,
             kanjiName: data.kanjiName ?? "",
             statusTags: Array.isArray(data.statusTags) ? data.statusTags : [],
             classification: data.classification ?? "",
+            profileFields: normalizeProfileFields(data.profileFields, legacyProfile),
             works: normalizeWorks(data.works),
             settings: Array.isArray(data.settings) ? data.settings : [],
             settingSections: normalizeSettingSections(data.settingSections),
             relationships: Array.isArray(data.relationships) ? data.relationships : [],
             images: Array.isArray(data.images) ? data.images : [],
             worldEntries: normalizeWorldEntries(data.worldEntries),
+            kind: normalizeCharacterKind(data.kind),
+            subPages: normalizeSubPages(data.subPages),
+            pairMemberIds: normalizePairMemberIds(data.pairMemberIds),
             textGlitch: normalizeTextGlitch(data.textGlitch),
-            bgmUrl: resolveCharacterBgmUrl(data.bgmUrl) ?? undefined,
+            ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : {}),
           };
         });
 
         setCharacters(nextCharacters);
-        setActiveCharacterId((current) => {
-          if (current) return current;
-          const firstCharacter = nextCharacters[0];
-          if (firstCharacter) {
-            loadCharacterDraft(firstCharacter);
-          }
-          return firstCharacter?.id || "";
-        });
       },
       (error) => setNotice(`Firestore 불러오기 실패: ${error.message}`),
     );
@@ -593,6 +811,7 @@ export default function AdminPage() {
               subtitle: data.subtitle || "",
               description: data.description || "",
               password: data.password || "",
+              textGlitch: normalizeTextGlitch(data.textGlitch),
             };
           })
           .sort((a, b) => a.title.localeCompare(b.title));
@@ -639,6 +858,48 @@ export default function AdminPage() {
         });
       },
       (error) => setNotice(`보관소 문구 불러오기 실패: ${error.message}`),
+    );
+  }, []);
+
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      doc(db, "site", "extract"),
+      (snapshot) => {
+        const data = snapshot.data() as Partial<ExtractContent> | undefined;
+        const nextBanners = normalizePersonalHomeBanners(data?.banners);
+        setExtractBanners(nextBanners);
+        setActiveExtractBannerId((current) => {
+          if (current) return current;
+          const firstBanner = nextBanners[0];
+          if (firstBanner) {
+            setExtractBannerDraft(extractBannerDraftFromBanner(firstBanner));
+          }
+          return firstBanner?.id || "";
+        });
+      },
+      (error) => setNotice(`갠홈 배너 불러오기 실패: ${error.message}`),
+    );
+  }, []);
+
+  useEffect(() => {
+    const db = getFirebaseDb();
+    return onSnapshot(
+      doc(db, "site", "bgm"),
+      (snapshot) => {
+        const data = snapshot.data() as Partial<{ tracks: BgmTrack[] }> | undefined;
+        const nextTracks = normalizeBgmTracks(data?.tracks);
+        setBgmTracks(nextTracks);
+        setActiveBgmTrackId((current) => {
+          if (current) return current;
+          const firstTrack = nextTracks[0];
+          if (firstTrack) {
+            setBgmTrackDraft(bgmTrackDraftFromTrack(firstTrack));
+          }
+          return firstTrack?.id || "";
+        });
+      },
+      (error) => setNotice(`BGM 목록 불러오기 실패: ${error.message}`),
     );
   }, []);
 
@@ -734,21 +995,10 @@ export default function AdminPage() {
     }
   }
 
-  function startNewCharacter() {
-    setActiveCharacterId("");
-    setActiveCharacterWorldId("");
-    setCharacterEditSection("basics");
-    setDraft(createBlankDraft());
-    setWorkDraft({ title: "", kind: "새 연성", date: "", body: "" });
-    setPendingUploads((current) => {
-      current.forEach((upload) => URL.revokeObjectURL(upload.previewUrl));
-      return [];
-    });
-    setNotice("새 자캐 정보를 입력해주세요.");
-  }
-
   function selectCharacterWorld(worldId: string) {
-    const entry = normalizeWorldEntries(activeCharacter?.worldEntries).find((worldEntry) => worldEntry.worldId === worldId);
+    const entry = normalizeWorldEntries(activeCharacter?.worldEntries).find(
+      (worldEntry) => worldEntry.worldId === worldId,
+    );
     setActiveCharacterWorldId(worldId);
     setWorldSettingsText(entry?.settings.join("\n") ?? "");
     setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
@@ -767,11 +1017,10 @@ export default function AdminPage() {
       setIsSaving(true);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...activeCharacter,
+        characterFirestorePayload(activeCharacter, {
           worldEntries: upsertWorldEntry(activeCharacter.worldEntries, nextEntry),
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setNotice("세계관별 설정을 저장했어요.");
@@ -809,11 +1058,10 @@ export default function AdminPage() {
       };
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...activeCharacter,
+        characterFirestorePayload(activeCharacter, {
           worldEntries: upsertWorldEntry(activeCharacter.worldEntries, nextEntry),
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
@@ -840,11 +1088,10 @@ export default function AdminPage() {
       await deleteR2Images(targetWork?.images ?? []);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...activeCharacter,
+        characterFirestorePayload(activeCharacter, {
           worldEntries: upsertWorldEntry(activeCharacter.worldEntries, nextEntry),
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setNotice("세계관 연성/로그를 삭제했어요.");
@@ -860,7 +1107,9 @@ export default function AdminPage() {
 
     const nextCharacter: Character = {
       ...activeCharacter,
-      worldEntries: normalizeWorldEntries(activeCharacter.worldEntries).filter((entry) => entry.worldId !== activeCharacterWorldId),
+      worldEntries: normalizeWorldEntries(activeCharacter.worldEntries).filter(
+        (entry) => entry.worldId !== activeCharacterWorldId,
+      ),
     };
 
     try {
@@ -871,10 +1120,9 @@ export default function AdminPage() {
       ]);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...nextCharacter,
+        characterFirestorePayload(nextCharacter, {
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
@@ -900,20 +1148,47 @@ export default function AdminPage() {
     }
 
     const existingCharacter = characters.find((character) => character.id === draft.id);
+    const migratedDraft = existingCharacter
+      ? mergeDraftForKindMigration(draft, existingCharacter)
+      : draft;
     const prunedDraft: CharacterDraft = {
-      ...draft,
-      textGlitch: pruneDraftTextGlitch(draft.textGlitch, draft),
+      ...migratedDraft,
+      textGlitch: pruneDraftTextGlitch(migratedDraft.textGlitch, migratedDraft),
+      subPages: migratedDraft.subPages.map((subPage) => ({
+        ...subPage,
+        textGlitch: pruneSubPageTextGlitch(subPage.textGlitch, subPage),
+      })),
     };
+    const preservedBasicsFromExisting =
+      existingCharacter &&
+      migratedDraft !== draft &&
+      draftBasicsLookEmpty(draft) &&
+      draftBasicsHaveContent(characterToDraft(existingCharacter));
     const character = draftToCharacter(
       prunedDraft,
       existingCharacter?.works,
       existingCharacter?.images,
       normalizeWorldEntries(existingCharacter?.worldEntries),
+      existingCharacter,
+      characters,
     );
 
-    if (!character.id || !character.name) {
-      setNotice("자캐 이름은 꼭 입력해주세요.");
+    const isPair = normalizeCharacterKind(character.kind) === "pair";
+    const resolvedName = isPair
+      ? character.name.trim() || formatPairDisplayName(character)
+      : character.name;
+
+    if (!character.id || (!isPair && !resolvedName) || (isPair && !resolvedName)) {
+      setNotice(
+        isPair
+          ? "페어 이름 또는 멤버 이름 중 하나는 꼭 입력해주세요."
+          : `${kindLabel} 이름은 꼭 입력해주세요.`,
+      );
       return;
+    }
+
+    if (isPair && !character.name.trim()) {
+      character.name = resolvedName;
     }
 
     const storedGlitch = existingCharacter?.textGlitch;
@@ -932,11 +1207,13 @@ export default function AdminPage() {
           ...characterBody,
           ...textGlitchPatch,
           ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
+          ...(normalizeCharacterKind(character.kind) !== "pair" ? { pairMemberIds: deleteField() } : {}),
           updatedAt: serverTimestamp(),
         }),
         { merge: true },
       );
       setActiveCharacterId(character.id);
+      setActiveCharacterKind(normalizeCharacterKind(character.kind));
       setDraft({
         ...characterToDraft(character),
         textGlitch: character.textGlitch ?? prunedDraft.textGlitch,
@@ -947,15 +1224,19 @@ export default function AdminPage() {
         setNotice("본 페이지에 반영되도록 저장했어요. 오류 구간은 모두 제거됐습니다.");
       } else if (character.textGlitch && removedGlitchPathCount > 0) {
         setNotice("본 페이지에 반영되도록 저장했어요. 제거한 오류 구간도 반영됐습니다.");
+      } else if (preservedBasicsFromExisting) {
+        setNotice(
+          `분류만 바꿨는데 카드·레코드 칸이 비어 있어서, 기존 내용을 유지한 채 「${CHARACTER_KIND_ADMIN_LABELS[normalizeCharacterKind(character.kind)]}」로 저장했어요.`,
+        );
       } else {
         setNotice(
           character.textGlitch
             ? "본 페이지에 반영되도록 저장했어요. 오류 구간도 함께 저장됐습니다."
-            : "본 페이지에 반영되도록 저장했어요.",
+            : `본 페이지에 반영되도록 저장했어요. 왼쪽 「${CHARACTER_KIND_ADMIN_LABELS[normalizeCharacterKind(character.kind)]}」 목록에서 확인할 수 있어요.`,
         );
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "자캐 저장에 실패했어요.");
+      setNotice(error instanceof Error ? error.message : `${kindLabel} 저장에 실패했어요.`);
     } finally {
       setIsSaving(false);
     }
@@ -991,26 +1272,144 @@ export default function AdminPage() {
     }));
   }
 
+  function reloadCharacterFromServer() {
+    if (!activeCharacter) {
+      setNotice("목록에서 항목을 먼저 선택해주세요.");
+      return;
+    }
+
+    loadCharacterDraft(activeCharacter);
+    setNotice("서버에 저장된 내용을 다시 불러왔어요. 카드·레코드가 비어 보이면 이 버튼을 눌러보세요.");
+  }
+
+  async function recoverLegacyPairMemberData() {
+    if (!isAdmin) {
+      setNotice("관리자만 복구할 수 있어요.");
+      return;
+    }
+
+    if (!activeCharacter) {
+      setNotice("목록에서 항목을 먼저 선택해주세요.");
+      return;
+    }
+
+    const recovered = recoverCharacterFromLegacyPairMember(activeCharacter);
+    if (!recovered) {
+      setNotice("복구할 예전 페어 멤버 데이터가 없어요.");
+      return;
+    }
+
+    const recoveredDraft = characterToDraft(recovered);
+    const prunedDraft: CharacterDraft = {
+      ...recoveredDraft,
+      textGlitch: pruneDraftTextGlitch(recoveredDraft.textGlitch, recoveredDraft),
+      subPages: recoveredDraft.subPages.map((subPage) => ({
+        ...subPage,
+        textGlitch: pruneSubPageTextGlitch(subPage.textGlitch, subPage),
+      })),
+    };
+    const character = draftToCharacter(
+      prunedDraft,
+      recovered.works,
+      recovered.images,
+      normalizeWorldEntries(recovered.worldEntries),
+      activeCharacter,
+      characters,
+    );
+    const storedGlitch = activeCharacter.textGlitch;
+    const textGlitchPatch = buildTextGlitchFirestorePatch(character.textGlitch, storedGlitch);
+    const resolvedBgmUrl = resolveCharacterBgmUrl(prunedDraft.bgmUrl);
+    const { textGlitch: _textGlitch, ...characterBody } = character;
+
+    try {
+      setIsSaving(true);
+      await setDoc(
+        doc(getFirebaseDb(), "characters", character.id),
+        omitUndefined({
+          ...characterBody,
+          ...textGlitchPatch,
+          ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
+          ...(normalizeCharacterKind(character.kind) !== "pair" ? { pairMemberIds: deleteField() } : {}),
+          updatedAt: serverTimestamp(),
+        }),
+        { merge: true },
+      );
+      setActiveCharacterId(character.id);
+      setActiveCharacterKind(normalizeCharacterKind(character.kind));
+      setDraft({
+        ...characterToDraft(character),
+        textGlitch: character.textGlitch ?? prunedDraft.textGlitch,
+      });
+      setNotice(
+        "예전 페어 멤버 칸에 남아 있던 카드·레코드(대사, 프로필, 레코드 박스, 오류)를 복구해 저장했어요.",
+      );
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "페어 멤버 데이터 복구에 실패했어요.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   function loadCharacterDraft(character: Character) {
-    setDraft(characterToDraft(character));
+    const nextDraft = characterToDraft(character);
+    setDraft(nextDraft);
+    setActiveSubPageId(nextDraft.subPages[0]?.id ?? "");
+    setActiveCharacterKind(normalizeCharacterKind(character.kind));
     const migrationNotice = getLegacySettingsMigrationNotice(character);
     if (migrationNotice) {
       setNotice(migrationNotice);
     }
   }
 
-  function importLegacySettingsToSections() {
-    const legacyLines = linesToList(draft.settingsText);
-    if (legacyLines.length === 0) {
+  function selectCharacterFromList(character: Character) {
+    setActiveCharacterId(character.id);
+    setActiveCharacterKind(normalizeCharacterKind(character.kind));
+    setCharacterEditSection("basics");
+    loadCharacterDraft(character);
+    setActiveCharacterWorldId("");
+    setWorldSettingsText("");
+    setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
+  }
+
+  function handleActiveKindChange(kind: CharacterKind) {
+    setActiveCharacterKind(kind);
+
+    if (activeCharacterId) {
+      const editingCurrent = characters.find((character) => character.id === activeCharacterId);
+      if (editingCurrent && draft.id === editingCurrent.id) {
+        return;
+      }
+    }
+
+    const current = activeCharacterId
+      ? characters.find((character) => character.id === activeCharacterId)
+      : undefined;
+
+    if (current && normalizeCharacterKind(current.kind) === kind) {
       return;
     }
 
-    setDraft((current) => ({
-      ...current,
-      settingsText: "",
-      settingSections: [...current.settingSections, ...legacySettingsToSections(legacyLines)],
-    }));
-    setNotice("예전 상세 설정을 레코드 박스로 옮겼어요. 「본 페이지에 저장」을 눌러주세요.");
+    const firstInKind = filterCharactersByKind(characters, kind)[0];
+    if (firstInKind) {
+      selectCharacterFromList(firstInKind);
+      return;
+    }
+
+    startNewCharacter(kind);
+  }
+
+  function startNewCharacter(kind: CharacterKind = activeCharacterKind) {
+    setActiveCharacterId("");
+    setActiveCharacterWorldId("");
+    setActiveSubPageId("");
+    setCharacterEditSection("basics");
+    setDraft(createBlankDraft(kind));
+    setWorkDraft({ title: "", kind: "새 연성", date: "", body: "" });
+    setPendingUploads((current) => {
+      current.forEach((upload) => URL.revokeObjectURL(upload.previewUrl));
+      return [];
+    });
+    setNotice(`새 ${CHARACTER_KIND_ADMIN_LABELS[kind]} 정보를 입력해주세요.`);
   }
 
   async function saveHomeContent(event: FormEvent<HTMLFormElement>) {
@@ -1123,6 +1522,327 @@ export default function AdminPage() {
     }
   }
 
+  function startNewExtractBanner() {
+    setActiveExtractBannerId("");
+    setExtractBannerDraft(createBlankExtractBannerDraft());
+    setExtractBannerImageFile(null);
+    setNotice("새 갠홈 배너를 추가해주세요.");
+  }
+
+  async function uploadExtractBannerImage(file: File) {
+    if (file.size > MAX_UPLOAD_SIZE) {
+      throw new Error(`${file.name}은 10MB를 넘어서 업로드할 수 없어요.`);
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("characterId", "site-extract");
+    formData.append("displayName", "");
+
+    const response = await fetch("/api/r2-upload", {
+      method: "POST",
+      body: formData,
+    });
+    const result = (await response.json()) as {
+      error?: string;
+      key?: string;
+      name?: string;
+      size?: number;
+      url?: string | null;
+    };
+
+    if (!response.ok || !result.url) {
+      throw new Error(result.error ?? "배너 이미지 업로드에 실패했어요.");
+    }
+
+    return {
+      id: result.key ?? `${file.name}-${file.lastModified}`,
+      name: result.name ?? "",
+      url: result.url,
+      size: result.size ?? file.size,
+    } satisfies UploadedImage;
+  }
+
+  async function persistExtractBanners(nextBanners: PersonalHomeBanner[]) {
+    await setDoc(
+      doc(getFirebaseDb(), "site", "extract"),
+      {
+        banners: nextBanners,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    setExtractBanners(nextBanners);
+  }
+
+  async function saveExtractBanner(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!isAdmin) {
+      setNotice("관리자만 갠홈 배너를 저장할 수 있어요.");
+      return;
+    }
+
+    const label = extractBannerDraft.label.trim();
+    const linkUrl = extractBannerDraft.linkUrl.trim();
+
+    if (!isAllowedBannerLinkUrl(linkUrl)) {
+      setNotice("http:// 또는 https:// 로 시작하는 링크, 또는 / 로 시작하는 내부 경로를 입력해주세요.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      let image = extractBannerDraft.image;
+      if (extractBannerImageFile) {
+        image = await uploadExtractBannerImage(extractBannerImageFile);
+      }
+
+      if (!image) {
+        setNotice("배너 이미지를 업로드해주세요.");
+        return;
+      }
+
+      const id = slugifyId(extractBannerDraft.id || label || image.id) || crypto.randomUUID();
+      const nextBanner: PersonalHomeBanner = {
+        id,
+        label,
+        linkUrl,
+        image,
+      };
+      const nextBanners = extractBanners.some((banner) => banner.id === id)
+        ? extractBanners.map((banner) => (banner.id === id ? nextBanner : banner))
+        : [...extractBanners, nextBanner];
+
+      await persistExtractBanners(nextBanners);
+      setActiveExtractBannerId(id);
+      setExtractBannerDraft(extractBannerDraftFromBanner(nextBanner));
+      setExtractBannerImageFile(null);
+      setNotice("갠홈 배너를 저장했어요.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "갠홈 배너 저장에 실패했어요.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteExtractBanner(banner: PersonalHomeBanner) {
+    if (!isAdmin) {
+      setNotice("관리자만 갠홈 배너를 삭제할 수 있어요.");
+      return;
+    }
+
+    if (!banner.id) {
+      setNotice("삭제할 배너를 찾지 못했어요.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      await deleteR2Images([banner.image]);
+      const nextBanners = extractBanners.filter((entry) => entry.id !== banner.id);
+      await persistExtractBanners(nextBanners);
+      setActiveExtractBannerId("");
+      setExtractBannerDraft(createBlankExtractBannerDraft());
+      setExtractBannerImageFile(null);
+      setNotice("갠홈 배너를 삭제했어요.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "갠홈 배너 삭제에 실패했어요.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function startNewBgmTrack() {
+    setActiveBgmTrackId("");
+    setBgmTrackDraft(createBlankBgmTrackDraft());
+    setBgmAudioFile(null);
+    setNotice("새 BGM을 추가해주세요.");
+  }
+
+  async function uploadBgmAudio(file: File, displayName = "") {
+    if (file.size > MAX_AUDIO_UPLOAD_SIZE) {
+      throw new Error(`${file.name}은 15MB를 넘어서 업로드할 수 없어요.`);
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("displayName", displayName);
+
+    const response = await fetch("/api/r2-upload-audio", {
+      method: "POST",
+      body: formData,
+    });
+    const result = (await response.json()) as {
+      error?: string;
+      url?: string | null;
+    };
+
+    if (!response.ok || !result.url) {
+      throw new Error(result.error ?? "BGM 업로드에 실패했어요.");
+    }
+
+    return result.url;
+  }
+
+  async function persistBgmTracks(nextTracks: BgmTrack[]) {
+    await setDoc(
+      doc(getFirebaseDb(), "site", "bgm"),
+      {
+        tracks: nextTracks,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+    setBgmTracks(nextTracks);
+  }
+
+  async function saveBgmTrack(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!isAdmin) {
+      setNotice("관리자만 BGM을 저장할 수 있어요.");
+      return;
+    }
+
+    const label = bgmTrackDraft.label.trim();
+
+    if (!label) {
+      setNotice("BGM 이름을 입력해주세요.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      let url = bgmTrackDraft.url.trim();
+
+      if (bgmAudioFile) {
+        url = await uploadBgmAudio(bgmAudioFile, label);
+      }
+
+      if (!url) {
+        setNotice("BGM 파일을 업로드해주세요.");
+        return;
+      }
+
+      const id = slugifyId(bgmTrackDraft.id || label) || crypto.randomUUID();
+      const nextTrack: BgmTrack = {
+        id,
+        label,
+        url,
+        scope: bgmTrackDraft.scope,
+      };
+      const nextTracks = bgmTracks.some((track) => track.id === id)
+        ? bgmTracks.map((track) => (track.id === id ? nextTrack : track))
+        : [...bgmTracks, nextTrack];
+
+      await persistBgmTracks(nextTracks);
+      setActiveBgmTrackId(id);
+      setBgmTrackDraft(bgmTrackDraftFromTrack(nextTrack));
+      setBgmAudioFile(null);
+      setNotice("BGM을 저장했어요.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "BGM 저장에 실패했어요.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function deleteBgmTrack(track: BgmTrack) {
+    if (!isAdmin) {
+      setNotice("관리자만 BGM을 삭제할 수 있어요.");
+      return;
+    }
+
+    if (!track.id) {
+      setNotice("삭제할 BGM을 찾지 못했어요.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      if (track.url.startsWith("http")) {
+        const response = await fetch("/api/r2-delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ images: [{ url: track.url }] }),
+        });
+        const result = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(result.error ?? "Cloudflare R2 삭제에 실패했어요.");
+        }
+      }
+
+      const nextTracks = bgmTracks.filter((entry) => entry.id !== track.id);
+      await persistBgmTracks(nextTracks);
+      setActiveBgmTrackId("");
+      setBgmTrackDraft(createBlankBgmTrackDraft());
+      setBgmAudioFile(null);
+      setNotice("BGM을 삭제했어요.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "BGM 삭제에 실패했어요.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleBgmAudioChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    if (!/\.(mp3|mpeg|ogg|wav|m4a|aac)$/i.test(file.name) && !file.type.startsWith("audio/")) {
+      setNotice("mp3, ogg, wav, m4a, aac 오디오만 업로드할 수 있어요.");
+      return;
+    }
+
+    setBgmAudioFile(file);
+    if (!bgmTrackDraft.label.trim()) {
+      setBgmTrackDraft((current) => ({
+        ...current,
+        label: file.name.replace(/\.[^/.]+$/, ""),
+      }));
+    }
+  }
+
+  async function quickAddCharacterBgm(file: File) {
+    const label = file.name.replace(/\.[^/.]+$/, "");
+    const url = await uploadBgmAudio(file, label);
+    const id = slugifyId(label) || crypto.randomUUID();
+    const nextTrack: BgmTrack = {
+      id,
+      label,
+      url,
+      scope: "character-only",
+    };
+    const nextTracks = bgmTracks.some((track) => track.url === url)
+      ? bgmTracks
+      : bgmTracks.some((track) => track.id === id)
+        ? bgmTracks.map((track) => (track.id === id ? nextTrack : track))
+        : [...bgmTracks, nextTrack];
+
+    await persistBgmTracks(nextTracks);
+    setNotice(`「${label}」을(를) 캐릭터 BGM으로 추가했어요.`);
+    return url;
+  }
+
+  function handleExtractBannerImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) {
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setNotice("이미지 파일만 업로드할 수 있어요.");
+      return;
+    }
+
+    setExtractBannerImageFile(file);
+  }
+
   async function saveGuestbookReply(entry: GuestbookEntry) {
     if (!isAdmin) {
       setNotice("관리자만 방명록 답글을 저장할 수 있어요.");
@@ -1193,23 +1913,42 @@ export default function AdminPage() {
       return;
     }
 
+    const existingWorld = worlds.find((world) => world.id === id);
+    const prunedDraft: WorldDraft = {
+      ...worldDraft,
+      textGlitch: pruneWorldDraftTextGlitch(worldDraft.textGlitch, worldDraft),
+    };
+    const textGlitch = compactWorldDraftTextGlitch(prunedDraft);
+    const textGlitchPatch = buildTextGlitchFirestorePatch(textGlitch, existingWorld?.textGlitch);
+
     try {
       setIsSaving(true);
       await setDoc(
         doc(getFirebaseDb(), "worlds", id),
-        {
+        omitUndefined({
           id,
           title,
-          subtitle: worldDraft.subtitle.trim(),
-          description: worldDraft.description.trim(),
-          password: worldDraft.password.trim(),
+          subtitle: prunedDraft.subtitle.trim(),
+          description: prunedDraft.description.trim(),
+          password: prunedDraft.password.trim(),
+          ...textGlitchPatch,
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setActiveWorldId(id);
-      setWorldDraft({ ...worldDraft, id, title, password: worldDraft.password.trim() });
-      setNotice("세계관을 저장했어요.");
+      setWorldDraft({
+        ...prunedDraft,
+        id,
+        title,
+        password: prunedDraft.password.trim(),
+        textGlitch: textGlitch ?? prunedDraft.textGlitch,
+      });
+      setNotice(
+        textGlitch
+          ? "세계관을 저장했어요. 오류 구간도 함께 저장됐습니다."
+          : "세계관을 저장했어요.",
+      );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "세계관 저장에 실패했어요.");
     } finally {
@@ -1247,7 +1986,7 @@ export default function AdminPage() {
       await deleteR2Images([...(character.images ?? []), ...worldImages, ...workImages, ...worldWorkImages]);
       await deleteDoc(doc(getFirebaseDb(), "characters", character.id));
       setActiveCharacterId("");
-      setDraft(createBlankDraft());
+      setDraft(createBlankDraft(activeCharacterKind));
       setNotice(`${character.name} 데이터를 Cloudflare R2와 Firestore에서 삭제했어요.`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "자캐 삭제에 실패했어요.");
@@ -1258,7 +1997,12 @@ export default function AdminPage() {
 
   async function selectPendingImages(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
-    if (!files.length || !activeCharacter) return;
+    if (!files.length || !activeCharacterId || !activeCharacter) {
+      if (!activeCharacterId) {
+        setNotice("사진을 추가하려면 먼저 기본 · 레코드 탭에서 「본 페이지에 저장」을 눌러주세요.");
+      }
+      return;
+    }
 
     if (!isAdmin) {
       setNotice("관리자만 사진을 선택할 수 있어요.");
@@ -1398,7 +2142,12 @@ export default function AdminPage() {
 
   // 이미지 업로드, 썸네일 위치 조정, 이미지 정보 수정/삭제를 처리합니다.
   async function uploadImages() {
-    if (!pendingUploads.length || !activeCharacter) {
+    if (!activeCharacterId || !activeCharacter) {
+      setNotice("사진을 저장하려면 먼저 기본 · 레코드 탭에서 「본 페이지에 저장」을 눌러주세요.");
+      return;
+    }
+
+    if (!pendingUploads.length) {
       setNotice("먼저 사진을 선택해주세요.");
       return;
     }
@@ -1445,7 +2194,10 @@ export default function AdminPage() {
       );
 
       if (imageUploadWorldId) {
-        const targetEntry = normalizeWorldEntries(activeCharacter.worldEntries).find((entry) => entry.worldId === imageUploadWorldId) ?? createBlankWorldEntry(imageUploadWorldId);
+        const targetEntry =
+          normalizeWorldEntries(activeCharacter.worldEntries).find(
+            (entry) => entry.worldId === imageUploadWorldId,
+          ) ?? createBlankWorldEntry(imageUploadWorldId);
         const nextEntry = {
           ...targetEntry,
           images: [...targetEntry.images, ...uploaded],
@@ -1453,22 +2205,20 @@ export default function AdminPage() {
 
         await setDoc(
           doc(getFirebaseDb(), "characters", activeCharacter.id),
-          {
-            ...activeCharacter,
+          characterFirestorePayload(activeCharacter, {
             worldEntries: upsertWorldEntry(activeCharacter.worldEntries, nextEntry),
             updatedAt: serverTimestamp(),
-          },
+          }),
           { merge: true },
         );
         setNotice("세계관별 이미지를 저장했어요.");
       } else {
         await setDoc(
           doc(getFirebaseDb(), "characters", activeCharacter.id),
-          {
-            ...activeCharacter,
+          characterFirestorePayload(activeCharacter, {
             images: [...(activeCharacter.images ?? []), ...uploaded],
             updatedAt: serverTimestamp(),
-          },
+          }),
           { merge: true },
         );
         setNotice("이미지를 저장했어요. 본 페이지 카드와 상세에 반영됩니다.");
@@ -1501,10 +2251,9 @@ export default function AdminPage() {
       };
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...nextCharacter,
+        characterFirestorePayload(nextCharacter, {
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
@@ -1519,7 +2268,9 @@ export default function AdminPage() {
   async function updateImageInfo(imageId: string, updates: Partial<Pick<UploadedImage, "category" | "name">>) {
     if (!isAdmin || !activeCharacter) return;
 
-    const nextImages = (activeCharacter.images ?? []).map((image) => (image.id === imageId ? { ...image, ...updates } : image));
+    const nextImages = (activeCharacter.images ?? []).map((image) =>
+      image.id === imageId ? { ...image, ...updates } : image,
+    );
     const nextCharacter: Character = {
       ...activeCharacter,
       images: nextImages,
@@ -1529,10 +2280,9 @@ export default function AdminPage() {
       setIsSaving(true);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...nextCharacter,
+        characterFirestorePayload(nextCharacter, {
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
@@ -1567,10 +2317,9 @@ export default function AdminPage() {
       await deleteR2Images([targetImage]);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...nextCharacter,
+        characterFirestorePayload(nextCharacter, {
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
@@ -1598,10 +2347,9 @@ export default function AdminPage() {
       setIsSaving(true);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...nextCharacter,
+        characterFirestorePayload(nextCharacter, {
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
@@ -1635,11 +2383,10 @@ export default function AdminPage() {
 
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...activeCharacter,
+        characterFirestorePayload(activeCharacter, {
           works: [newWork, ...activeCharacter.works],
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setWorkDraft({ title: "", kind: "새 연성", date: "", body: "" });
@@ -1661,11 +2408,10 @@ export default function AdminPage() {
       await deleteR2Images(targetWork?.images ?? []);
       await setDoc(
         doc(getFirebaseDb(), "characters", activeCharacter.id),
-        {
-          ...activeCharacter,
+        characterFirestorePayload(activeCharacter, {
           works: activeCharacter.works.filter((_, index) => index !== workIndex),
           updatedAt: serverTimestamp(),
-        },
+        }),
         { merge: true },
       );
       setNotice("글을 삭제했어요.");
@@ -1679,7 +2425,7 @@ export default function AdminPage() {
   // 관리자 페이지 실제 레이아웃입니다: 좌측 선택 패널과 우측 편집 폼을 나눠 보여줍니다.
   return (
     <main className="admin-page min-h-screen bg-black px-5 py-8 text-emerald-50 md:px-8">
-      <div className="fixed inset-0 bg-[linear-gradient(180deg,#000000_0%,#000000_78%,#080000_100%)]" />
+      <div className="fixed inset-0 -z-10 bg-[linear-gradient(180deg,#000000_0%,#000000_78%,#080000_100%)] pointer-events-none" />
       <div className="noise-layer" aria-hidden="true" />
 
       <section className="relative z-10 mx-auto grid w-full max-w-[1500px] gap-6">
@@ -1688,7 +2434,9 @@ export default function AdminPage() {
           <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h1 className="font-serif text-4xl font-bold md:text-6xl">수정 페이지</h1>
-              <p className="mt-3 text-sm text-emerald-100/65">여기서 저장한 내용은 본 페이지 자캐 카드와 상세 화면에 바로 반영됩니다.</p>
+              <p className="mt-3 text-sm text-emerald-100/65">
+                여기서 저장한 내용은 본 페이지 카드와 상세 화면에 바로 반영됩니다.
+              </p>
             </div>
             <Link href="/" className="border border-emerald-100/20 px-5 py-3 text-center text-sm text-emerald-50">
               본 페이지로 돌아가기
@@ -1741,30 +2489,39 @@ export default function AdminPage() {
                   onClick={() => setAdminPanel("characters")}
                   className={`px-3 py-3 ${adminPanel === "characters" ? "bg-emerald-200 text-emerald-950" : "border border-emerald-100/20 text-emerald-100/70"}`}
                 >
-                  자캐 관리
+                  자캐 · 페어 · 어나더
                 </button>
               </div>
               {adminPanel === "characters" && (
                 <>
+                  <div className="mb-4 grid grid-cols-3 gap-2 text-xs">
+                    {CHARACTER_KINDS.map((kind) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        onClick={() => handleActiveKindChange(kind)}
+                        className={
+                          activeCharacterKind === kind
+                            ? "bg-emerald-200 px-2 py-2 font-semibold text-emerald-950"
+                            : "border border-emerald-100/20 px-2 py-2 text-emerald-100/70"
+                        }
+                      >
+                        {CHARACTER_KIND_ADMIN_LABELS[kind]}
+                      </button>
+                    ))}
+                  </div>
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="board-title">자캐 목록</h2>
-                    <button type="button" onClick={startNewCharacter} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
-                      새 자캐
+                    <h2 className="board-title">{CHARACTER_KIND_ADMIN_LABELS[activeCharacterKind]} 목록</h2>
+                    <button type="button" onClick={() => startNewCharacter()} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
+                      새 {CHARACTER_KIND_ADMIN_LABELS[activeCharacterKind]}
                     </button>
                   </div>
                   <div className="mt-5 grid gap-3">
-                    {characters.map((character) => (
+                    {filteredCharacters.map((character) => (
                       <button
                         key={character.id}
                         type="button"
-                        onClick={() => {
-                          setActiveCharacterId(character.id);
-                          setCharacterEditSection("basics");
-                          loadCharacterDraft(character);
-                          setActiveCharacterWorldId("");
-                          setWorldSettingsText("");
-                          setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
-                        }}
+                        onClick={() => selectCharacterFromList(character)}
                         className={`border p-3 text-left text-sm ${
                           activeCharacter?.id === character.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
                         }`}
@@ -1785,6 +2542,8 @@ export default function AdminPage() {
                       { id: "archive" as const, title: "보관소 문구", subtitle: "archive sidebar text" },
                       { id: "diary" as const, title: "다이어리", subtitle: "diary category" },
                       { id: "guestbook" as const, title: "방명록", subtitle: "guest comments" },
+                      { id: "extract" as const, title: "Banner", subtitle: "banner links" },
+                      { id: "bgm" as const, title: "BGM", subtitle: "bgm playlist" },
                       { id: "worlds" as const, title: "World 관리", subtitle: "world archive" },
                     ].map((category) => (
                       <button
@@ -1828,6 +2587,76 @@ export default function AdminPage() {
                         {diaryEntries.length === 0 && (
                           <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
                             아직 저장된 일기가 없어요.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {activeCategory === "extract" && (
+                    <div className="mt-5 border-t border-emerald-100/10 pt-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-emerald-50">배너 목록</h3>
+                        <button type="button" onClick={startNewExtractBanner} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
+                          새 배너
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3">
+                        {extractBanners.map((banner) => (
+                          <button
+                            key={banner.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveExtractBannerId(banner.id);
+                              setExtractBannerDraft(extractBannerDraftFromBanner(banner));
+                              setExtractBannerImageFile(null);
+                            }}
+                            className={`border p-3 text-left text-sm ${
+                              activeExtractBannerId === banner.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                            }`}
+                          >
+                            <span className="block text-base font-semibold">{banner.label || "제목 없음"}</span>
+                            <span className="mt-1 block truncate text-xs text-emerald-100/50">{banner.linkUrl}</span>
+                          </button>
+                        ))}
+                        {extractBanners.length === 0 && (
+                          <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
+                            아직 저장된 배너가 없어요.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {activeCategory === "bgm" && (
+                    <div className="mt-5 border-t border-emerald-100/10 pt-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-emerald-50">BGM 목록</h3>
+                        <button type="button" onClick={startNewBgmTrack} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
+                          새 BGM
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3">
+                        {bgmTracks.map((track) => (
+                          <button
+                            key={track.id}
+                            type="button"
+                            onClick={() => {
+                              setActiveBgmTrackId(track.id);
+                              setBgmTrackDraft(bgmTrackDraftFromTrack(track));
+                              setBgmAudioFile(null);
+                            }}
+                            className={`border p-3 text-left text-sm ${
+                              activeBgmTrackId === track.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                            }`}
+                          >
+                            <span className="block text-base font-semibold">{track.label}</span>
+                            <span className="mt-1 block text-xs text-emerald-100/50">
+                              {track.scope === "site" ? "사이트 기본" : "캐릭터 전용"}
+                            </span>
+                          </button>
+                        ))}
+                        {bgmTracks.length === 0 && (
+                          <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
+                            아직 추가된 BGM이 없어요.
                           </p>
                         )}
                       </div>
@@ -1882,6 +2711,8 @@ export default function AdminPage() {
                 <form
                   onSubmit={(event) => {
                     if (activeCategory === "diary") return saveDiaryEntry(event);
+                    if (activeCategory === "extract") return saveExtractBanner(event);
+                    if (activeCategory === "bgm") return saveBgmTrack(event);
                     if (activeCategory === "worlds") return saveWorld(event);
                     event.preventDefault();
                     if (activeCategory === "guestbook") return;
@@ -2000,6 +2831,136 @@ export default function AdminPage() {
                   </section>
                   )}
 
+                  {activeCategory === "extract" && (
+                  <section className="grid gap-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <h2 className="board-title">Banner</h2>
+                      {extractBannerDraft.id && extractBannerDraft.image && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteExtractBanner({
+                              id: extractBannerDraft.id,
+                              label: extractBannerDraft.label,
+                              linkUrl: extractBannerDraft.linkUrl,
+                              image: extractBannerDraft.image!,
+                            })
+                          }
+                          disabled={isSaving}
+                          className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                        >
+                          현재 배너 삭제
+                        </button>
+                      )}
+                    </div>
+                    <label className="grid gap-2 text-sm text-emerald-100/75">
+                      배너 라벨 (선택)
+                      <input
+                        value={extractBannerDraft.label}
+                        onChange={(event) => setExtractBannerDraft((current) => ({ ...current, label: event.target.value }))}
+                        placeholder="배너에 표시할 짧은 문구"
+                        className="auth-input"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-emerald-100/75">
+                      이동 링크
+                      <input
+                        value={extractBannerDraft.linkUrl}
+                        onChange={(event) => setExtractBannerDraft((current) => ({ ...current, linkUrl: event.target.value }))}
+                        placeholder="https://example.com 또는 /guest"
+                        className="auth-input"
+                      />
+                    </label>
+                    <div className="grid gap-2 text-sm text-emerald-100/75">
+                      배너 이미지
+                      <input type="file" accept="image/*" onChange={handleExtractBannerImageChange} className="text-xs" />
+                      {(extractBannerImageFile || extractBannerDraft.image) && (
+                        <div className="extract-banner-link overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- R2 public URLs are user uploads shown directly. */}
+                          <img
+                            src={
+                              extractBannerImageFile
+                                ? URL.createObjectURL(extractBannerImageFile)
+                                : extractBannerDraft.image?.url
+                            }
+                            alt="Banner 미리보기"
+                            className="extract-banner-image"
+                            style={extractBannerDraft.image ? thumbnailStyle(extractBannerDraft.image) : undefined}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                  )}
+
+                  {activeCategory === "bgm" && (
+                  <section className="grid gap-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <h2 className="board-title">BGM</h2>
+                      {bgmTrackDraft.id && bgmTrackDraft.url && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            deleteBgmTrack({
+                              id: bgmTrackDraft.id,
+                              label: bgmTrackDraft.label,
+                              url: bgmTrackDraft.url,
+                              scope: bgmTrackDraft.scope,
+                            })
+                          }
+                          disabled={isSaving}
+                          className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                        >
+                          현재 BGM 삭제
+                        </button>
+                      )}
+                    </div>
+                    <label className="grid gap-2 text-sm text-emerald-100/75">
+                      곡 이름
+                      <input
+                        value={bgmTrackDraft.label}
+                        onChange={(event) => setBgmTrackDraft((current) => ({ ...current, label: event.target.value }))}
+                        placeholder="플레이어·선택 목록에 보일 이름"
+                        className="auth-input"
+                      />
+                    </label>
+                    <label className="grid gap-2 text-sm text-emerald-100/75">
+                      사용 범위
+                      <select
+                        value={bgmTrackDraft.scope}
+                        onChange={(event) =>
+                          setBgmTrackDraft((current) => ({
+                            ...current,
+                            scope: event.target.value as BgmTrackScope,
+                          }))
+                        }
+                        className="auth-input"
+                      >
+                        <option value="site">사이트 기본 (플레이어 순환 + 캐릭터 선택)</option>
+                        <option value="character-only">캐릭터 전용 (상세에서만)</option>
+                      </select>
+                    </label>
+                    <div className="grid gap-2 text-sm text-emerald-100/75">
+                      오디오 파일
+                      <input
+                        type="file"
+                        accept="audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/mp4,audio/aac,.mp3,.ogg,.wav,.m4a,.aac"
+                        onChange={handleBgmAudioChange}
+                        className="text-xs"
+                      />
+                      <p className="text-xs text-emerald-100/55">mp3·ogg·wav 등, 파일 1개당 최대 15MB</p>
+                      {(bgmAudioFile || bgmTrackDraft.url) && (
+                        <audio
+                          controls
+                          preload="none"
+                          src={bgmAudioFile ? URL.createObjectURL(bgmAudioFile) : bgmTrackDraft.url}
+                          className="w-full"
+                        />
+                      )}
+                    </div>
+                  </section>
+                  )}
+
                   {activeCategory === "guestbook" && (
                     <section className="grid gap-4">
                       <div>
@@ -2056,7 +3017,14 @@ export default function AdminPage() {
                   {activeCategory === "worlds" && (
                     <section className="grid gap-4">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <h2 className="board-title">World 관리</h2>
+                        <div>
+                          <h2 className="board-title">World 관리</h2>
+                          {activeWorldGlitchLabel ? (
+                            <p className="mt-2 border border-amber-300/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
+                              오류 대상: <span className="font-semibold">{activeWorldGlitchLabel}</span>
+                            </p>
+                          ) : null}
+                        </div>
                         {worldDraft.id && (
                           <button
                             type="button"
@@ -2082,9 +3050,12 @@ export default function AdminPage() {
                           세계관 이름
                           <input
                             value={worldDraft.title}
-                            onChange={(event) => setWorldDraft((current) => ({ ...current, title: event.target.value }))}
+                            onChange={(event) =>
+                              setWorldDraft((current) => updateWorldDraftFieldValue(current, "title", event.target.value))
+                            }
+                            {...bindWorldGlitchField("title")}
                             placeholder="예: 크툴루 1920"
-                            className="auth-input"
+                            className={glitchFieldClass("title", activeWorldGlitchFieldPath)}
                           />
                         </label>
                       </div>
@@ -2092,9 +3063,12 @@ export default function AdminPage() {
                         한 줄 설명
                         <input
                           value={worldDraft.subtitle}
-                          onChange={(event) => setWorldDraft((current) => ({ ...current, subtitle: event.target.value }))}
+                          onChange={(event) =>
+                            setWorldDraft((current) => updateWorldDraftFieldValue(current, "subtitle", event.target.value))
+                          }
+                          {...bindWorldGlitchField("subtitle")}
                           placeholder="세계관을 짧게 설명해주세요."
-                          className="auth-input"
+                          className={glitchFieldClass("subtitle", activeWorldGlitchFieldPath)}
                         />
                       </label>
                       <label className="grid gap-2 text-sm text-emerald-100/75">
@@ -2113,17 +3087,95 @@ export default function AdminPage() {
                         상세 설명
                         <textarea
                           value={worldDraft.description}
-                          onChange={(event) => setWorldDraft((current) => ({ ...current, description: event.target.value }))}
+                          onChange={(event) =>
+                            setWorldDraft((current) =>
+                              updateWorldDraftFieldValue(current, "description", event.target.value),
+                            )
+                          }
+                          {...bindWorldGlitchField("description")}
                           placeholder="룰, 시대, 분위기, 캠페인 설명 등"
-                          className="auth-input min-h-40"
+                          className={glitchFieldClass("description", activeWorldGlitchFieldPath, "auth-input min-h-40")}
                         />
                       </label>
+
+                      <section className="grid gap-3 border border-emerald-100/10 bg-black/25 p-4">
+                        <div>
+                          <h3 className="text-sm font-semibold text-emerald-50">텍스트 오류 · 서식</h3>
+                          <p className="mt-1 text-xs leading-5 text-emerald-100/55">
+                            세계관 이름, 한 줄 설명, 상세 설명에 글자 효과를 넣을 수 있어요.
+                            {worldGlitchFieldCount > 0 ? ` · 적용 중 ${worldGlitchFieldCount}개` : ""}
+                          </p>
+                        </div>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          오류 넣을 필드
+                          <select
+                            value={activeWorldGlitchFieldPath ?? ""}
+                            onChange={(event) => {
+                              const path = event.target.value;
+                              setActiveWorldGlitchFieldPath(path || null);
+                              setWorldGlitchFieldSelection(null);
+                            }}
+                            className="auth-input"
+                          >
+                            <option value="">필드를 선택하세요</option>
+                            {worldGlitchFieldOptions.map((option) => (
+                              <option key={option.path} value={option.path}>
+                                {option.label}
+                                {option.hasGlitch ? " · 적용됨" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <TextScrambleTool
+                          activeFieldPath={activeWorldGlitchFieldPath}
+                          fieldValue={
+                            activeWorldGlitchFieldPath
+                              ? getWorldDraftFieldValue(worldDraft, activeWorldGlitchFieldPath)
+                              : ""
+                          }
+                          externalSelection={worldGlitchFieldSelection}
+                          onExternalSelectionClear={() => setWorldGlitchFieldSelection(null)}
+                          onFieldValueChange={(value) => {
+                            if (!activeWorldGlitchFieldPath) {
+                              return;
+                            }
+
+                            setWorldDraft((current) =>
+                              updateWorldDraftFieldValue(current, activeWorldGlitchFieldPath, value),
+                            );
+                          }}
+                          glitchConfig={
+                            activeWorldGlitchFieldPath
+                              ? worldDraft.textGlitch[activeWorldGlitchFieldPath]
+                              : undefined
+                          }
+                          onGlitchChange={(config) => {
+                            if (!activeWorldGlitchFieldPath) {
+                              return;
+                            }
+
+                            setWorldDraft((current) =>
+                              updateWorldDraftGlitchPath(current, activeWorldGlitchFieldPath, config),
+                            );
+                          }}
+                          onNotice={setNotice}
+                          allCharacters={characters}
+                        />
+                      </section>
                     </section>
                   )}
 
                   {activeCategory !== "guestbook" && (
                     <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
-                      {activeCategory === "diary" ? "일기 저장" : activeCategory === "worlds" ? "세계관 저장" : "카테고리 저장"}
+                      {activeCategory === "diary"
+                        ? "일기 저장"
+                        : activeCategory === "extract"
+                          ? "배너 저장"
+                          : activeCategory === "bgm"
+                            ? "BGM 저장"
+                            : activeCategory === "worlds"
+                            ? "세계관 저장"
+                            : "카테고리 저장"}
                     </button>
                   )}
                 </form>
@@ -2135,24 +3187,49 @@ export default function AdminPage() {
                   active={characterEditSection}
                   onChange={setCharacterEditSection}
                   characterName={draft.name || activeCharacter?.name || ""}
+                  newItemLabel={`새 ${kindLabel}`}
                   glitchFieldCount={glitchFieldCount}
+                  subPageCount={subPageCount}
+                  isPair={isPairDraft}
                   activeGlitchLabel={activeGlitchLabel}
                 />
               <form onSubmit={saveCharacter} className="glass-card grid gap-3 p-5 md:p-6">
                 {characterEditSection === "basics" && (
                 <>
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <h2 className="board-title">자캐 카드 · 레코드</h2>
-                  {activeCharacter && (
-                    <button
-                      type="button"
-                      onClick={() => deleteCharacter(activeCharacter)}
-                      disabled={isSaving}
-                      className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                    >
-                      현재 자캐 삭제
-                    </button>
-                  )}
+                  <h2 className="board-title">{kindLabel} 카드 · 레코드</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {canRecoverLegacyPairMember && (
+                      <button
+                        type="button"
+                        onClick={recoverLegacyPairMemberData}
+                        disabled={isSaving}
+                        className="border border-amber-300/35 bg-amber-950/25 px-4 py-2 text-sm text-amber-100 disabled:opacity-60"
+                      >
+                        페어 멤버 데이터 복구
+                      </button>
+                    )}
+                    {activeCharacter && (
+                      <button
+                        type="button"
+                        onClick={reloadCharacterFromServer}
+                        disabled={isSaving}
+                        className="border border-emerald-200/25 px-4 py-2 text-sm text-emerald-100/85 disabled:opacity-60"
+                      >
+                        서버에서 다시 불러오기
+                      </button>
+                    )}
+                    {activeCharacter && (
+                      <button
+                        type="button"
+                        onClick={() => deleteCharacter(activeCharacter)}
+                        disabled={isSaving}
+                        className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                      >
+                        현재 {kindLabel} 삭제
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <label className="grid gap-2 text-sm text-emerald-100/75">
@@ -2160,12 +3237,33 @@ export default function AdminPage() {
                     <input value={draft.id} onChange={(event) => setDraft((current) => ({ ...current, id: event.target.value }))} placeholder="id 예: shin" className="auth-input" />
                   </label>
                   <label className="grid gap-2 text-sm text-emerald-100/75">
-                    자캐 이름
+                    분류 (Archive)
+                    <select
+                      value={draft.kind}
+                      onChange={(event) => {
+                        const kind = event.target.value as CharacterKind;
+                        setDraft((current) => ({
+                          ...current,
+                          kind,
+                          pairMemberIds: kind === "pair" ? current.pairMemberIds : ["", ""],
+                        }));
+                      }}
+                      className="auth-input"
+                    >
+                      {CHARACTER_KINDS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {CHARACTER_KIND_ADMIN_LABELS[kind]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2 text-sm text-emerald-100/75 md:col-span-2">
+                    {isPairDraft ? "페어 이름" : "이름"}
                     <input
                       value={draft.name}
                       onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "name", event.target.value))}
                       {...bindGlitchField("name")}
-                      placeholder="자캐 이름"
+                      placeholder={isPairDraft ? "비우면 멤버 이름으로 자동 표시" : `${kindLabel} 이름`}
                       className={glitchFieldClass("name", activeGlitchFieldPath)}
                     />
                   </label>
@@ -2234,90 +3332,54 @@ export default function AdminPage() {
                   </AdminCollapsiblePanel>
                 </div>
                 <label className="grid gap-2 text-sm text-emerald-100/75">
-                  대표 대사
+                  {isPairDraft ? "페어 대표 대사" : "대표 대사"}
                   <textarea
                     value={draft.quote}
                     onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "quote", event.target.value))}
                     {...bindGlitchField("quote")}
-                    placeholder="캐릭터 상세에 보일 대표 문장"
+                    placeholder={isPairDraft ? "페어 관계를 보여 줄 대표 문장" : "캐릭터 상세에 보일 대표 문장"}
                     className={glitchFieldClass("quote", activeGlitchFieldPath, "auth-input min-h-20")}
                   />
                 </label>
+                {!isPairDraft && (
                 <label className="grid gap-2 text-sm text-emerald-100/75">
                   상세 보기 BGM
-                  <select
+                  <BgmQuickPicker
                     value={draft.bgmUrl}
-                    onChange={(event) =>
+                    options={bgmCharacterOptions}
+                    disabled={isSaving}
+                    onChange={(bgmUrl) =>
                       setDraft((current) => ({
                         ...current,
-                        bgmUrl: event.target.value,
+                        bgmUrl,
                       }))
                     }
-                    className="auth-input"
-                  >
-                    <option value="">사이트 기본 BGM (상세에서도 기본 목록)</option>
-                    <optgroup label="사이트 기본 목록">
-                      {SITE_BGM_OPTIONS.map((option) => (
-                        <option key={option.url} value={option.url}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="캐릭터 전용">
-                      {CHARACTER_ONLY_BGM_OPTIONS.map((option) => (
-                        <option key={option.url} value={option.url}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                  <span className="text-xs leading-5 text-emerald-100/50">
-                    OC 상세 보기에서만 재생됩니다. 「사이트 기본 목록」은 기본 플레이어와 같고, 「캐릭터 전용」은
-                    Izumi Theme처럼 상세에서만 쓰는 곡입니다.
-                  </span>
+                    onQuickUpload={quickAddCharacterBgm}
+                  />
                 </label>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    나이
-                    <input
-                      value={draft.age}
-                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "profile.age", event.target.value))}
-                      {...bindGlitchField("profile.age")}
-                      placeholder="나이"
-                      className={glitchFieldClass("profile.age", activeGlitchFieldPath)}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    키
-                    <input
-                      value={draft.height}
-                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "profile.height", event.target.value))}
-                      {...bindGlitchField("profile.height")}
-                      placeholder="키"
-                      className={glitchFieldClass("profile.height", activeGlitchFieldPath)}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    역할/직업
-                    <input
-                      value={draft.role}
-                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "profile.role", event.target.value))}
-                      {...bindGlitchField("profile.role")}
-                      placeholder="역할/직업"
-                      className={glitchFieldClass("profile.role", activeGlitchFieldPath)}
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    키워드
-                    <input
-                      value={draft.keyword}
-                      onChange={(event) => setDraft((current) => updateDraftFieldValue(current, "profile.keyword", event.target.value))}
-                      {...bindGlitchField("profile.keyword")}
-                      placeholder="키워드"
-                      className={glitchFieldClass("profile.keyword", activeGlitchFieldPath)}
-                    />
-                  </label>
-                </div>
+                )}
+                <ProfileFieldsEditor
+                  fields={draft.profileFields}
+                  onFieldsChange={(profileFields) =>
+                    setDraft((current) => {
+                      const removedField = current.profileFields.find(
+                        (field) => !profileFields.some((next) => next.id === field.id),
+                      );
+                      const nextGlitch = { ...current.textGlitch };
+                      if (removedField) {
+                        delete nextGlitch[profileFieldGlitchPath(removedField.id)];
+                      }
+                      return { ...current, profileFields, textGlitch: nextGlitch };
+                    })
+                  }
+                  getFieldGlitchPath={profileFieldGlitchPath}
+                  bindGlitchField={bindGlitchField}
+                  activeGlitchFieldPath={activeGlitchFieldPath}
+                  glitchFieldClass={glitchFieldClass}
+                  onValueChange={(fieldId, value) =>
+                    setDraft((current) => updateDraftFieldValue(current, profileFieldGlitchPath(fieldId), value))
+                  }
+                />
 
                 <section
                   id="admin-record-boxes"
@@ -2327,7 +3389,9 @@ export default function AdminPage() {
                     <div>
                       <p className="text-sm font-semibold text-emerald-50">레코드 박스</p>
                       <p className="mt-1 text-xs text-emerald-100/55">
-                        본 페이지 Record 탭에 나오는 상세 설정 박스입니다. 성격, 외형 등을 추가하세요.
+                        {isPairDraft
+                          ? "페어 Record 탭에 나올 관계·특징 박스입니다."
+                          : "본 페이지 Record 탭에 나오는 상세 설정 박스입니다. 성격, 외형 등을 추가하세요."}
                       </p>
                     </div>
                     <button
@@ -2339,21 +3403,6 @@ export default function AdminPage() {
                     </button>
                   </div>
                   <div className="grid gap-3">
-                    {linesToList(draft.settingsText).length > 0 && (
-                      <div className="grid gap-2 border border-amber-300/30 bg-amber-950/20 p-3 text-xs leading-6 text-amber-100">
-                        <p>
-                          예전 형식으로 저장된 상세 설정이 {linesToList(draft.settingsText).length}줄 있습니다. 레코드
-                          박스로 옮기면 아래에서 바로 편집할 수 있어요.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={importLegacySettingsToSections}
-                          className="w-fit border border-amber-200/35 px-3 py-2 text-xs font-semibold text-amber-50"
-                        >
-                          레코드 박스로 가져오기
-                        </button>
-                      </div>
-                    )}
                     {draft.settingSections.map((section, index) => (
                       <article
                         key={section.id}
@@ -2400,34 +3449,12 @@ export default function AdminPage() {
                         />
                       </article>
                     ))}
-                    {draft.settingSections.length === 0 && linesToList(draft.settingsText).length === 0 && (
+                    {draft.settingSections.length === 0 && (
                       <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
                         「레코드 박스 추가」를 누르면 여기에 박스가 생깁니다.
                       </p>
                     )}
                   </div>
-                  <AdminCollapsiblePanel
-                    title="기존 한 줄 상세 설정"
-                    description={
-                      draft.settingsText.trim()
-                        ? "예전 방식으로 저장된 내용이 있습니다. 위 「가져오기」로 레코드 박스로 옮길 수 있어요."
-                        : "예전 방식 기록만 유지할 때 펼쳐서 사용하세요."
-                    }
-                    defaultOpen={Boolean(draft.settingsText.trim())}
-                  >
-                    <label className="grid gap-2 text-xs text-emerald-100/55">
-                      기존 한 줄 상세 설정
-                      <textarea
-                        value={draft.settingsText}
-                        onChange={(event) =>
-                          setDraft((current) => updateDraftFieldValue(current, "settingsText", event.target.value))
-                        }
-                        {...bindGlitchField("settingsText")}
-                        placeholder="이전 방식 기록을 유지하고 싶을 때만 사용"
-                        className={glitchFieldClass("settingsText", activeGlitchFieldPath, "auth-input min-h-20")}
-                      />
-                    </label>
-                  </AdminCollapsiblePanel>
                 </section>
 
                 <label className="grid gap-2 text-sm text-emerald-100/75">
@@ -2442,6 +3469,29 @@ export default function AdminPage() {
                     className={glitchFieldClass("relationships", activeGlitchFieldPath, "auth-input min-h-32")}
                   />
                 </label>
+                </>
+                )}
+
+                {characterEditSection === "members" && isPairDraft && (
+                <>
+                <div>
+                  <h2 className="board-title">연결 캐릭터</h2>
+                  <p className="mt-1 text-xs leading-5 text-emerald-100/55">
+                    OC 또는 어나더 항목을 선택해 페어에 연결합니다. 공개 페이지에서 각 캐릭터 상세로
+                    이동할 수 있어요.
+                  </p>
+                </div>
+                <PairMemberPicker
+                  pairMemberIds={draft.pairMemberIds}
+                  linkableCharacters={pairLinkableCharacters}
+                  currentPairId={draft.id}
+                  onChange={(pairMemberIds) =>
+                    setDraft((current) => ({
+                      ...current,
+                      pairMemberIds,
+                    }))
+                  }
+                />
                 </>
                 )}
 
@@ -2461,15 +3511,24 @@ export default function AdminPage() {
                       const path = event.target.value;
                       setActiveGlitchFieldPath(path || null);
                       setGlitchFieldSelection(null);
+                      const subPagePath = path ? parseSubPageGlitchPath(path) : null;
+                      if (subPagePath) {
+                        setCharacterEditSection("subpages");
+                        setActiveSubPageId(subPagePath.subPageId);
+                      }
                     }}
                     className="auth-input"
                   >
                     <option value="">필드를 선택하세요</option>
-                    {glitchFieldOptions.map((option) => (
-                      <option key={option.path} value={option.path}>
-                        {option.label}
-                        {option.hasGlitch ? " · 적용됨" : ""}
-                      </option>
+                    {glitchFieldOptionGroups.map((group) => (
+                      <optgroup key={group.id} label={group.label}>
+                        {group.options.map((option) => (
+                          <option key={option.path} value={option.path}>
+                            {option.label}
+                            {option.hasGlitch ? " · 적용됨" : ""}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </label>
@@ -2488,7 +3547,7 @@ export default function AdminPage() {
                     setDraft((current) => updateDraftFieldValue(current, activeGlitchFieldPath, value));
                   }}
                   glitchConfig={
-                    activeGlitchFieldPath ? draft.textGlitch[activeGlitchFieldPath] : undefined
+                    activeGlitchFieldPath ? getDraftGlitchConfig(draft, activeGlitchFieldPath) : undefined
                   }
                   onGlitchChange={(config) => {
                     if (!activeGlitchFieldPath) {
@@ -2498,13 +3557,38 @@ export default function AdminPage() {
                     setDraft((current) => updateDraftGlitchPath(current, activeGlitchFieldPath, config));
                   }}
                   onNotice={setNotice}
+                  allCharacters={characters}
+                  currentCharacterId={draft.id}
+                  currentSection={characterKindToSection(normalizeCharacterKind(draft.kind))}
                 />
                 </>
                 )}
 
-                {(characterEditSection === "basics" || characterEditSection === "glitch") && (
-                <div className="sticky bottom-3 z-10 -mx-1 border border-emerald-200/20 bg-black/85 p-3 backdrop-blur-sm">
-                  <button disabled={isSaving} className="w-full bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60 md:ml-auto md:w-auto">
+                {characterEditSection === "subpages" && (
+                <>
+                <div>
+                  <h2 className="board-title">상세 페이지</h2>
+                  <p className="mt-1 text-xs leading-5 text-emerald-100/55">
+                    이 항목 안에 보여 줄 상세 페이지를 만듭니다. 「오류」 탭에서 구간을 다른 항목·상세 페이지로 연결할 수 있어요.
+                  </p>
+                </div>
+                <SubPageEditor
+                  subPages={draft.subPages}
+                  activeSubPageId={activeSubPageId}
+                  onActiveSubPageChange={setActiveSubPageId}
+                  onSubPagesChange={(subPages) =>
+                    setDraft((current) => ({
+                      ...current,
+                      subPages,
+                    }))
+                  }
+                />
+                </>
+                )}
+
+                {(characterEditSection === "basics" || characterEditSection === "glitch" || characterEditSection === "subpages" || characterEditSection === "members") && (
+                <div className="pointer-events-none sticky bottom-3 z-10 -mx-1 border border-emerald-200/20 bg-black/85 p-3 backdrop-blur-sm [&_button]:pointer-events-auto">
+                  <button disabled={isSaving} className="admin-action-btn w-full px-5 py-3 text-sm disabled:opacity-60 md:ml-auto md:w-auto">
                     {isSaving ? "저장 중..." : "본 페이지에 저장"}
                   </button>
                 </div>
@@ -2661,8 +3745,19 @@ export default function AdminPage() {
                 </section>
               )}
 
-              {adminPanel === "characters" && activeCharacter && characterEditSection === "images" && (
-                <section className="grid gap-6 xl:grid-cols-2">
+              {adminPanel === "characters" && characterEditSection === "images" && (
+                <>
+                  {!activeCharacterId || !activeCharacter ? (
+                    <section className="glass-card p-5">
+                      <h2 className="board-title">그림 관리</h2>
+                      <p className="mt-3 border border-amber-400/25 bg-amber-950/20 p-4 text-sm leading-7 text-amber-100/90">
+                        사진을 추가하려면 먼저 <span className="font-semibold">기본 · 레코드</span> 탭에서
+                        이름을 입력하고 <span className="font-semibold">「본 페이지에 저장」</span>을 눌러주세요.
+                        저장된 뒤 다시 그림 탭으로 오면 업로드할 수 있어요.
+                      </p>
+                    </section>
+                  ) : (
+                    <section className="grid gap-6 xl:grid-cols-2">
                   <div className="glass-card p-5">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div>
@@ -2876,7 +3971,9 @@ export default function AdminPage() {
                       ))}
                     </div>
                   </div>
-                </section>
+                    </section>
+                  )}
+                </>
               )}
 
               {notice && <p className="glass-card p-4 text-sm leading-6 text-stone-200">{notice}</p>}

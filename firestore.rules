@@ -24,11 +24,29 @@ service cloud.firestore {
 
     match /users/{userId}/worldUnlocks/{worldId} {
       allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if
+        request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.worldId == worldId &&
+        request.resource.data.unlockedAt is timestamp;
+      allow update: if
+        request.auth != null &&
+        request.auth.uid == userId &&
+        request.resource.data.worldId == worldId &&
+        request.resource.data.unlockedAt is timestamp;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/preferences/{preferenceId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
       allow create, update: if
         request.auth != null &&
         request.auth.uid == userId &&
-        request.resource.data.keys().hasOnly(["worldId", "unlockedAt"]) &&
-        request.resource.data.worldId == worldId;
+        request.resource.data.keys().hasOnly(["bgmVolume", "updatedAt"]) &&
+        request.resource.data.bgmVolume is number &&
+        request.resource.data.bgmVolume >= 0 &&
+        request.resource.data.bgmVolume <= 1 &&
+        request.resource.data.updatedAt is timestamp;
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 

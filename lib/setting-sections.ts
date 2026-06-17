@@ -46,13 +46,6 @@ export function legacySettingsToSections(settings: string[]): SettingSection[] {
     });
 }
 
-export function shouldMigrateLegacySettings(
-  settingSections: SettingSection[] | undefined,
-  settings: string[] | undefined,
-) {
-  return normalizeSettingSections(settingSections).length === 0 && (settings ?? []).some((line) => line.trim());
-}
-
 export function resolveDraftSettingSections(
   settingSections: SettingSection[] | undefined,
   settings: string[] | undefined,
@@ -63,7 +56,6 @@ export function resolveDraftSettingSections(
   if (normalized.length > 0) {
     return {
       settingSections: normalized,
-      settingsText: legacyLines.join("\n"),
       migratedFromLegacy: false,
     };
   }
@@ -71,14 +63,12 @@ export function resolveDraftSettingSections(
   if (legacyLines.length > 0) {
     return {
       settingSections: legacySettingsToSections(legacyLines),
-      settingsText: "",
       migratedFromLegacy: true,
     };
   }
 
   return {
     settingSections: [],
-    settingsText: "",
     migratedFromLegacy: false,
   };
 }

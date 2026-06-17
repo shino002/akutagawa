@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { collection, onSnapshot, type Unsubscribe } from "firebase/firestore";
 import { getFirebaseDb } from "@/lib/firebase";
 import type { World } from "@/lib/types";
+import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
 
 type WorldsState = {
   data: World[];
@@ -37,7 +38,8 @@ const start = () => {
             title: data.title || "",
             subtitle: data.subtitle || "",
             description: data.description || "",
-            password: data.password || "",
+            password: data.password?.trim() ?? "",
+            textGlitch: normalizeTextGlitch(data.textGlitch),
           };
         })
         .sort((a, b) => a.title.localeCompare(b.title));

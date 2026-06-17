@@ -11,8 +11,9 @@ import {
   subscribeGlitchPulse,
 } from "@/lib/glitch-ticker";
 import { buildZoneDisplayText, composeTextSegments } from "@/lib/text-scramble";
-import type { FieldGlitchConfig } from "@/lib/types";
+import type { FieldGlitchConfig, ZoneLinkTarget } from "@/lib/types";
 import { cn } from "@/utils/cn";
+import { resolveZoneLink, type CharacterDetailSection } from "@/lib/zone-links";
 
 interface GlitchedTextProps {
   text: string;
@@ -23,6 +24,11 @@ interface GlitchedTextProps {
   useCssGlitchFallback?: boolean;
   /** false면 관리자 미리보기처럼 번갈아 바뀌지 않고 고정 표시 */
   animate?: boolean;
+  onZoneLinkClick?: (target: ZoneLinkTarget) => void;
+  linkContext?: {
+    section: CharacterDetailSection;
+    characterId: string;
+  };
 }
 
 interface GlitchedTextLiveProps {
@@ -32,6 +38,11 @@ interface GlitchedTextLiveProps {
   glitchClassName?: string;
   preserveWhitespace?: boolean;
   animate?: boolean;
+  onZoneLinkClick?: (target: ZoneLinkTarget) => void;
+  linkContext?: {
+    section: CharacterDetailSection;
+    characterId: string;
+  };
 }
 
 function GlitchedTextLive({
@@ -41,6 +52,8 @@ function GlitchedTextLive({
   glitchClassName,
   preserveWhitespace = false,
   animate = true,
+  onZoneLinkClick,
+  linkContext,
 }: GlitchedTextLiveProps) {
   const shouldScramble = fieldGlitchHasScramble(glitch);
   const pulse = useSyncExternalStore(
@@ -76,6 +89,18 @@ function GlitchedTextLive({
     () => Object.fromEntries(zones.map((zone) => [zone.id, zone.style])),
     [zones],
   );
+  const zoneLinkById = useMemo(
+    () =>
+      Object.fromEntries(
+        zones
+          .map((zone) => {
+            const target = resolveZoneLink(zone, linkContext);
+            return target ? [zone.id, target] as const : null;
+          })
+          .filter((entry): entry is readonly [string, ZoneLinkTarget] => entry !== null),
+      ),
+    [linkContext, zones],
+  );
 
   return (
     <span
@@ -91,6 +116,8 @@ function GlitchedTextLive({
             text={segment.text}
             original={segment.original}
             zoneStyle={zoneStyleById[segment.zoneId]}
+            linkTarget={zoneLinkById[segment.zoneId]}
+            onLinkClick={onZoneLinkClick}
             className={glitchClassName}
           />
         ),
@@ -107,6 +134,8 @@ export function GlitchedText({
   preserveWhitespace = false,
   useCssGlitchFallback = false,
   animate = true,
+  onZoneLinkClick,
+  linkContext,
 }: GlitchedTextProps) {
   const zoneFingerprint = glitch?.zones
     ?.map((zone) => `${zone.id}:${zone.start}:${zone.end}:${zone.original}`)
@@ -114,7 +143,7 @@ export function GlitchedText({
 
   const loopSignature = useMemo(
     () => glitchConfigSignature(text, glitch),
-    [glitch?.wordPool, glitch?.scrambleMode, glitch?.builtinScramble, glitch?.tickMs, glitch?.defaultStyle, text, zoneFingerprint],
+    [glitch?.wordPool, glitch?.scrambleMode, glitch?.builtinScramble, glitch?.errorDisplayMode, glitch?.builtinTokens, glitch?.tickMs, glitch?.defaultStyle, text, zoneFingerprint],
   );
 
   const resolvedGlitch = useMemo(
@@ -142,6 +171,8 @@ export function GlitchedText({
       glitchClassName={glitchClassName}
       preserveWhitespace={preserveWhitespace}
       animate={animate}
+      onZoneLinkClick={onZoneLinkClick}
+      linkContext={linkContext}
     />
   );
 }

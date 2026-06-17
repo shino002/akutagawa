@@ -28,3 +28,14 @@ export type ReaderModalItem = {
  * 자캐 상세 뷰의 탭 식별자입니다.
  */
 export type CharacterDetailTab = "settings" | "images" | "works" | "worlds";
+
+import type { ArchiveSubSectionId } from "@/constants/home";
+
+/** 상세 화면(Archive: OC/페어/어나더)에서 뒤로가기용 이전 위치 */
+export type DetailNavSnapshot = {
+  section: "archive";
+  archiveSub: ArchiveSubSectionId;
+  characterId: string;
+  subPageId: string;
+  tab: CharacterDetailTab;
+};

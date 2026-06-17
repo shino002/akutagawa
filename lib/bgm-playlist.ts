@@ -41,7 +41,4 @@ export function isCharacterBgmUrl(value: string): value is CharacterBgmUrl {
   return isSiteBgmUrl(value) || isCharacterOnlyBgmUrl(value);
 }
 
-export function resolveCharacterBgmUrl(value: string | undefined | null) {
-  const trimmed = value?.trim() ?? "";
-  return isCharacterBgmUrl(trimmed) ? trimmed : null;
-}
+export { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";

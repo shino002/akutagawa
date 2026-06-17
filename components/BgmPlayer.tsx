@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { SITE_BGM_PLAYLIST } from "@/lib/bgm-playlist";
+import { useBgmCatalog } from "@/hooks/useBgmCatalog";
+import { useAuthUser } from "@/hooks/useAuth";
+import { useBgmVolumePreference } from "@/hooks/useBgmVolumePreference";
 
 const PROGRESS_INTERVAL_MS = 1000;
 const ERROR_TITLE_CHARS = [
@@ -57,25 +60,29 @@ function getRandomTrackIndex(playlistLength: number) {
 }
 
 export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
+  const authUser = useAuthUser();
+  const { sitePlaylist } = useBgmCatalog();
+  const { volume, setVolume, isReady: isVolumeReady } = useBgmVolumePreference(authUser);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressTimerRef = useRef<number | null>(null);
   const trackIndexRef = useRef(0);
   const autoPlayAttemptedRef = useRef(false);
   const loadedSrcRef = useRef<string | null>(null);
+  const userPausedRef = useRef(false);
+  const needsGestureUnlockRef = useRef(false);
   const playlistRef = useRef<string[]>([...SITE_BGM_PLAYLIST]);
   const loopPlaylistRef = useRef(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [track, setTrack] = useState(INITIAL_TRACK);
-  const [volume, setVolume] = useState(0.2);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [notice, setNotice] = useState("");
 
   const focusedBgmUrl = characterBgmUrl?.trim() || null;
   const playlist = useMemo(
-    () => (focusedBgmUrl ? [focusedBgmUrl] : [...SITE_BGM_PLAYLIST]),
-    [focusedBgmUrl],
+    () => (focusedBgmUrl ? [focusedBgmUrl] : [...sitePlaylist]),
+    [focusedBgmUrl, sitePlaylist],
   );
   const isCharacterMode = Boolean(focusedBgmUrl);
 
@@ -89,10 +96,12 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
   }, [isCharacterMode, playlist]);
 
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
+    if (!isVolumeReady || !audioRef.current) {
+      return;
     }
-  }, [volume]);
+
+    audioRef.current.volume = volume;
+  }, [isVolumeReady, volume]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -232,8 +241,10 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
       await playWhenReady(audio);
       setIsPlaying(true);
       setNotice("");
+      needsGestureUnlockRef.current = false;
     } catch {
       setIsPlaying(false);
+      needsGestureUnlockRef.current = true;
       setNotice("Click anywhere");
     }
   }
@@ -245,7 +256,9 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
       await audio.play();
       setIsPlaying(true);
       setNotice("");
+      needsGestureUnlockRef.current = false;
     } catch {
+      needsGestureUnlockRef.current = true;
       setNotice("Click anywhere");
     }
   }
@@ -255,9 +268,11 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
 
     try {
       if (audio.paused) {
+        userPausedRef.current = false;
         await playAudio();
       } else {
         audio.pause();
+        userPausedRef.current = true;
         setIsPlaying(false);
         setNotice("");
       }
@@ -296,6 +311,7 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
       return;
     }
 
+    userPausedRef.current = false;
     const shouldAutoPlay = isPlaying || isCharacterMode;
     const nextIndex = isCharacterMode ? 0 : getRandomTrackIndex(playlistRef.current.length);
     void playTrack(nextIndex, shouldAutoPlay);
@@ -304,10 +320,13 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
 
   useEffect(() => {
     function startAfterUserGesture() {
-      const audio = audioRef.current;
+      if (userPausedRef.current || !needsGestureUnlockRef.current) return;
 
-      if (audio && !audio.paused) return;
-      void playTrack(trackIndexRef.current, true);
+      void playTrack(trackIndexRef.current, true).then(() => {
+        if (!userPausedRef.current) {
+          needsGestureUnlockRef.current = false;
+        }
+      });
     }
 
     window.addEventListener("pointerdown", startAfterUserGesture, { capture: true });

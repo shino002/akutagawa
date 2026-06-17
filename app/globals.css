@@ -642,6 +642,67 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   }
 }
 
+/* Archive 하위 메뉴: OC · Pair · Another 접기/펼치기 */
+.archive-submenu {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    max-height 320ms cubic-bezier(0.08, 0.72, 0.12, 1),
+    opacity 240ms ease;
+}
+
+.archive-submenu.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.archive-submenu-inner {
+  overflow: hidden;
+}
+
+.archive-submenu-mark {
+  display: inline-flex;
+  width: 0.75rem;
+  justify-content: center;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1;
+  transition: transform 280ms cubic-bezier(0.08, 0.72, 0.12, 1);
+}
+
+.archive-submenu-mark.is-open {
+  transform: rotate(45deg);
+}
+
+.archive-submenu.is-open .archive-submenu-item {
+  animation: archive-submenu-in 260ms cubic-bezier(0.08, 0.72, 0.12, 1) both;
+  animation-delay: var(--archive-submenu-delay, 0ms);
+}
+
+@keyframes archive-submenu-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-0.35rem, -0.2rem, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .archive-submenu,
+  .archive-submenu-mark {
+    transition: none;
+  }
+
+  .archive-submenu.is-open .archive-submenu-item {
+    animation: none;
+  }
+}
+
 @keyframes bgm-lp-spin {
   from {
     transform: rotate(0deg);
@@ -794,6 +855,149 @@ select {
   line-height: 1.7;
 }
 
+.admin-page [data-admin-interactive],
+.admin-page [data-admin-interactive] button,
+.admin-page [data-admin-interactive] input,
+.admin-page [data-admin-interactive] select,
+.admin-page [data-admin-interactive] textarea {
+  pointer-events: auto;
+}
+
+.admin-page .admin-choice-btn {
+  border: 1px solid rgba(150, 145, 126, 0.24);
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(214, 208, 188, 0.82);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.admin-page .admin-choice-btn:hover:not(:disabled) {
+  border-color: rgba(111, 143, 215, 0.42);
+  color: #f4eecf;
+}
+
+.admin-page .admin-choice-btn-active {
+  border-color: rgba(111, 143, 215, 0.52) !important;
+  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
+  color: #f4eecf !important;
+  font-weight: 600;
+}
+
+.admin-page .admin-action-btn {
+  border: 1px solid rgba(111, 143, 215, 0.48) !important;
+  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
+  color: #f4eecf !important;
+  font-weight: 600;
+}
+
+.admin-page .admin-action-btn:hover:not(:disabled) {
+  border-color: rgba(130, 165, 230, 0.62) !important;
+  color: #fff8e8 !important;
+}
+
+.admin-page .admin-ghost-btn {
+  border: 1px solid rgba(150, 145, 126, 0.24);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(214, 208, 188, 0.78);
+}
+
+.admin-page .admin-ghost-btn:hover:not(:disabled) {
+  border-color: rgba(150, 145, 126, 0.4);
+  color: #f4eecf;
+}
+
+.admin-page .admin-tab-btn {
+  border: 1px solid rgba(150, 145, 126, 0.22);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(214, 208, 188, 0.78);
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+}
+
+.admin-page .admin-tab-btn:hover {
+  border-color: rgba(111, 143, 215, 0.38);
+  color: #f4eecf;
+}
+
+.admin-page .admin-tab-btn-active {
+  border-color: rgba(111, 143, 215, 0.52) !important;
+  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
+  color: #f4eecf !important;
+}
+
+.admin-page .admin-section-nav {
+  position: relative;
+  z-index: 5;
+}
+
+/* 관리자 버튼: 전역 box-shadow 제거 규칙보다 우선해 박스 형태가 보이게 합니다. */
+html body main.admin-page .admin-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.55rem 1rem !important;
+  border: 1px solid rgba(111, 143, 215, 0.72) !important;
+  background: linear-gradient(180deg, rgba(34, 56, 98, 0.98), rgba(16, 28, 52, 0.98)) !important;
+  color: #f4f0e0 !important;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.72),
+    0 2px 12px rgba(53, 95, 189, 0.22) !important;
+}
+
+html body main.admin-page .admin-action-btn:hover:not(:disabled) {
+  border-color: rgba(150, 180, 240, 0.85) !important;
+  background: linear-gradient(180deg, rgba(42, 68, 118, 0.98), rgba(20, 36, 64, 0.98)) !important;
+  color: #fffaf0 !important;
+}
+
+html body main.admin-page .admin-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+html body main.admin-page .admin-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid rgba(150, 145, 126, 0.38) !important;
+  background: rgba(8, 10, 12, 0.92) !important;
+  color: rgba(230, 224, 206, 0.88) !important;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
+  border-color: rgba(111, 143, 215, 0.48) !important;
+  color: #f4f0e0 !important;
+}
+
+html body main.admin-page .admin-choice-btn {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+}
+
+html body main.admin-page .admin-choice-btn-active {
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 143, 215, 0.2),
+    0 1px 8px rgba(53, 95, 189, 0.12) !important;
+}
+
+html body main.admin-page .admin-tab-btn {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+}
+
+html body main.admin-page .admin-tab-btn-active {
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 143, 215, 0.2),
+    0 1px 8px rgba(53, 95, 189, 0.12) !important;
+}
+
 /* 캐릭터 색인: 갠홈 목록이지만 검붉은 파일 색인처럼 보이게 만듭니다. */
 .character-index-panel {
   background:
@@ -933,6 +1137,11 @@ select {
   -webkit-line-clamp: 2;
 }
 
+.archive-character-card-name .glitch-zone-mark,
+.archive-character-card-subtitle .glitch-zone-mark {
+  vertical-align: baseline;
+}
+
 /* 자캐 카드와 갤러리 타일: 대표 이미지, 일러스트, 스탠딩 미리보기 박스입니다. */
 .character-card {
   position: relative;
@@ -1028,6 +1237,7 @@ select {
   position: absolute;
   inset: 0;
   z-index: 2;
+  pointer-events: none;
   background:
     linear-gradient(90deg, rgba(0, 0, 0, 0.99) 0 34%, rgba(0, 0, 0, 0.76) 58%, rgba(0, 0, 0, 0.28) 100%),
     linear-gradient(0deg, rgba(0, 0, 0, 0.9), transparent 42%),
@@ -1042,16 +1252,17 @@ select {
 
 .case-file-hero-mark {
   position: absolute;
-  right: 0.65rem;
-  bottom: 0.35rem;
   left: auto;
+  right: 0.85rem;
+  bottom: -0.75rem;
   top: auto;
   z-index: 3;
   display: block;
+  box-sizing: border-box;
   width: max-content;
-  max-width: calc(100% - 1.3rem);
+  max-width: calc(100% - 1.7rem);
   margin: 0;
-  padding: 0;
+  padding: 0 0.9rem 0 0;
   color: rgba(255, 222, 222, 0.09);
   font-size: clamp(3.8rem, 10vw, 8rem);
   font-weight: 400;
@@ -1078,6 +1289,7 @@ select {
   position: absolute;
   inset: 0;
   z-index: 3;
+  pointer-events: none;
   background:
     linear-gradient(rgba(255, 0, 24, 0.09) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 0, 24, 0.065) 1px, transparent 1px);
@@ -1103,6 +1315,7 @@ select {
   bottom: 0.65rem;
   max-width: min(44rem, calc(100% - 2.4rem));
   text-align: left;
+  z-index: 8;
 }
 
 .case-file-kicker,
@@ -1140,6 +1353,17 @@ select {
   max-width: 36rem;
   color: rgba(255, 230, 230, 0.68);
   font-size: 0.95rem;
+}
+
+.case-file-name--subpage {
+  font-size: clamp(1.25rem, 3vw, 2rem) !important;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.case-file-name--subpage .kanji-name {
+  font-size: 0.42em;
 }
 
 .case-back-button {
@@ -2914,6 +3138,136 @@ main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6
   padding-block: clamp(1.25rem, 2.4vw, 1.8rem);
 }
 
+.world-detail-stack,
+.world-detail-intro {
+  margin-inline: 0;
+  padding-inline: 0;
+  width: 100%;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.world-detail-stack .archive-kicker,
+.world-detail-stack .world-detail-title,
+.world-detail-stack .world-detail-subtitle,
+.world-detail-stack .world-description,
+.world-detail-stack .world-detail-participant-name,
+.world-detail-stack .world-detail-participant-subtitle {
+  margin-inline: 0;
+  padding-inline: 0;
+}
+
+.world-archive-section .world-detail-intro > .archive-kicker {
+  margin: 0 0 0.4rem;
+  letter-spacing: 0.22em;
+}
+
+.world-detail-participant-name-row {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: flex-end;
+  gap: 0.35rem;
+  padding-top: 1.65rem;
+  margin-top: -1.65rem;
+}
+
+.world-detail-participant-name-row .world-detail-participant-name {
+  margin: 0;
+  line-height: 1.05;
+}
+
+.world-archive-section .world-participant-entry .world-detail-participant-name-row .world-detail-participant-id {
+  display: inline !important;
+  flex-shrink: 0;
+  margin: 0 !important;
+  line-height: 1;
+  letter-spacing: 0.22em;
+  transform: translateY(0.52em);
+  white-space: nowrap;
+}
+
+.world-archive-section .world-detail-intro {
+  display: flex;
+  flex-direction: column;
+}
+
+.world-archive-section .world-detail-intro .archive-title.world-detail-title {
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+  margin-inline: 0 !important;
+  padding-inline: 0 !important;
+}
+
+.world-archive-section .world-detail-subtitle {
+  display: block;
+  max-width: none;
+}
+
+.world-detail-stack .glitch-zone-mark {
+  vertical-align: baseline;
+}
+
+.world-archive-section .world-participant-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.world-participant-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.world-participant-profile {
+  padding: 1rem;
+}
+
+.world-participant-profile .gallery-tile {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.world-participant-profile .gallery-tile .world-participant-illustration-frame {
+  border: 1px solid rgba(190, 184, 160, 0.22);
+  background: #070708;
+}
+
+.world-participant-profile .world-detail-participant-name-row {
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.world-participant-head {
+  margin-bottom: 0.55rem;
+}
+
+.world-participant-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.world-participant-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.world-participant-detail-link {
+  align-self: flex-end;
+}
+
+.world-participant-illustration-frame {
+  height: 520px;
+}
+
 .world-archive-section .archive-kicker {
   margin-bottom: 0.4rem;
   letter-spacing: 0.32em;
@@ -2929,13 +3283,77 @@ main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6
   padding: 1.2rem;
 }
 
+.world-archive-section .archive-world-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+.world-archive-section .archive-world-card.is-active {
+  border-color: rgba(96, 165, 250, 0.7);
+  background: rgba(23, 37, 84, 0.2);
+}
+
+.world-archive-section .archive-world-card:not(.is-active):hover {
+  border-color: rgba(96, 165, 250, 0.45);
+}
+
+.archive-world-card-body {
+  display: flex;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  text-align: left;
+}
+
+.archive-world-card-id {
+  margin: 0;
+  color: rgba(255, 0, 24, 0.72);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.64rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.archive-world-card-title {
+  margin: 0;
+  color: rgba(255, 245, 245, 0.95);
+  font-size: 1.35rem;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+}
+
+.archive-world-card-subtitle {
+  margin: 0;
+  display: -webkit-box;
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.archive-world-card-subtitle .glitch-zone-mark {
+  vertical-align: baseline;
+}
+
+.archive-world-card-locked {
+  align-self: flex-start;
+  margin-top: 0.15rem;
+}
+
 .world-archive-section .blue-emphasis {
   display: block;
   max-width: 36rem;
 }
 
 .world-description {
-  max-width: 42rem;
+  max-width: none;
   line-height: 2;
 }
 
@@ -2994,6 +3412,10 @@ main :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6
 .archive-character-card-body,
 .case-file-title-block,
 .world-participant-entry > div:first-child,
+.world-participant-entry .world-participant-layout,
+.world-participant-entry .world-participant-left,
+.world-participant-entry .world-participant-illustration,
+.world-participant-entry .world-participant-extra,
 .world-participant-entry .grid,
 .world-participant-entry .flex,
 .case-profile-cell dt,
@@ -3229,9 +3651,9 @@ main::after {
   box-shadow: none !important;
 }
 
-main :where(*),
-main :where(*)::before,
-main :where(*)::after {
+main :where(*):not(.glitch-zone-mark),
+main :where(*):not(.glitch-zone-mark)::before,
+main :where(*):not(.glitch-zone-mark)::after {
   border-color: rgba(111, 143, 215, 0.22) !important;
   border-top-color: rgba(111, 143, 215, 0.22) !important;
   border-right-color: rgba(111, 143, 215, 0.22) !important;
@@ -3300,18 +3722,22 @@ main :where(
 
 .case-file-hero-mark {
   position: absolute !important;
-  right: 0.65rem !important;
-  bottom: 0.35rem !important;
   left: auto !important;
+  right: 0.85rem !important;
+  bottom: -0.75rem !important;
   top: auto !important;
   z-index: 3 !important;
   display: block !important;
+  box-sizing: border-box !important;
+  max-width: calc(100% - 1.7rem) !important;
+  padding-right: 0.9rem !important;
   font-size: clamp(3.8rem, 10vw, 8rem) !important;
   color: rgba(111, 143, 215, 0.18) !important;
   background: transparent !important;
   opacity: 1 !important;
   letter-spacing: 0.02em !important;
   line-height: 1 !important;
+  text-align: right !important;
   animation: current-heading-glitch 2.4s steps(1, end) infinite;
 }
 
@@ -3524,5 +3950,165 @@ html body main .dossier-viewer .case-tab-button.is-active {
   animation: none !important;
   transform: none !important;
   filter: none !important;
+  --glitch-decoration-color: currentColor;
+}
+
+.glitch-zone-mark.glitch-zone-has-underline,
+.glitch-zone-mark.glitch-zone-has-link-underline {
+  text-decoration-line: underline !important;
+  text-decoration-thickness: var(--glitch-underline-thickness, 2px) !important;
+  text-underline-offset: 0.18em;
+  text-decoration-color: var(
+    --glitch-underline-color,
+    color-mix(in srgb, var(--glitch-decoration-color) 92%, transparent)
+  ) !important;
+  text-decoration-skip-ink: none;
+}
+
+.glitch-zone-mark.glitch-zone-has-strikethrough {
+  position: relative;
+  display: inline-block;
+}
+
+.glitch-zone-mark.glitch-zone-has-strikethrough::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 54%;
+  height: var(--glitch-strikethrough-thickness, 2px);
+  background: var(
+    --glitch-strikethrough-color,
+    color-mix(in srgb, var(--glitch-decoration-color) 90%, transparent)
+  ) !important;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.glitch-zone-link {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.glitch-zone-link:hover {
+  text-decoration-color: var(--glitch-underline-color, var(--glitch-decoration-color)) !important;
+}
+
+.pair-member-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 1.25rem;
+}
+
+.pair-member-switcher__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(7, 15, 32, 0.55);
+  padding: 0.55rem 0.85rem;
+  color: rgba(191, 219, 254, 0.82);
+  font-size: 0.82rem;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.pair-member-switcher__button:hover {
+  border-color: rgba(125, 211, 252, 0.72);
+  transform: translateY(-1px);
+}
+
+.pair-member-switcher__button.is-active {
+  border-color: rgba(255, 0, 24, 0.55);
+  background: rgba(36, 0, 4, 0.72);
+  color: rgba(255, 230, 230, 0.95);
+}
+
+.pair-member-switcher__index {
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  opacity: 0.72;
+}
+
+.pair-member-switcher__name {
+  font-weight: 700;
+}
+
+.pair-member-switcher__button--link {
+  min-width: min(100%, 14rem);
+  padding-right: 1rem;
+}
+
+.pair-member-switcher__kanji {
+  font-size: 0.72em;
+  color: rgba(214, 211, 209, 0.62);
+}
+
+/* SideMenu Archive accordion: override global animation/transform resets */
+html body main .side-menu .archive-submenu {
+  overflow: hidden !important;
+  transition:
+    max-height 320ms cubic-bezier(0.08, 0.72, 0.12, 1),
+    opacity 240ms ease !important;
+}
+
+html body main .side-menu .archive-submenu.is-collapsed {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+html body main .side-menu .archive-submenu.is-open {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+html body main .side-menu .archive-submenu-mark {
+  transition: transform 280ms cubic-bezier(0.08, 0.72, 0.12, 1) !important;
+}
+
+html body main .side-menu .archive-submenu-mark.is-open {
+  transform: rotate(45deg) !important;
+}
+
+html body main .side-menu .archive-submenu.is-open .archive-submenu-item {
+  animation: archive-submenu-in 260ms cubic-bezier(0.08, 0.72, 0.12, 1) both !important;
+  animation-delay: var(--archive-submenu-delay, 0ms) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body main .side-menu .archive-submenu,
+  html body main .side-menu .archive-submenu-mark {
+    transition: none !important;
+  }
+
+  html body main .side-menu .archive-submenu.is-open .archive-submenu-item {
+    animation: none !important;
+  }
+}
+
+.extract-banner-link {
+  display: block;
+  width: 200px;
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid rgba(168, 162, 158, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.extract-banner-link:hover {
+  border-color: rgba(214, 211, 209, 0.35);
+  background: rgba(12, 12, 12, 0.55);
+}
+
+.extract-banner-image {
+  display: block;
+  width: 200px;
+  height: 40px;
+  object-fit: cover;
+  opacity: 0.95;
 }
 

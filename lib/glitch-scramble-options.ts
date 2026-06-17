@@ -1,4 +1,4 @@
-import type { FieldGlitchConfig, GlitchScrambleMode, GlitchZone } from "@/lib/types";
+import type { FieldGlitchConfig, GlitchErrorDisplayMode, GlitchScrambleMode, GlitchZone } from "@/lib/types";
 
 export function resolveEffectiveScrambleMode(
   wordPool: string,
@@ -42,4 +42,8 @@ export function normalizeScrambleMode(value: unknown): GlitchScrambleMode | unde
 
 export function normalizeErrorMessageSource(value: unknown): GlitchZone["errorMessageSource"] | undefined {
   return value === "auto" || value === "custom" || value === "none" ? value : undefined;
+}
+
+export function normalizeErrorDisplayMode(value: unknown): GlitchErrorDisplayMode | undefined {
+  return value === "alternate" || value === "randomOnly" ? value : undefined;
 }

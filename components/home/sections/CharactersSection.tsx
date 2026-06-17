@@ -9,9 +9,20 @@ import { emptyCharacter } from "@/constants/home";
 import { TextGlitch } from "@/components/TextGlitch";
 import { GlitchedText } from "@/components/GlitchedText";
 import { glitchConfigSignature, settingSectionGlitchPath } from "@/lib/glitch-fields";
+import { profileFieldGlitchPath } from "@/lib/profile-fields";
+import { normalizeSettingSections } from "@/lib/setting-sections";
 import { ArchiveMotion } from "@/components/home/ArchiveMotion";
 import { normalizeWorldEntries } from "@/utils/normalizers";
-import type { Character, UploadedImage, World } from "@/lib/types";
+import type { Character, UploadedImage, World, ZoneLinkTarget } from "@/lib/types";
+import type { CharacterDetailSection } from "@/lib/zone-links";
+import { findSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
+import {
+  formatPairDisplayName,
+  formatPairMemberLabel,
+  isPairCharacter,
+  pairIndexCardImage,
+  resolveLinkedPairMembers,
+} from "@/lib/pair-members";
 import type {
   CharacterDetailTab,
   ExpressionModalItem,
@@ -39,21 +50,25 @@ const caseFileHeroMarkFont = Explora({
   weight: "400",
 });
 
-const PROFILE_LABELS: Record<keyof Character["profile"], string> = {
-  age: "나이",
-  height: "신장",
-  role: "역할",
-  keyword: "키워드",
-};
-
 const imageCreditName = (image: UploadedImage) => image.name?.trim() ?? "";
 const formatHeroCharacterId = (id: string) =>
   id ? `${id.slice(0, 1).toUpperCase()}${id.slice(1).toLowerCase()}` : "";
 
 interface CharactersSectionProps {
   characters: Character[];
+  allCharacters?: Character[];
+  sectionIndexTitle?: string;
+  emptyListMessage?: string;
   activeCharacterId: string;
   setActiveCharacterId: (id: string) => void;
+  activeSubPageId?: string;
+  setActiveSubPageId?: (id: string) => void;
+  parentCharacter?: Character;
+  detailSection: CharacterDetailSection;
+  onNavigateToLinkedCharacter?: (characterId: string) => void;
+  onZoneLinkNavigate?: (target: ZoneLinkTarget) => void;
+  onDetailNavigateBack?: () => boolean;
+  hasDetailNavHistory?: boolean;
   activeTab: CharacterDetailTab;
   setActiveTab: (tab: CharacterDetailTab) => void;
   worlds: World[];
@@ -67,6 +82,7 @@ interface CharactersSectionProps {
     event: FormEvent<HTMLFormElement>,
     worldId: string,
   ) => void | Promise<void>;
+  onRequireAuth: () => void;
   onOpenGallery: (item: GalleryModalItem) => void;
   onOpenExpression: (item: ExpressionModalItem) => void;
   onOpenReader: (item: ReaderModalItem) => void;
@@ -75,8 +91,19 @@ interface CharactersSectionProps {
 
 export function CharactersSection({
   characters,
+  allCharacters = characters,
+  sectionIndexTitle = "OC Files",
+  emptyListMessage = "아직 등록된 항목이 없어요.",
   activeCharacterId,
   setActiveCharacterId,
+  activeSubPageId = "",
+  setActiveSubPageId,
+  parentCharacter,
+  detailSection,
+  onNavigateToLinkedCharacter,
+  onZoneLinkNavigate,
+  onDetailNavigateBack,
+  hasDetailNavHistory = false,
   activeTab,
   setActiveTab,
   worlds,
@@ -87,18 +114,60 @@ export function CharactersSection({
   unlockedWorldIds,
   canUnlockWorlds,
   onUnlockCharacterWorld,
+  onRequireAuth,
   onOpenGallery,
   onOpenExpression,
   onOpenReader,
   className,
 }: CharactersSectionProps) {
-  const activeCharacter = useMemo(
+  const resolvedParentCharacter = useMemo(
     () =>
+      parentCharacter ??
       characters.find((character) => character.id === activeCharacterId) ??
       characters[0] ??
       emptyCharacter,
-    [activeCharacterId, characters],
+    [activeCharacterId, characters, parentCharacter],
   );
+  const activeSubPage = useMemo(
+    () =>
+      activeSubPageId ? findSubPage(resolvedParentCharacter, activeSubPageId) : undefined,
+    [activeSubPageId, resolvedParentCharacter],
+  );
+  const isPairView = isPairCharacter(resolvedParentCharacter);
+  const linkedPairMembers = useMemo(
+    () => (isPairView ? resolveLinkedPairMembers(resolvedParentCharacter, allCharacters) : []),
+    [allCharacters, isPairView, resolvedParentCharacter],
+  );
+  const activeCharacter = useMemo(
+    () =>
+      activeSubPage
+        ? subPageToDisplayCharacter(resolvedParentCharacter, activeSubPage)
+        : resolvedParentCharacter,
+    [activeSubPage, resolvedParentCharacter],
+  );
+  const handleZoneLinkClick = (target: ZoneLinkTarget) => {
+    if (onZoneLinkNavigate) {
+      onZoneLinkNavigate(target);
+      return;
+    }
+
+    if (target.section === detailSection) {
+      setActiveCharacterId(target.characterId);
+      setActiveSubPageId?.(target.subPageId ?? "");
+      setActiveTab("settings");
+    }
+  };
+  const detailLinkContext = useMemo(
+    () => ({
+      section: detailSection,
+      characterId: activeCharacterId || resolvedParentCharacter.id,
+    }),
+    [activeCharacterId, detailSection, resolvedParentCharacter.id],
+  );
+  const zoneLinkProps = {
+    linkContext: detailLinkContext,
+    onZoneLinkClick: handleZoneLinkClick,
+  } as const;
   const activeCharacterImages = useMemo(() => activeCharacter.images ?? [], [activeCharacter]);
   const activeIllustrationImages = useMemo(
     () => activeCharacterImages.filter((image) => image.category !== "standing"),
@@ -147,8 +216,47 @@ export function CharactersSection({
     activeCharacterWorldEntry &&
     (!activeCharacterWorldPassword || unlockedWorldIds[activeCharacterWorldEntry.worldId]),
   );
-  const heroCharacterId = formatHeroCharacterId(activeCharacter.id);
-  const activeSettingSections = activeCharacter.settingSections ?? [];
+  const isSubPageView = Boolean(activeSubPageId && activeSubPage);
+  const visibleTabs = isSubPageView ? TAB_ORDER.filter((tab) => tab !== "worlds") : TAB_ORDER;
+  const backButtonLabel = useMemo(() => {
+    if (hasDetailNavHistory) {
+      return "이전으로";
+    }
+
+    if (isSubPageView) {
+      return `${resolvedParentCharacter.name || "본 페이지"}으로`;
+    }
+
+    return "목록으로";
+  }, [hasDetailNavHistory, isSubPageView, resolvedParentCharacter.name]);
+
+  const handleDetailBack = () => {
+    if (onDetailNavigateBack?.()) {
+      return;
+    }
+
+    if (activeSubPageId) {
+      setActiveSubPageId?.("");
+      setActiveTab("settings");
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return;
+    }
+
+    setActiveCharacterId("");
+    setActiveSubPageId?.("");
+    setActiveTab("settings");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+  const heroCharacterId = formatHeroCharacterId(
+    isSubPageView && activeSubPage
+      ? activeSubPage.displayId?.trim() || activeSubPage.id
+      : activeCharacter.id,
+  );
+  const activeSettingSections = normalizeSettingSections(activeCharacter.settingSections);
 
   return (
     <section className={cn("space-y-6", className)}>
@@ -156,7 +264,7 @@ export function CharactersSection({
       <section className="glass-card character-index-panel p-6 md:p-8">
         <div className="character-index-header">
           <p className="character-index-blue-text text-xs tracking-[0.45em] uppercase">
-            <TextGlitch className="character-index-blue-text" text="OC Files" />
+            <TextGlitch className="character-index-blue-text" text={sectionIndexTitle} />
           </p>
           <TextGlitch
             className="character-index-blue-text"
@@ -166,7 +274,7 @@ export function CharactersSection({
 
         {characters.length === 0 ? (
           <div className="archive-panel mt-6 p-5 text-sm leading-7 text-emerald-100/65">
-            아직 등록된 자캐가 없어요. 관리자 로그인 후 `새 자캐 만들기`로 첫 카드를 추가해주세요.
+            {emptyListMessage}
           </div>
         ) : (
           <ArchiveMotion
@@ -175,9 +283,19 @@ export function CharactersSection({
             className="character-index-grid"
           >
             {characters.map((character) => {
-              const cardImage =
-                (character.images ?? []).find((image) => image.category !== "standing") ??
-                (character.images ?? [])[0];
+              const cardImage = isPairCharacter(character)
+                ? pairIndexCardImage(character, allCharacters)
+                : (character.images ?? []).find((image) => image.category !== "standing") ??
+                  (character.images ?? [])[0];
+              const cardName = isPairCharacter(character)
+                ? formatPairDisplayName(character, allCharacters)
+                : character.name;
+              const cardSubtitle = isPairCharacter(character)
+                ? resolveLinkedPairMembers(character, allCharacters)
+                    .map(formatPairMemberLabel)
+                    .filter((label) => label !== "이름 없음")
+                    .join(" · ") || character.subtitle
+                : character.subtitle;
 
               return (
                 <button
@@ -185,6 +303,7 @@ export function CharactersSection({
                   type="button"
                   onClick={() => {
                     setActiveCharacterId(character.id);
+                    setActiveSubPageId?.("");
                     setActiveTab("settings");
                   }}
                   className={`archive-character-card text-left ${activeCharacterId === character.id ? "is-active" : ""}`}
@@ -209,9 +328,11 @@ export function CharactersSection({
                     </p>
                     <h4 className="archive-character-card-name">
                       <GlitchedText
-                        text={character.name}
+                        text={cardName}
                         glitch={character.textGlitch?.name}
                         useCssGlitchFallback
+                        linkContext={{ section: detailSection, characterId: character.id }}
+                        onZoneLinkClick={handleZoneLinkClick}
                       />
                       {character.kanjiName && (
                         <span className="kanji-name ml-2 align-baseline text-[0.58em] text-stone-300/55">
@@ -225,9 +346,10 @@ export function CharactersSection({
                     </h4>
                     <p className="archive-character-card-subtitle">
                       <GlitchedText
-                        text={character.subtitle}
+                        text={cardSubtitle}
                         glitch={character.textGlitch?.subtitle}
                         useCssGlitchFallback
+                        className="block w-full"
                       />
                     </p>
                   </div>
@@ -242,7 +364,7 @@ export function CharactersSection({
       {activeCharacterId && (
       <ArchiveMotion
         as="section"
-        motionKey={activeCharacterId}
+        motionKey={`${activeCharacterId}-${activeSubPageId || "main"}`}
         className="glass-card case-file-detail dossier-viewer overflow-hidden"
       >
         <div className="case-file-hero" data-character-id={heroCharacterId}>
@@ -273,12 +395,23 @@ export function CharactersSection({
           >
             <p className="case-file-kicker">
               <TextGlitch text="Private Archive / Case File" />
+              {isPairView && !isSubPageView && (
+                <>
+                  {" "}
+                  / <TextGlitch text="Pair" />
+                </>
+              )}
             </p>
-            <h3 className="case-file-name">
+            <h3 className={cn("case-file-name", isSubPageView && "case-file-name--subpage")}>
               <GlitchedText
-                text={activeCharacter.name}
+                text={
+                  isPairView && !isSubPageView
+                    ? formatPairDisplayName(resolvedParentCharacter, allCharacters)
+                    : activeCharacter.name
+                }
                 glitch={activeCharacter.textGlitch?.name}
                 useCssGlitchFallback
+                {...zoneLinkProps}
               />
               {activeCharacter.kanjiName && (
                   <span className="kanji-name ml-3 align-baseline text-[0.34em] text-stone-300/55">
@@ -286,6 +419,7 @@ export function CharactersSection({
                     text={activeCharacter.kanjiName}
                     glitch={activeCharacter.textGlitch?.kanjiName}
                     useCssGlitchFallback
+                    {...zoneLinkProps}
                   />
                 </span>
               )}
@@ -295,15 +429,13 @@ export function CharactersSection({
                 text={activeCharacter.subtitle}
                 glitch={activeCharacter.textGlitch?.subtitle}
                 useCssGlitchFallback
+                {...zoneLinkProps}
               />
             </p>
           </div>
           <button
             type="button"
-            onClick={() => {
-              setActiveCharacterId("");
-              setActiveTab("settings");
-            }}
+            onClick={handleDetailBack}
             className="case-back-button"
             style={{
               top: "1rem",
@@ -312,7 +444,7 @@ export function CharactersSection({
               left: "1rem",
             }}
           >
-            목록으로
+            ← {backButtonLabel}
           </button>
           <span
             className={cn("case-file-hero-mark", caseFileHeroMarkFont.className)}
@@ -322,6 +454,30 @@ export function CharactersSection({
           </span>
         </div>
         <div className="dossier-body p-6 md:p-8">
+          {isPairView && !isSubPageView && linkedPairMembers.length > 0 && (
+            <div className="pair-member-switcher">
+              {linkedPairMembers.map((member, index) => (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => onNavigateToLinkedCharacter?.(member.id)}
+                    className="pair-member-switcher__button pair-member-switcher__button--link"
+                  >
+                    <span className="pair-member-switcher__index">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="pair-member-switcher__name">
+                      {formatPairMemberLabel(member)}
+                    </span>
+                    {member.kanjiName?.trim() && (
+                      <span className="pair-member-switcher__kanji">{member.kanjiName}</span>
+                    )}
+                    <span className="pair-member-switcher__hint">상세 보기</span>
+                  </button>
+                ))}
+            </div>
+          )}
+
           <div className="case-file-meta">
             <span>NO. {activeCharacter.id || "UNREGISTERED"}</span>
             {activeCharacter.classification && (
@@ -330,6 +486,7 @@ export function CharactersSection({
                 <GlitchedText
                   text={activeCharacter.classification}
                   glitch={activeCharacter.textGlitch?.classification}
+                  {...zoneLinkProps}
                 />
               </span>
             )}
@@ -340,6 +497,7 @@ export function CharactersSection({
                   text={(activeCharacter.statusTags ?? []).join("\n")}
                   glitch={activeCharacter.textGlitch?.statusTags}
                   preserveWhitespace
+                  {...zoneLinkProps}
                 />
               </span>
             )}
@@ -350,18 +508,20 @@ export function CharactersSection({
             <GlitchedText
               text={activeCharacter.quote}
               glitch={activeCharacter.textGlitch?.quote}
+              {...zoneLinkProps}
             />
             ”
           </blockquote>
 
           <dl className="case-profile-grid">
-            {Object.entries(activeCharacter.profile).map(([key, value]) => (
-              <div key={key} className="case-profile-cell">
-                <dt>{PROFILE_LABELS[key as keyof Character["profile"]]}</dt>
+            {activeCharacter.profileFields.map((field) => (
+              <div key={field.id} className="case-profile-cell">
+                <dt>{field.label || "-"}</dt>
                 <dd>
                   <GlitchedText
-                    text={value || "-"}
-                    glitch={activeCharacter.textGlitch?.[`profile.${key}`]}
+                    text={field.value || "-"}
+                    glitch={activeCharacter.textGlitch?.[profileFieldGlitchPath(field.id)]}
+                    {...zoneLinkProps}
                   />
                 </dd>
               </div>
@@ -369,7 +529,7 @@ export function CharactersSection({
           </dl>
 
           <div className="case-tab-strip">
-            {TAB_ORDER.map((tab) => (
+            {visibleTabs.map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -403,6 +563,7 @@ export function CharactersSection({
                               text={section.body || "-"}
                               glitch={activeCharacter.textGlitch?.[settingSectionGlitchPath(section.id)]}
                               preserveWhitespace
+                              {...zoneLinkProps}
                             />
                           </p>
                         </article>
@@ -501,6 +662,7 @@ export function CharactersSection({
                             glitch={activeCharacter.textGlitch?.relationships}
                             preserveWhitespace
                             className="whitespace-pre-line"
+                            {...zoneLinkProps}
                           />
                         </li>
                       ) : (
@@ -688,7 +850,11 @@ export function CharactersSection({
                                 className="auth-input auth-input-compact"
                                 disabled={!canUnlockWorlds}
                               />
-                              <button className="border border-stone-400/25 bg-stone-900/30 px-5 py-2 text-sm text-stone-100">
+                              <button
+                                type={canUnlockWorlds ? "submit" : "button"}
+                                onClick={canUnlockWorlds ? undefined : onRequireAuth}
+                                className="border border-stone-400/25 bg-stone-900/30 px-5 py-2 text-sm text-stone-100"
+                              >
                                 {canUnlockWorlds ? "기록 열기" : "로그인 창 열기"}
                               </button>
                             </div>

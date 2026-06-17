@@ -1,8 +1,9 @@
-import type { SettingSection } from "@/lib/types";
-import type { FieldGlitchConfig } from "@/lib/types";
+import type { SettingSection, ProfileField } from "@/lib/types";
+import type { CharacterKind, FieldGlitchConfig, CharacterSubPage } from "@/lib/types";
 
 export type CharacterDraft = {
   id: string;
+  kind: CharacterKind;
   name: string;
   kanjiName: string;
   statusTagsText: string;
@@ -10,13 +11,11 @@ export type CharacterDraft = {
   subtitle: string;
   quote: string;
   palette: string;
-  age: string;
-  height: string;
-  role: string;
-  keyword: string;
-  settingsText: string;
+  profileFields: ProfileField[];
   settingSections: SettingSection[];
   relationshipsText: string;
   textGlitch: Record<string, FieldGlitchConfig>;
+  subPages: CharacterSubPage[];
+  pairMemberIds: string[];
   bgmUrl: string;
 };

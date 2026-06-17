@@ -18,6 +18,42 @@ export const DEFAULT_GLITCH_TOKENS = [
   ...GLITCH_CHARS,
 ];
 
+export const BUILTIN_TOKEN_GROUPS = [
+  { id: "block", label: "네모·블록", tokens: ["▓", "▓▓▓", "§", "§§", "¤", "×", "×_×"] },
+  { id: "symbol", label: "기호", tokens: ["#", "?", "!", "/", "\\", "_", "#ERR", "???", "!?"] },
+  { id: "code", label: "오류 코드", tokens: ["ERR", "NULL", "404", "0x00", "NaN"] },
+  { id: "digit", label: "숫자", tokens: ["0", "1"] },
+] as const;
+
+const BUILTIN_TOKEN_SET = new Set<string>([
+  ...DEFAULT_GLITCH_TOKENS,
+  ...BUILTIN_TOKEN_GROUPS.flatMap((group) => group.tokens),
+]);
+
+export function normalizeBuiltinTokens(raw: unknown): string[] | undefined {
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+
+  const next = [...new Set(raw.filter((token): token is string => typeof token === "string" && BUILTIN_TOKEN_SET.has(token)))];
+  return next.length > 0 ? next : undefined;
+}
+
+export function resolveBuiltinTokenPool(selected?: string[]) {
+  const normalized = normalizeBuiltinTokens(selected);
+  if (!normalized?.length) {
+    return DEFAULT_GLITCH_TOKENS;
+  }
+
+  return normalized;
+}
+
+export function resolveBuiltinGlitchChars(selected?: string[]) {
+  const pool = resolveBuiltinTokenPool(selected);
+  const singleChars = pool.filter((token) => token.length === 1);
+  return singleChars.length > 0 ? singleChars : GLITCH_CHARS;
+}
+
 export type { GlitchZone };
 
 export function extractWords(text: string) {
@@ -69,8 +105,9 @@ function shuffleItemsSeeded<T>(items: T[], seed: string) {
   return copy;
 }
 
-function glitchCharacters(text: string, intensity = 0.22, seed?: string) {
+function glitchCharacters(text: string, intensity = 0.22, seed?: string, glitchChars = GLITCH_CHARS) {
   const random = seed ? createSeededRandom(`${seed}:glitch`) : Math.random;
+  const chars = glitchChars.length > 0 ? glitchChars : GLITCH_CHARS;
 
   return text
     .split("")
@@ -80,10 +117,10 @@ function glitchCharacters(text: string, intensity = 0.22, seed?: string) {
       }
 
       const glitchIndex = seed
-        ? Math.floor(random() * GLITCH_CHARS.length)
-        : Math.floor(Math.random() * GLITCH_CHARS.length);
+        ? Math.floor(random() * chars.length)
+        : Math.floor(Math.random() * chars.length);
 
-      return GLITCH_CHARS[glitchIndex] ?? character;
+      return chars[glitchIndex] ?? character;
     })
     .join("");
 }
@@ -139,11 +176,11 @@ export function fitTextToLength(text: string, targetLength: number, fillerWords:
   return result;
 }
 
-function buildBuiltinErrorText(selectedText: string, seed: string) {
+function buildBuiltinErrorText(selectedText: string, seed: string, tokenPool = DEFAULT_GLITCH_TOKENS) {
   const safeLength = Math.min(selectedText.length, 256);
   const targetLength = safeLength < selectedText.length ? safeLength : selectedText.length;
   const random = createSeededRandom(`${seed}:builtin`);
-  const tokens = shuffleItemsSeeded(DEFAULT_GLITCH_TOKENS, `${seed}:tokens`);
+  const tokens = shuffleItemsSeeded(tokenPool, `${seed}:tokens`);
   const parts: string[] = [];
   let length = 0;
 
@@ -196,6 +233,7 @@ function scrambleFromReferencePool(
   wordPoolText: string,
   mode: GlitchScrambleMode,
   seed: string,
+  builtinTokens?: string[],
 ) {
   const poolWords = extractWords(wordPoolText);
   if (poolWords.length === 0) {
@@ -209,21 +247,23 @@ function scrambleFromReferencePool(
     return referenceText;
   }
 
-  return glitchCharacters(referenceText, 0.22, seed);
+  return glitchCharacters(referenceText, 0.22, seed, resolveBuiltinGlitchChars(builtinTokens));
 }
 
 export interface ScrambleErrorOptions {
   wordPool?: string;
   scrambleMode?: GlitchScrambleMode;
+  builtinTokens?: string[];
   seed: string;
 }
 
 export function scrambleErrorText(selectedText: string, options: ScrambleErrorOptions) {
   const pool = options.wordPool?.trim() ?? "";
   const effectiveMode = resolveEffectiveScrambleMode(pool, options.scrambleMode);
+  const tokenPool = resolveBuiltinTokenPool(options.builtinTokens);
 
   if (effectiveMode === "builtinOnly") {
-    return buildBuiltinErrorText(selectedText, options.seed);
+    return buildBuiltinErrorText(selectedText, options.seed, tokenPool);
   }
 
   if (effectiveMode === "referenceOnly") {
@@ -232,7 +272,13 @@ export function scrambleErrorText(selectedText: string, options: ScrambleErrorOp
     return assembleReferenceOnlyText(targetLength, poolWords, options.seed);
   }
 
-  return scrambleFromReferencePool(selectedText, pool, "referenceWithBuiltin", options.seed);
+  return scrambleFromReferencePool(
+    selectedText,
+    pool,
+    "referenceWithBuiltin",
+    options.seed,
+    options.builtinTokens,
+  );
 }
 
 export function generateErrorMessageCandidates(
@@ -342,6 +388,7 @@ function resolveZoneErrorText(zone: GlitchZone, config: FieldGlitchConfig, error
   const errorText = scrambleErrorText(zone.original, {
     wordPool: config.wordPool,
     scrambleMode: config.scrambleMode,
+    builtinTokens: config.builtinTokens,
     seed,
   });
 
@@ -353,11 +400,13 @@ function resolveZoneErrorText(zone: GlitchZone, config: FieldGlitchConfig, error
 }
 
 export function buildZoneDisplayText(zones: GlitchZone[], config: FieldGlitchConfig, phase = 0) {
-  if (phase % 2 === 0) {
+  const displayMode = config.errorDisplayMode ?? "alternate";
+
+  if (displayMode === "alternate" && phase % 2 === 0) {
     return Object.fromEntries(zones.map((zone) => [zone.id, zone.original]));
   }
 
-  const errorCycle = Math.floor(phase / 2);
+  const errorCycle = displayMode === "randomOnly" ? phase : Math.floor(phase / 2);
 
   return Object.fromEntries(
     zones.map((zone) => [zone.id, resolveZoneErrorText(zone, config, errorCycle)]),

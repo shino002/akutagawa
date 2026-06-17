@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useCallback, useMemo, useState } from "react";
 import dayjs from "dayjs";
 import "dayjs/locale/ko";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
@@ -21,14 +21,20 @@ import { ExpressionModal } from "@/components/home/modals/ExpressionModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useCharacters } from "@/hooks/useCharacters";
 import { useWorlds } from "@/hooks/useWorlds";
+import { useExtractContent } from "@/hooks/useExtractContent";
 import { useArchiveContent, useHomeContent } from "@/hooks/useSiteContent";
 import { useDiaryEntries } from "@/hooks/useDiaryEntries";
 import { useGuestbook } from "@/hooks/useGuestbook";
 import { useHomeModals } from "@/hooks/useHomeModals";
 import { useWorldUnlock } from "@/hooks/useWorldUnlock";
-import { defaultArchiveContent, defaultHomeContent, type SectionId } from "@/constants/home";
-import type { CharacterDetailTab } from "@/types/home.types";
-import { resolveCharacterBgmUrl } from "@/lib/bgm-playlist";
+import { defaultArchiveContent, defaultExtractContent, defaultHomeContent, type ArchiveSubSectionId, type SectionId } from "@/constants/home";
+import type { CharacterDetailTab, DetailNavSnapshot } from "@/types/home.types";
+import { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
+import { filterCharactersByKind } from "@/lib/character-kind";
+import type { CharacterKind } from "@/lib/types";
+import type { ZoneLinkTarget } from "@/lib/types";
+import { findSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
+import { characterSectionForId, type CharacterDetailSection } from "@/lib/zone-links";
 
 dayjs.locale("ko");
 
@@ -40,10 +46,13 @@ const getInitialMenuOpen = () => {
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState<SectionId>("home");
+  const [activeArchiveSub, setActiveArchiveSub] = useState<ArchiveSubSectionId>("characters");
   const [activeCharacterId, setActiveCharacterId] = useState("");
   const [activeWorldId, setActiveWorldId] = useState("");
   const [activeCharacterWorldId, setActiveCharacterWorldId] = useState("");
+  const [activeSubPageId, setActiveSubPageId] = useState("");
   const [activeTab, setActiveTab] = useState<CharacterDetailTab>("settings");
+  const [detailNavStack, setDetailNavStack] = useState<DetailNavSnapshot[]>([]);
   const [menuOpen, setMenuOpen] = useState(getInitialMenuOpen);
   const [authNotice, setAuthNotice] = useState("");
   const [guestDraft, setGuestDraft] = useState({ name: "", body: "" });
@@ -53,6 +62,7 @@ export default function Home() {
   const { data: worlds, error: worldsError } = useWorlds();
   const { content: homeContent, error: homeError } = useHomeContent(defaultHomeContent);
   const { content: archiveContent, error: archiveError } = useArchiveContent(defaultArchiveContent);
+  const { content: extractContent, error: extractError } = useExtractContent(defaultExtractContent);
   const { data: diaryEntries, error: diaryError } = useDiaryEntries();
   const { data: guestbook, error: guestbookError } = useGuestbook();
   const modals = useHomeModals();
@@ -65,18 +75,92 @@ export default function Home() {
   const effectiveActiveCharacterWorldId = activeCharacterWorldId || worlds[0]?.id || "";
 
   const isAdmin = auth.authUser?.email === ADMIN_AUTH_EMAIL;
+  const ocCharacters = useMemo(() => filterCharactersByKind(characters, "oc"), [characters]);
+  const pairCharacters = useMemo(() => filterCharactersByKind(characters, "pair"), [characters]);
+  const otherCharacters = useMemo(() => filterCharactersByKind(characters, "other"), [characters]);
   const activeWorld = worlds.find((world) => world.id === effectiveActiveWorldId) ?? worlds[0];
-  const activeCharacter =
-    activeSection === "characters" && activeCharacterId
+  const activeCharacterParent =
+    activeSection === "archive"
       ? characters.find((character) => character.id === activeCharacterId)
       : undefined;
+  const activeSubPage =
+    activeCharacterParent && activeSubPageId
+      ? findSubPage(activeCharacterParent, activeSubPageId)
+      : undefined;
+  const activeCharacter =
+    activeCharacterParent && activeSubPage
+      ? subPageToDisplayCharacter(activeCharacterParent, activeSubPage)
+      : activeCharacterParent;
   const characterBgmUrl =
     activeCharacter ? resolveCharacterBgmUrl(activeCharacter.bgmUrl) : null;
 
   // 구독 에러는 사용자 액션 알림(authNotice)이 비어 있을 때만 폴백으로 표시합니다.
   const subscriptionError =
-    charactersError || worldsError || homeError || archiveError || diaryError || guestbookError;
+    charactersError || worldsError || homeError || archiveError || extractError || diaryError || guestbookError;
   const displayedNotice = authNotice || subscriptionError || "";
+
+  const pushDetailNavSnapshot = useCallback(() => {
+    if (activeSection !== "archive") {
+      return;
+    }
+
+    if (!activeCharacterId) {
+      return;
+    }
+
+    setDetailNavStack((stack) => [
+      ...stack,
+      {
+        section: "archive",
+        archiveSub: activeArchiveSub,
+        characterId: activeCharacterId,
+        subPageId: activeSubPageId,
+        tab: activeTab,
+      },
+    ]);
+  }, [activeArchiveSub, activeCharacterId, activeSection, activeSubPageId, activeTab]);
+
+  const clearDetailNavStack = useCallback(() => {
+    setDetailNavStack([]);
+  }, []);
+
+  const navigateToArchiveCharacter = useCallback(
+    (characterId: string, options?: { tab?: CharacterDetailTab; pushStack?: boolean }) => {
+      const archiveSub = characterSectionForId(characters, characterId);
+      if (options?.pushStack) {
+        pushDetailNavSnapshot();
+      } else {
+        clearDetailNavStack();
+      }
+      setActiveSection("archive");
+      setActiveArchiveSub(archiveSub);
+      setActiveCharacterId(characterId);
+      setActiveSubPageId("");
+      if (options?.tab) {
+        setActiveTab(options.tab);
+      }
+    },
+    [characters, clearDetailNavStack, pushDetailNavSnapshot],
+  );
+
+  const navigateBackFromDetail = useCallback((): boolean => {
+    if (detailNavStack.length === 0) {
+      return false;
+    }
+
+    const previous = detailNavStack[detailNavStack.length - 1]!;
+    setDetailNavStack((stack) => stack.slice(0, -1));
+    setActiveSection(previous.section);
+    setActiveArchiveSub(previous.archiveSub);
+    setActiveCharacterId(previous.characterId);
+    setActiveSubPageId(previous.subPageId);
+    setActiveTab(previous.tab);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    return true;
+  }, [detailNavStack]);
 
   const handleWorldPasswordChange = (worldId: string, value: string) => {
     worldUnlock.setWorldPasswordDrafts((current) => ({ ...current, [worldId]: value }));
@@ -89,22 +173,102 @@ export default function Home() {
 
   const navigateToGuest = () => setActiveSection("guest");
 
+  const openAuthForWorldUnlock = () => {
+    setAuthNotice("세계관 비밀번호는 회원가입 또는 로그인 후 입력할 수 있어요.");
+    auth.setAuthPanelOpen(true);
+  };
+
   const navigateToCharacterWorks = (characterId: string) => {
-    setActiveCharacterId(characterId);
-    setActiveTab("works");
-    setActiveSection("characters");
+    navigateToArchiveCharacter(characterId, { tab: "works" });
   };
 
   const navigateToCharacterDetail = (characterId: string) => {
-    setActiveCharacterId(characterId);
-    setActiveSection("characters");
+    navigateToArchiveCharacter(characterId);
   };
 
-  const viewParticipantInCharacterTab = (characterId: string, worldId: string) => {
+  const navigateToLinkedCharacter = (characterId: string) => {
+    navigateToArchiveCharacter(characterId, { pushStack: true, tab: "settings" });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const handleSelectCharacter = (characterId: string) => {
+    clearDetailNavStack();
     setActiveCharacterId(characterId);
+    setActiveSubPageId("");
+  };
+
+  const handleSelectSection = (section: SectionId) => {
+    clearDetailNavStack();
+    setActiveSection(section);
+    setActiveSubPageId("");
+    setActiveCharacterId("");
+  };
+
+  const handleSelectArchiveSub = (sub: ArchiveSubSectionId) => {
+    clearDetailNavStack();
+    setActiveSection("archive");
+    setActiveArchiveSub(sub);
+    setActiveSubPageId("");
+    setActiveCharacterId("");
+  };
+
+  const navigateToZoneLink = (target: ZoneLinkTarget) => {
+    pushDetailNavSnapshot();
+    setActiveSection("archive");
+    setActiveArchiveSub(target.section);
+    setActiveCharacterId(target.characterId);
+    setActiveSubPageId(target.subPageId ?? "");
+    setActiveTab("settings");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  const renderArchiveSection = (
+    kind: CharacterKind,
+    sectionId: CharacterDetailSection,
+    sectionIndexTitle: string,
+    emptyListMessage: string,
+  ) => (
+    <CharactersSection
+      characters={
+        kind === "oc" ? ocCharacters : kind === "pair" ? pairCharacters : otherCharacters
+      }
+      allCharacters={characters}
+      sectionIndexTitle={sectionIndexTitle}
+      emptyListMessage={emptyListMessage}
+      activeCharacterId={activeCharacterId}
+      setActiveCharacterId={handleSelectCharacter}
+      activeSubPageId={activeSubPageId}
+      setActiveSubPageId={setActiveSubPageId}
+      parentCharacter={activeCharacterParent}
+      detailSection={sectionId}
+      onNavigateToLinkedCharacter={navigateToLinkedCharacter}
+      onZoneLinkNavigate={navigateToZoneLink}
+      onDetailNavigateBack={navigateBackFromDetail}
+      hasDetailNavHistory={detailNavStack.length > 0}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      worlds={worlds}
+      activeCharacterWorldId={effectiveActiveCharacterWorldId}
+      setActiveCharacterWorldId={setActiveCharacterWorldId}
+      worldPasswordDrafts={worldUnlock.worldPasswordDrafts}
+      onWorldPasswordChange={handleWorldPasswordChange}
+      unlockedWorldIds={worldUnlock.unlockedWorldIds}
+      canUnlockWorlds={Boolean(auth.authUser)}
+      onUnlockCharacterWorld={worldUnlock.unlockWorldById}
+      onRequireAuth={openAuthForWorldUnlock}
+      onOpenGallery={modals.openGalleryModal}
+      onOpenExpression={modals.setExpressionModalItem}
+      onOpenReader={modals.setReaderModalItem}
+    />
+  );
+
+  const viewParticipantInCharacterTab = (characterId: string, worldId: string) => {
+    navigateToArchiveCharacter(characterId, { tab: "worlds" });
     setActiveCharacterWorldId(worldId);
-    setActiveTab("worlds");
-    setActiveSection("characters");
   };
 
   const submitGuest = async (event: FormEvent<HTMLFormElement>) => {
@@ -163,7 +327,9 @@ export default function Home() {
         setMenuOpen={setMenuOpen}
         archiveContent={archiveContent}
         activeSection={activeSection}
-        onSelectSection={setActiveSection}
+        activeArchiveSub={activeArchiveSub}
+        onSelectSection={handleSelectSection}
+        onSelectArchiveSub={handleSelectArchiveSub}
         auth={auth}
         isAdmin={isAdmin}
         authNotice={displayedNotice}
@@ -174,7 +340,7 @@ export default function Home() {
           {activeSection === "home" && (
             <HomeSection
               homeContent={homeContent}
-              characters={characters}
+              characters={ocCharacters}
               guestbook={guestbook}
               onNavigateToGuest={navigateToGuest}
               onNavigateToCharacterWorks={navigateToCharacterWorks}
@@ -182,26 +348,29 @@ export default function Home() {
             />
           )}
 
-          {activeSection === "characters" && (
-            <CharactersSection
-              characters={characters}
-              activeCharacterId={activeCharacterId}
-              setActiveCharacterId={setActiveCharacterId}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              worlds={worlds}
-              activeCharacterWorldId={effectiveActiveCharacterWorldId}
-              setActiveCharacterWorldId={setActiveCharacterWorldId}
-              worldPasswordDrafts={worldUnlock.worldPasswordDrafts}
-              onWorldPasswordChange={handleWorldPasswordChange}
-              unlockedWorldIds={worldUnlock.unlockedWorldIds}
-              canUnlockWorlds={Boolean(auth.authUser)}
-              onUnlockCharacterWorld={worldUnlock.unlockWorldById}
-              onOpenGallery={modals.openGalleryModal}
-              onOpenExpression={modals.setExpressionModalItem}
-              onOpenReader={modals.setReaderModalItem}
-            />
-          )}
+          {activeSection === "archive" && activeArchiveSub === "characters" &&
+            renderArchiveSection(
+              "oc",
+              "characters",
+              "OC Files",
+              "아직 등록된 자캐가 없어요. 관리자 로그인 후 OC에서 첫 카드를 추가해주세요.",
+            )}
+
+          {activeSection === "archive" && activeArchiveSub === "pairs" &&
+            renderArchiveSection(
+              "pair",
+              "pairs",
+              "Pair Files",
+              "아직 등록된 페어가 없어요. 관리자 로그인 후 Pair에서 첫 카드를 추가해주세요.",
+            )}
+
+          {activeSection === "archive" && activeArchiveSub === "others" &&
+            renderArchiveSection(
+              "other",
+              "others",
+              "Another Files",
+              "아직 등록된 어나더 항목이 없어요. 관리자 로그인 후 어나더에서 첫 카드를 추가해주세요.",
+            )}
 
           {activeSection === "worlds" && (
             <WorldsSection
@@ -214,10 +383,12 @@ export default function Home() {
               unlockedWorldIds={worldUnlock.unlockedWorldIds}
               canUnlockWorlds={Boolean(auth.authUser)}
               onUnlockWorld={handleUnlockActiveWorld}
+              onRequireAuth={openAuthForWorldUnlock}
               onViewParticipant={viewParticipantInCharacterTab}
               onOpenGallery={modals.openGalleryModal}
               onOpenExpression={modals.setExpressionModalItem}
               onOpenReader={modals.setReaderModalItem}
+              onZoneLinkNavigate={navigateToZoneLink}
             />
           )}
 
@@ -233,7 +404,7 @@ export default function Home() {
             />
           )}
 
-          {activeSection === "extract" && <ExtractSection />}
+          {activeSection === "extract" && <ExtractSection banners={extractContent.banners} />}
         </div>
 
         <aside className="space-y-3">
