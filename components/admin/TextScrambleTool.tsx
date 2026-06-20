@@ -333,7 +333,7 @@ export function TextScrambleTool({
 
   const legacyConfig = useMemo(
     () => ({
-      wordPool: glitchConfig?.wordPool,
+      wordPool: glitchConfig?.wordPool ?? "",
       scrambleMode: glitchConfig?.scrambleMode,
       builtinScramble: glitchConfig?.builtinScramble,
       errorDisplayMode: glitchConfig?.errorDisplayMode,

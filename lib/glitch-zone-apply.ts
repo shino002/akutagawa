@@ -89,21 +89,41 @@ function applyZoneScrambleOptions(zone: GlitchZone, options: ApplyGlitchZoneOpti
 
 function copyZoneScrambleFields(target: GlitchZone, source: GlitchZone): GlitchZone {
   const next: GlitchZone = { ...target };
-  const keys = [
-    "wordPool",
-    "scrambleMode",
-    "builtinScramble",
-    "builtinTokens",
-    "errorDisplayMode",
-    "tickMs",
-  ] as const;
 
-  for (const key of keys) {
-    if (source[key] !== undefined) {
-      next[key] = source[key];
-    } else {
-      delete next[key];
-    }
+  if (source.wordPool !== undefined) {
+    next.wordPool = source.wordPool;
+  } else {
+    delete next.wordPool;
+  }
+
+  if (source.scrambleMode !== undefined) {
+    next.scrambleMode = source.scrambleMode;
+  } else {
+    delete next.scrambleMode;
+  }
+
+  if (source.builtinScramble !== undefined) {
+    next.builtinScramble = source.builtinScramble;
+  } else {
+    delete next.builtinScramble;
+  }
+
+  if (source.builtinTokens !== undefined) {
+    next.builtinTokens = source.builtinTokens;
+  } else {
+    delete next.builtinTokens;
+  }
+
+  if (source.errorDisplayMode !== undefined) {
+    next.errorDisplayMode = source.errorDisplayMode;
+  } else {
+    delete next.errorDisplayMode;
+  }
+
+  if (source.tickMs !== undefined) {
+    next.tickMs = source.tickMs;
+  } else {
+    delete next.tickMs;
   }
 
   return next;
