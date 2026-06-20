@@ -107,6 +107,13 @@ export type GlitchZone = {
   style?: GlitchZoneStyle;
   errorMessage?: string;
   errorMessageSource?: GlitchErrorMessageSource;
+  /** 구간별 참조 단어 (한 줄에 하나) */
+  wordPool?: string;
+  scrambleMode?: GlitchScrambleMode;
+  builtinScramble?: boolean;
+  builtinTokens?: string[];
+  errorDisplayMode?: GlitchErrorDisplayMode;
+  tickMs?: number;
   /** 클릭 시 이동할 대상 (OC·페어·어나더 항목 또는 그 상세 페이지) */
   linkTarget?: ZoneLinkTarget;
   /** @deprecated linkTarget 사용. 예전 데이터 호환용 */

@@ -1,14 +1,18 @@
 import {
   glitchZoneStylesEqual,
   hasGlitchPresentation,
+  mergeGlitchZoneStyles,
   normalizeGlitchZoneStyle,
+  clampGlitchTickMs,
 } from "@/lib/glitch-style";
 import type { GlitchTextSelection } from "@/lib/glitch-selection";
 import { zonesOverlap, type GlitchZone } from "@/lib/text-scramble";
 import type {
   FieldGlitchConfig,
+  GlitchErrorDisplayMode,
   GlitchErrorMessageSource,
   GlitchMarkdown,
+  GlitchScrambleMode,
   GlitchZoneStyle,
 } from "@/lib/types";
 import { normalizeZoneLinkTarget } from "@/lib/zone-links";
@@ -19,7 +23,11 @@ export type ApplyGlitchZoneOptions = {
   errorMessage?: string;
   linkTarget?: import("@/lib/types").ZoneLinkTarget;
   wordPool?: string;
+  scrambleMode?: import("@/lib/types").GlitchScrambleMode;
   builtinScramble?: boolean;
+  builtinTokens?: string[];
+  errorDisplayMode?: import("@/lib/types").GlitchErrorDisplayMode;
+  tickMs?: number;
   fieldText?: string;
 };
 
@@ -33,6 +41,72 @@ function createZoneId() {
   }
 
   return `zone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function applyZoneScrambleOptions(zone: GlitchZone, options: ApplyGlitchZoneOptions): GlitchZone {
+  const pool = options.wordPool?.trim() ?? "";
+  const next: GlitchZone = { ...zone };
+
+  if (pool) {
+    next.wordPool = pool;
+    if (options.scrambleMode) {
+      next.scrambleMode = options.scrambleMode;
+    } else {
+      delete next.scrambleMode;
+    }
+    delete next.builtinScramble;
+  } else if (options.builtinScramble) {
+    next.builtinScramble = true;
+    delete next.wordPool;
+    delete next.scrambleMode;
+  } else {
+    delete next.wordPool;
+    delete next.scrambleMode;
+    delete next.builtinScramble;
+  }
+
+  if (options.builtinTokens?.length) {
+    next.builtinTokens = options.builtinTokens;
+  } else {
+    delete next.builtinTokens;
+  }
+
+  if (options.errorDisplayMode === "randomOnly") {
+    next.errorDisplayMode = "randomOnly";
+  } else {
+    delete next.errorDisplayMode;
+  }
+
+  const usesError = next.errorMessageSource === "auto" || next.errorMessageSource === "custom";
+  if (usesError && options.tickMs !== undefined) {
+    next.tickMs = clampGlitchTickMs(options.tickMs);
+  } else {
+    delete next.tickMs;
+  }
+
+  return next;
+}
+
+function copyZoneScrambleFields(target: GlitchZone, source: GlitchZone): GlitchZone {
+  const next: GlitchZone = { ...target };
+  const keys = [
+    "wordPool",
+    "scrambleMode",
+    "builtinScramble",
+    "builtinTokens",
+    "errorDisplayMode",
+    "tickMs",
+  ] as const;
+
+  for (const key of keys) {
+    if (source[key] !== undefined) {
+      next[key] = source[key];
+    } else {
+      delete next[key];
+    }
+  }
+
+  return next;
 }
 
 function buildNextConfigFromZones(
@@ -87,6 +161,15 @@ function buildZoneFragment(
   };
 }
 
+export function splitGlitchZonesForSelection(
+  zones: GlitchZone[],
+  selection: GlitchTextSelection,
+  sourceText: string,
+  nextSelectionZone: GlitchZone,
+): GlitchZone[] {
+  return splitZonesForSelection(zones, selection, sourceText, nextSelectionZone);
+}
+
 function splitZonesForSelection(
   zones: GlitchZone[],
   selection: GlitchTextSelection,
@@ -129,6 +212,118 @@ function findMatchingZone(zones: GlitchZone[], selection: GlitchTextSelection, s
   });
 }
 
+export function findMatchingGlitchZone(
+  zones: GlitchZone[],
+  selection: GlitchTextSelection,
+  sourceText: string,
+) {
+  return findMatchingZone(zones, selection, sourceText);
+}
+
+export function glitchZoneHasEffect(zone: GlitchZone): boolean {
+  return (
+    zone.errorMessageSource === "auto" ||
+    zone.errorMessageSource === "custom" ||
+    hasGlitchPresentation(zone.style) ||
+    Boolean(normalizeZoneLinkTarget(zone.linkTarget) || zone.linkSubPageId)
+  );
+}
+
+function resolveMergedZoneStyle(
+  pendingStyle?: GlitchZoneStyle,
+  existingStyle?: GlitchZoneStyle,
+): GlitchZoneStyle | undefined {
+  return normalizeGlitchZoneStyle(mergeGlitchZoneStyles(pendingStyle, existingStyle));
+}
+
+function mergePendingOntoExistingZone(
+  existing: GlitchZone,
+  pending: GlitchZone,
+  selection: GlitchTextSelection,
+): GlitchZone {
+  const merged: GlitchZone = {
+    ...existing,
+    id: existing.id,
+    start: selection.start,
+    end: selection.end,
+    original: selection.text,
+    errorMessageSource: pending.errorMessageSource ?? "none",
+  };
+
+  if (pending.errorMessageSource === "custom" && pending.errorMessage?.trim()) {
+    merged.errorMessage = pending.errorMessage.trim();
+  } else {
+    delete merged.errorMessage;
+  }
+
+  const mergedStyle = resolveMergedZoneStyle(pending.style, existing.style);
+  if (mergedStyle) {
+    merged.style = mergedStyle;
+  } else {
+    delete merged.style;
+  }
+
+  if (pending.linkTarget) {
+    merged.linkTarget = pending.linkTarget;
+    delete merged.linkSubPageId;
+  } else if (!normalizeZoneLinkTarget(existing.linkTarget) && !existing.linkSubPageId) {
+    delete merged.linkTarget;
+    delete merged.linkSubPageId;
+  }
+
+  return copyZoneScrambleFields(merged, pending);
+}
+
+/**
+ * 미리보기용: 선택 구간에 pending 설정을 기존 구간 위에 덧씌웁니다.
+ * 겹치는 바깥 구간은 분할하고, 동일 span이면 해당 구간만 갱신합니다.
+ */
+export function mergePendingGlitchZonePreview(
+  zones: GlitchZone[],
+  selection: GlitchTextSelection,
+  sourceText: string,
+  pendingZone: GlitchZone,
+): GlitchZone[] {
+  const matchingZone = findMatchingZone(zones, selection, sourceText);
+
+  if (matchingZone) {
+    return zones.map((zone) =>
+      zone.id === matchingZone.id
+        ? mergePendingOntoExistingZone(matchingZone, pendingZone, selection)
+        : zone,
+    );
+  }
+
+  const enclosingZone = zones.find(
+    (zone) => zone.start <= selection.start && zone.end >= selection.end,
+  );
+  const mergedSelectionStyle = resolveMergedZoneStyle(pendingZone.style, enclosingZone?.style);
+
+  const nextSelectionZone: GlitchZone = {
+    ...pendingZone,
+    id: pendingZone.id || createZoneId(),
+    start: selection.start,
+    end: selection.end,
+    original: selection.text,
+  };
+
+  if (mergedSelectionStyle) {
+    nextSelectionZone.style = mergedSelectionStyle;
+  } else {
+    delete nextSelectionZone.style;
+  }
+
+  if (zones.some((zone) => zonesOverlap(zone, selection))) {
+    if (!glitchZoneHasEffect(nextSelectionZone)) {
+      return zones;
+    }
+
+    return splitZonesForSelection(zones, selection, sourceText, nextSelectionZone);
+  }
+
+  return [...zones, nextSelectionZone].sort((left, right) => left.start - right.start);
+}
+
 export function applyGlitchZone(
   config: FieldGlitchConfig | undefined,
   selection: GlitchTextSelection,
@@ -141,7 +336,15 @@ export function applyGlitchZone(
   const builtinScramble = options.builtinScramble ?? config?.builtinScramble === true;
   const wantsReference = Boolean(pool);
   const wantsBuiltin = !pool && builtinScramble;
-  const hasPresentation = hasGlitchPresentation(normalizedStyle);
+  const matchingZone = findMatchingZone(zones, selection, sourceText);
+  const enclosingZone = zones.find(
+    (zone) => zone.start <= selection.start && zone.end >= selection.end,
+  );
+  const mergedApplyStyle = resolveMergedZoneStyle(
+    normalizedStyle,
+    matchingZone?.style ?? enclosingZone?.style,
+  );
+  const hasPresentation = hasGlitchPresentation(mergedApplyStyle);
   const hasLink = Boolean(normalizeZoneLinkTarget(options.linkTarget));
   const requestedErrorSource = options.errorMessageSource;
   const enableBuiltin = options.builtinScramble === true;
@@ -152,10 +355,15 @@ export function applyGlitchZone(
     requestedErrorSource === "custom" ||
     (!explicitNoError && (wantsReference || effectiveBuiltin));
 
-  const matchingZone = findMatchingZone(zones, selection, sourceText);
-
   if (!hasPresentation && !hasLink && !wantsError) {
     if (matchingZone) {
+      if (glitchZoneHasEffect(matchingZone)) {
+        return {
+          ok: false,
+          message: "변경할 서식이나 오류 설정을 고른 뒤 적용하세요.",
+        };
+      }
+
       const nextZones = zones.filter((zone) => zone.id !== matchingZone.id);
       return {
         ok: true,
@@ -209,41 +417,52 @@ export function applyGlitchZone(
   let nextZones: GlitchZone[];
 
   if (matchingZone) {
-    nextZones = zones.map((zone) =>
-      zone.id === matchingZone.id
-        ? {
-            ...zone,
-            ...(normalizedStyle ? { style: normalizedStyle } : {}),
-            errorMessageSource,
-            ...(customMessage ? { errorMessage: customMessage } : { errorMessage: undefined }),
-            ...(linkTarget
-              ? { linkTarget, linkSubPageId: undefined }
-              : { linkTarget: undefined, linkSubPageId: undefined }),
-          }
-        : zone,
-    );
+    nextZones = zones.map((zone) => {
+      if (zone.id !== matchingZone.id) {
+        return zone;
+      }
 
-    if (!normalizedStyle) {
-      nextZones = nextZones.map((zone) => {
-        if (zone.id !== matchingZone.id) {
-          return zone;
-        }
+      let nextZone: GlitchZone = {
+        ...zone,
+        errorMessageSource,
+        ...(customMessage ? { errorMessage: customMessage } : { errorMessage: undefined }),
+        ...(linkTarget
+          ? { linkTarget, linkSubPageId: undefined }
+          : { linkTarget: undefined, linkSubPageId: undefined }),
+      };
 
-        const { style: _removed, ...rest } = zone;
-        return rest;
-      });
-    }
+      const mergedStyle = resolveMergedZoneStyle(mergedApplyStyle, zone.style);
+      if (mergedStyle) {
+        nextZone.style = mergedStyle;
+      } else {
+        const { style: _removed, ...rest } = nextZone;
+        nextZone = rest;
+      }
+
+      nextZone = applyZoneScrambleOptions(nextZone, options);
+
+      return nextZone;
+    });
   } else {
-    const nextZone: GlitchZone = {
+    let nextZone: GlitchZone = {
       id: createZoneId(),
       start: selection.start,
       end: selection.end,
       original: selection.text,
-      style: normalizedStyle,
       errorMessageSource,
       ...(customMessage ? { errorMessage: customMessage } : {}),
       ...(linkTarget ? { linkTarget } : {}),
     };
+
+    const enclosingStyle = zones.find(
+      (zone) => zone.start <= selection.start && zone.end >= selection.end,
+    )?.style;
+    const mergedStyle = resolveMergedZoneStyle(mergedApplyStyle, enclosingZone?.style);
+    if (mergedStyle) {
+      nextZone.style = mergedStyle;
+    }
+
+    nextZone = applyZoneScrambleOptions(nextZone, options);
 
     const overlaps = zones.some((zone) => zonesOverlap(zone, selection));
     if (overlaps) {

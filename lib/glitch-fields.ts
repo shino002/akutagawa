@@ -26,6 +26,8 @@ import {
   setRelationshipEntryFieldValue,
 } from "@/lib/relationship-entries";
 import { isValidFieldGlitchConfig } from "@/lib/glitch-style";
+import { sanitizePlainText } from "@/lib/glitch-display";
+import { normalizeStorySource, parseStoryMarkupSourceRanges } from "@/lib/story-text";
 
 export const GLITCH_FIELD_LABELS: Record<string, string> = {
   name: "이름",
@@ -34,23 +36,15 @@ export const GLITCH_FIELD_LABELS: Record<string, string> = {
   quote: "대표 대사",
 };
 
-const SUB_PAGE_GLITCH_FIELD_PATHS = [
-  "name",
-  "kanjiName",
-  "subtitle",
-  "quote",
-] as const;
+const SUB_PAGE_GLITCH_FIELD_PATHS = ["name", "kanjiName", "subtitle", "quote"] as const;
 
-const BASE_GLITCH_FIELD_PATHS = [
-  "name",
-  "kanjiName",
-  "subtitle",
-  "quote",
-] as const;
+const BASE_GLITCH_FIELD_PATHS = ["name", "kanjiName", "subtitle", "quote"] as const;
 
 export const SUB_PAGE_GLITCH_PREFIX = "subPages.";
 
-export function parseSubPageGlitchPath(path: string): { subPageId: string; fieldPath: string } | null {
+export function parseSubPageGlitchPath(
+  path: string,
+): { subPageId: string; fieldPath: string } | null {
   if (!path.startsWith(SUB_PAGE_GLITCH_PREFIX)) {
     return null;
   }
@@ -128,7 +122,11 @@ function getSubPageFieldValue(subPage: CharacterSubPage, fieldPath: string) {
   return "";
 }
 
-function setSubPageFieldValue(subPage: CharacterSubPage, fieldPath: string, value: string): CharacterSubPage {
+function setSubPageFieldValue(
+  subPage: CharacterSubPage,
+  fieldPath: string,
+  value: string,
+): CharacterSubPage {
   if (fieldPath === "name") return { ...subPage, title: value };
   if (fieldPath === "kanjiName") return { ...subPage, kanjiName: value };
   if (fieldPath === "subtitle") return { ...subPage, subtitle: value };
@@ -286,7 +284,8 @@ export function getCharacterDraftFieldValue(draft: CharacterDraft, path: string)
       relationshipEntryPath.field,
     );
   }
-  if (path === "relationships") return relationshipEntriesToLegacyLines(draft.relationshipEntries).join("\n");
+  if (path === "relationships")
+    return relationshipEntriesToLegacyLines(draft.relationshipEntries).join("\n");
 
   if (path.startsWith("settingSections.")) {
     const sectionPath = parseSettingSectionGlitchPath(path);
@@ -331,8 +330,10 @@ export function getCharacterFieldValue(character: Character, path: string) {
     );
   }
   if (path === "relationships") {
-    return relationshipEntriesToLegacyLines(character.relationshipEntries ?? []).join("\n") ||
-      character.relationships.join("\n");
+    return (
+      relationshipEntriesToLegacyLines(character.relationshipEntries ?? []).join("\n") ||
+      character.relationships.join("\n")
+    );
   }
 
   if (path.startsWith("settingSections.")) {
@@ -358,7 +359,11 @@ export function getCharacterFieldValue(character: Character, path: string) {
   return "";
 }
 
-export function setCharacterDraftFieldValue(draft: CharacterDraft, path: string, value: string): CharacterDraft {
+export function setCharacterDraftFieldValue(
+  draft: CharacterDraft,
+  path: string,
+  value: string,
+): CharacterDraft {
   const subPagePath = parseSubPageGlitchPath(path);
   if (subPagePath) {
     return {
@@ -431,31 +436,49 @@ export function setCharacterDraftFieldValue(draft: CharacterDraft, path: string,
 }
 
 export function reanchorZone(text: string, zone: GlitchZone): GlitchZone | null {
-  let anchored: GlitchZone | null = null;
+  const normalizedText = sanitizePlainText(text);
+  const normalizedOriginal = sanitizePlainText(zone.original);
 
-  if (text.slice(zone.start, zone.end) === zone.original) {
-    anchored = zone;
-  } else {
-    const nextIndex = text.indexOf(zone.original);
-    if (nextIndex === -1) {
-      return null;
-    }
-
-    anchored = {
-      ...zone,
-      start: nextIndex,
-      end: nextIndex + zone.original.length,
-    };
-  }
-
-  if (anchored.start < 0 || anchored.end > text.length || anchored.start >= anchored.end) {
+  if (!normalizedOriginal) {
     return null;
   }
 
-  return anchored;
+  let start = zone.start;
+  let end = zone.end;
+
+  if (normalizedText.slice(start, end) === normalizedOriginal) {
+    return {
+      ...zone,
+      start,
+      end,
+      original: normalizedOriginal,
+    };
+  }
+
+  const nextIndex = normalizedText.indexOf(normalizedOriginal);
+  if (nextIndex === -1) {
+    return null;
+  }
+
+  start = nextIndex;
+  end = nextIndex + normalizedOriginal.length;
+
+  if (start < 0 || end > normalizedText.length || start >= end) {
+    return null;
+  }
+
+  return {
+    ...zone,
+    start,
+    end,
+    original: normalizedOriginal,
+  };
 }
 
-export function reanchorGlitchConfig(text: string, config?: FieldGlitchConfig): FieldGlitchConfig | undefined {
+export function reanchorGlitchConfig(
+  text: string,
+  config?: FieldGlitchConfig,
+): FieldGlitchConfig | undefined {
   if (!config?.zones?.length) {
     return undefined;
   }
@@ -473,6 +496,105 @@ export function reanchorGlitchConfig(text: string, config?: FieldGlitchConfig): 
     wordPool: config.wordPool.trim(),
     zones,
   });
+}
+
+function mapSegmentSourceOffsetToDisplay(
+  segmentSource: string,
+  displayText: string,
+  offsetInSegment: number,
+): number {
+  if (segmentSource === displayText) {
+    return Math.min(offsetInSegment, displayText.length);
+  }
+
+  const ranges = parseStoryMarkupSourceRanges(segmentSource);
+  let displayCursor = 0;
+  let sourceCursor = 0;
+
+  for (const range of ranges) {
+    const rangeSourceLength = range.sourceEnd - range.sourceStart;
+    const rangeDisplayLength = range.text.length;
+
+    if (offsetInSegment <= sourceCursor) {
+      return displayCursor;
+    }
+
+    if (offsetInSegment >= sourceCursor + rangeSourceLength) {
+      sourceCursor += rangeSourceLength;
+      displayCursor += rangeDisplayLength;
+      continue;
+    }
+
+    const within = offsetInSegment - sourceCursor;
+    if (range.type === "plain") {
+      return displayCursor + within;
+    }
+
+    const markupPrefix = rangeSourceLength - rangeDisplayLength;
+    return displayCursor + Math.max(0, Math.min(within - markupPrefix, rangeDisplayLength));
+  }
+
+  return displayText.length;
+}
+
+/**
+ * 스토리 마크업으로 쪼갠 구간에 맞게 글리치 구역 좌표를 잘라 냅니다.
+ */
+export function sliceGlitchConfigForSourceRange(
+  sourceText: string,
+  config: FieldGlitchConfig | undefined,
+  sourceStart: number,
+  sourceEnd: number,
+  displayText: string,
+): FieldGlitchConfig | undefined {
+  if (!config?.zones?.length || sourceStart >= sourceEnd) {
+    return undefined;
+  }
+
+  const source = normalizeStorySource(sourceText);
+  const segmentSource = source.slice(sourceStart, sourceEnd);
+  const zones: GlitchZone[] = [];
+
+  for (const zone of config.zones) {
+    if (zone.end <= sourceStart || zone.start >= sourceEnd) {
+      continue;
+    }
+
+    const clipStart = Math.max(zone.start, sourceStart);
+    const clipEnd = Math.min(zone.end, sourceEnd);
+    if (clipStart >= clipEnd) {
+      continue;
+    }
+
+    const sliceStart = clipStart - sourceStart;
+    const sliceEnd = clipEnd - sourceStart;
+    const displayStart = mapSegmentSourceOffsetToDisplay(segmentSource, displayText, sliceStart);
+    const displayEnd = mapSegmentSourceOffsetToDisplay(segmentSource, displayText, sliceEnd);
+
+    if (displayStart >= displayEnd) {
+      continue;
+    }
+
+    zones.push({
+      ...zone,
+      start: displayStart,
+      end: displayEnd,
+      original: displayText.slice(displayStart, displayEnd),
+    });
+  }
+
+  if (zones.length === 0) {
+    return undefined;
+  }
+
+  return reanchorGlitchConfig(
+    displayText,
+    normalizeFieldGlitchConfig({
+      ...config,
+      wordPool: config.wordPool.trim(),
+      zones,
+    }),
+  );
 }
 
 function linesToList(value: string) {
@@ -530,7 +652,7 @@ export function pruneSubPageTextGlitch(
       const text = getSubPageFieldValue(subPage, fieldPath);
       const anchored = reanchorGlitchConfig(text, config);
       const normalized = anchored ? normalizeFieldGlitchConfig(anchored) : undefined;
-      return normalized ? [fieldPath, normalized] as const : null;
+      return normalized ? ([fieldPath, normalized] as const) : null;
     })
     .filter((entry): entry is readonly [string, FieldGlitchConfig] => entry !== null);
 
@@ -558,7 +680,7 @@ export function pruneDraftTextGlitch(
       const text = getCharacterFieldValue(anchorCharacter, path);
       const anchored = reanchorGlitchConfig(text, config);
       const normalized = anchored ? normalizeFieldGlitchConfig(anchored) : undefined;
-      return normalized ? [path, normalized] as const : null;
+      return normalized ? ([path, normalized] as const) : null;
     })
     .filter((entry): entry is readonly [string, FieldGlitchConfig] => entry !== null);
 
@@ -578,7 +700,7 @@ export function compactTextGlitch(
       const text = getCharacterFieldValue(character, path);
       const anchored = reanchorGlitchConfig(text, config);
       const normalized = anchored ? normalizeFieldGlitchConfig(anchored) : undefined;
-      return normalized ? [path, normalized] as const : null;
+      return normalized ? ([path, normalized] as const) : null;
     })
     .filter((entry): entry is readonly [string, FieldGlitchConfig] => entry !== null);
 
@@ -616,7 +738,9 @@ export function getGlitchSectionForPath(path: string): GlitchEditSection {
 }
 
 function findGlitchFieldElement(path: string) {
-  const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("[data-glitch-field]");
+  const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+    "[data-glitch-field]",
+  );
 
   return Array.from(fields).find((element) => element.dataset.glitchField === path) ?? null;
 }
@@ -681,7 +805,10 @@ function buildBaseGlitchFieldOptions(
     const path = profileFieldGlitchPath(field.id);
     return {
       path,
-      label: field.label.trim() || getProfileFieldLabel(field.id, draft.profileFields) || `프로필 ${index + 1}`,
+      label:
+        field.label.trim() ||
+        getProfileFieldLabel(field.id, draft.profileFields) ||
+        `프로필 ${index + 1}`,
       hasGlitch: Boolean(textGlitch[path]),
     };
   });
@@ -781,7 +908,10 @@ function buildSubPageGlitchFieldOptions(subPage: CharacterSubPage): GlitchFieldO
     const fieldPath = profileFieldGlitchPath(field.id);
     options.push({
       path: subPageFieldGlitchPath(subPage.id, fieldPath),
-      label: field.label.trim() || getProfileFieldLabel(field.id, subPage.profileFields) || `프로필 ${index + 1}`,
+      label:
+        field.label.trim() ||
+        getProfileFieldLabel(field.id, subPage.profileFields) ||
+        `프로필 ${index + 1}`,
       hasGlitch: Boolean(subGlitch[fieldPath]),
     });
   });
@@ -910,9 +1040,10 @@ export function buildGlitchFieldOptions(
   return buildGlitchFieldOptionGroups(draft, textGlitch).flatMap((group) =>
     group.options.map((option) => ({
       ...option,
-      label: group.id === "basics" || group.id === "record-boxes"
-        ? option.label
-        : `${group.label} · ${option.label}`,
+      label:
+        group.id === "basics" || group.id === "record-boxes"
+          ? option.label
+          : `${group.label} · ${option.label}`,
     })),
   );
 }
@@ -960,6 +1091,12 @@ export function glitchConfigSignature(text: string, glitch?: FieldGlitchConfig) 
         style: zone.style,
         errorMessage: zone.errorMessage,
         errorMessageSource: zone.errorMessageSource,
+        wordPool: zone.wordPool,
+        scrambleMode: zone.scrambleMode,
+        builtinScramble: zone.builtinScramble,
+        builtinTokens: zone.builtinTokens,
+        errorDisplayMode: zone.errorDisplayMode,
+        tickMs: zone.tickMs,
         linkTarget: zone.linkTarget,
         linkSubPageId: zone.linkSubPageId,
       }))
@@ -1016,12 +1153,22 @@ export function workBodyGlitchPath(index: number) {
   return `works.${index}.body`;
 }
 
+function resolveStoredGlitchConfig(config: FieldGlitchConfig | undefined) {
+  if (!config) {
+    return undefined;
+  }
+
+  return (
+    normalizeFieldGlitchConfig(config) ?? (isValidFieldGlitchConfig(config) ? config : undefined)
+  );
+}
+
 export function updateDraftGlitchPath(
   draft: CharacterDraft,
   path: string,
   config: FieldGlitchConfig | undefined,
 ): CharacterDraft {
-  const normalized = config ? normalizeFieldGlitchConfig(config) : undefined;
+  const normalized = resolveStoredGlitchConfig(config);
   const subPagePath = parseSubPageGlitchPath(path);
 
   if (subPagePath) {
@@ -1062,7 +1209,11 @@ export function updateDraftGlitchPath(
   };
 }
 
-export function updateDraftFieldValue(draft: CharacterDraft, path: string, value: string): CharacterDraft {
+export function updateDraftFieldValue(
+  draft: CharacterDraft,
+  path: string,
+  value: string,
+): CharacterDraft {
   const subPagePath = parseSubPageGlitchPath(path);
 
   if (subPagePath) {

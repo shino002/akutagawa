@@ -1,6 +1,6 @@
 import { glitchConfigSignature } from "@/lib/glitch-fields";
 import type { GlitchTextSelection } from "@/lib/glitch-selection";
-import { mergeGlitchZoneStyles, resolveGlitchZonePresentation } from "@/lib/glitch-style";
+import { mergeGlitchZoneStyles, resolveGlitchZonePresentation, glitchZoneHasCustomTextColor } from "@/lib/glitch-style";
 import { parseStoryMarkup, storyTextHasMarkup } from "@/lib/story-text";
 import type { FieldGlitchConfig, GlitchZone } from "@/lib/types";
 import { zoneUsesErrorAlternation } from "@/lib/glitch-scramble-options";
@@ -41,9 +41,12 @@ function wrapZoneText(text: string, zone: GlitchZone, config?: FieldGlitchConfig
   const isError = config ? zoneUsesErrorAlternation(zone, config) : false;
   const className = cn(
     "admin-inline-zone glitch-zone-mark",
+    decoration.bold && "glitch-zone-has-bold",
+    decoration.italic && "glitch-zone-has-italic",
     decoration.underline && "glitch-zone-has-underline",
     decoration.strikethrough && "glitch-zone-has-strikethrough",
     mergedStyle.storyQuote && "story-inline-quote",
+    glitchZoneHasCustomTextColor(mergedStyle) && "glitch-zone-has-custom-color",
     isError && "admin-inline-zone-error",
   );
   const styleAttr = styleToAttribute(inlineStyle as Record<string, string | number | undefined>);
@@ -219,11 +222,21 @@ export function scheduleReadContentEditableSelection(
   root: HTMLElement,
   callback: (selection: GlitchTextSelection | null) => void,
 ) {
+  let cancelled = false;
+
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
+      if (cancelled) {
+        return;
+      }
+
       callback(readContentEditableSelection(root));
     });
   });
+
+  return () => {
+    cancelled = true;
+  };
 }
 
 export function getZoneForSelection(

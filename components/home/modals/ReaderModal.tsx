@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { StoryFormattedText } from "@/components/StoryFormattedText";
+import { playPageTurnSound } from "@/lib/page-turn-sound";
 import { cn } from "@/utils/cn";
 import { ThumbnailImage } from "@/components/ThumbnailImage";
 import { splitStoryParagraphs } from "@/lib/story-text";
@@ -16,6 +18,15 @@ interface ReaderModalProps {
 export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderModalProps) {
   const paragraphs = splitStoryParagraphs(item.work.body);
 
+  useEffect(() => {
+    playPageTurnSound();
+  }, []);
+
+  const handleClose = () => {
+    playPageTurnSound();
+    onClose();
+  };
+
   return (
     <div
       className={cn(
@@ -25,7 +36,7 @@ export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderM
       role="dialog"
       aria-modal="true"
       aria-label={`${item.work.title} 이북 보기`}
-      onClick={onClose}
+      onClick={handleClose}
     >
       <div
         className="ebook-reader story-viewer dossier-viewer flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden border !border-stone-700/30 !bg-black !shadow-none"
@@ -41,7 +52,7 @@ export function ReaderModal({ item, onClose, onOpenGallery, className }: ReaderM
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="archive-submit-button px-3 py-2 text-sm"
           >
             닫기

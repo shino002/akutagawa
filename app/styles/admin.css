@@ -1,0 +1,502 @@
+/* admin.css — 관리자 페이지·글리치 툴바·인라인 에디터 */
+.admin-page {
+  font-family: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+}
+
+.admin-page .auth-input {
+  min-height: 2.75rem;
+  padding: 0.7rem 0.85rem;
+}
+
+.admin-page .glass-card {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(0, 0, 0, 0.92), transparent 35%),
+    linear-gradient(180deg, rgba(6, 8, 16, 0.99), rgba(0, 0, 0, 0.99));
+}
+
+.admin-page .glass-card::before {
+  opacity: 0.18;
+}
+
+.admin-page p,
+.admin-page li,
+.admin-page span,
+.admin-page label {
+  line-height: 1.7;
+}
+
+.admin-page [data-admin-interactive],
+.admin-page [data-admin-interactive] button,
+.admin-page [data-admin-interactive] input,
+.admin-page [data-admin-interactive] select,
+.admin-page [data-admin-interactive] textarea {
+  pointer-events: auto;
+}
+
+.admin-page .admin-choice-btn {
+  border: 1px solid rgba(150, 145, 126, 0.24);
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(214, 208, 188, 0.82);
+  padding: 0.35rem 0.65rem;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.admin-page .admin-choice-btn:hover:not(:disabled) {
+  border-color: rgba(111, 143, 215, 0.42);
+  color: #f4eecf;
+}
+
+.admin-page .admin-choice-btn-active {
+  border-color: rgba(111, 143, 215, 0.52) !important;
+  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
+  color: #f4eecf !important;
+  font-weight: 600;
+}
+
+.admin-page .admin-action-btn {
+  border: 1px solid rgba(111, 143, 215, 0.48) !important;
+  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
+  color: #f4eecf !important;
+  font-weight: 600;
+}
+
+.admin-page .admin-action-btn:hover:not(:disabled) {
+  border-color: rgba(130, 165, 230, 0.62) !important;
+  color: #fff8e8 !important;
+}
+
+.admin-page .admin-ghost-btn {
+  border: 1px solid rgba(150, 145, 126, 0.24);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(214, 208, 188, 0.78);
+}
+
+.admin-page .admin-ghost-btn:hover:not(:disabled) {
+  border-color: rgba(150, 145, 126, 0.4);
+  color: #f4eecf;
+}
+
+.admin-page .admin-tab-btn {
+  border: 1px solid rgba(150, 145, 126, 0.22);
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(214, 208, 188, 0.78);
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+}
+
+.admin-page .admin-tab-btn:hover {
+  border-color: rgba(111, 143, 215, 0.38);
+  color: #f4eecf;
+}
+
+.admin-page .admin-tab-btn-active {
+  border-color: rgba(111, 143, 215, 0.52) !important;
+  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
+  color: #f4eecf !important;
+}
+
+.admin-page .admin-section-nav {
+  position: relative;
+  z-index: 5;
+  overflow: visible;
+}
+
+.admin-page .admin-edit-form {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.admin-glitch-workspace {
+  min-width: 0;
+}
+
+.admin-glitch-field-picker {
+  min-width: 0;
+}
+
+.admin-glitch-field-btn {
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease;
+}
+
+.admin-glitch-field-btn.is-active {
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
+}
+
+.admin-glitch-tool {
+  min-width: 0;
+}
+
+.admin-page [data-text-scramble-tool] {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.admin-page [data-text-scramble-tool] :where(textarea, input, p, span, mark) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 미리보기: text-emerald-* !important보다 구간 서식이 우선하도록 */
+.admin-page [data-text-scramble-tool] .glitch-zone-mark.glitch-zone-has-custom-color {
+  color: var(--glitch-text-color, currentColor) !important;
+  --glitch-decoration-color: var(--glitch-text-color, currentColor);
+}
+
+.admin-page .admin-choice-btn-candidate {
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-all;
+  text-align: left;
+  line-height: 1.5;
+  padding: 0.5rem 0.65rem;
+}
+
+/* 관리자 버튼: 전역 box-shadow 제거 규칙보다 우선해 박스 형태가 보이게 합니다. */
+html body main.admin-page .admin-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.55rem 1rem !important;
+  border: 1px solid rgba(111, 143, 215, 0.72) !important;
+  background: linear-gradient(180deg, rgba(34, 56, 98, 0.98), rgba(16, 28, 52, 0.98)) !important;
+  color: #f4f0e0 !important;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px rgba(0, 0, 0, 0.72),
+    0 2px 12px rgba(53, 95, 189, 0.22) !important;
+}
+
+html body main.admin-page .admin-action-btn:hover:not(:disabled) {
+  border-color: rgba(150, 180, 240, 0.85) !important;
+  background: linear-gradient(180deg, rgba(42, 68, 118, 0.98), rgba(20, 36, 64, 0.98)) !important;
+  color: #fffaf0 !important;
+}
+
+html body main.admin-page .admin-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+html body main.admin-page .admin-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid rgba(150, 145, 126, 0.38) !important;
+  background: rgba(8, 10, 12, 0.92) !important;
+  color: rgba(230, 224, 206, 0.88) !important;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
+}
+
+html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
+  border-color: rgba(111, 143, 215, 0.48) !important;
+  color: #f4f0e0 !important;
+}
+
+.glitch-float-toolbar {
+  position: fixed;
+  z-index: 9999;
+  display: grid;
+  gap: 0.35rem;
+  width: max-content;
+  max-width: min(92vw, 26rem);
+  border: 1px solid rgba(111, 143, 215, 0.34);
+  border-radius: 0.65rem;
+  background: rgba(8, 10, 14, 0.96);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  padding: 0.45rem 0.5rem 0.5rem;
+  pointer-events: auto;
+}
+
+.glitch-float-toolbar-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.glitch-float-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: transparent;
+  color: rgba(230, 224, 206, 0.88);
+  font-size: 0.82rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.glitch-float-toolbar-btn:hover {
+  background: rgba(111, 143, 215, 0.16);
+  color: #f4f0e0;
+}
+
+.glitch-float-toolbar-btn.is-active {
+  background: rgba(111, 143, 215, 0.28);
+  color: #ffffff;
+}
+
+.glitch-float-toolbar-divider {
+  width: 1px;
+  height: 1.35rem;
+  margin-inline: 0.15rem;
+  background: rgba(150, 145, 126, 0.35);
+}
+
+.glitch-float-toolbar-meta {
+  margin: 0;
+  padding-inline: 0.25rem;
+  color: rgba(167, 243, 208, 0.55);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+}
+
+.glitch-float-toolbar-colors {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.glitch-float-toolbar-color-swatch {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: var(--swatch-color);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.glitch-float-toolbar-color-swatch:hover {
+  transform: scale(1.06);
+}
+
+.glitch-float-toolbar-color-swatch.is-active {
+  box-shadow:
+    0 0 0 2px rgba(8, 10, 14, 0.95),
+    0 0 0 3px rgba(111, 143, 215, 0.75);
+}
+
+.glitch-float-toolbar-color-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.glitch-float-toolbar-color-picker.is-active {
+  border-style: solid;
+  box-shadow:
+    0 0 0 2px rgba(8, 10, 14, 0.95),
+    0 0 0 3px rgba(111, 143, 215, 0.75);
+}
+
+.glitch-float-toolbar-color-picker-preview {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #fda4af 0%, #fde68a 33%, #a7f3d0 66%, #7dd3fc 100%);
+}
+
+.glitch-float-toolbar-color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+html body main.admin-page .admin-choice-btn {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+}
+
+.admin-glitch-text-field {
+  min-width: 0;
+}
+
+.admin-glitch-live-preview {
+  border: 1px solid rgba(111, 143, 215, 0.28);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 0.75rem 0.85rem;
+}
+
+.admin-glitch-live-preview-label {
+  margin: 0 0 0.5rem;
+  color: rgba(167, 243, 208, 0.55);
+  font-size: 0.64rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.admin-glitch-live-preview-body {
+  color: rgba(236, 253, 245, 0.88);
+  font-size: 0.92rem;
+  line-height: 1.85;
+  white-space: pre-wrap;
+}
+
+.admin-inline-glitch-editor {
+  position: relative;
+  min-width: 0;
+}
+
+.admin-inline-glitch-editor-body {
+  display: block;
+  width: 100%;
+  resize: vertical;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  outline: none;
+  line-height: 1.85;
+  border: 1px solid rgba(111, 143, 215, 0.38) !important;
+  background: rgba(5, 6, 11, 0.92) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72) !important;
+  color: rgba(236, 240, 245, 0.9) !important;
+  transition:
+    border-color 160ms ease,
+    box-shadow 0.35s ease,
+    background 160ms ease;
+}
+
+.admin-inline-glitch-editor-body:focus {
+  border-color: rgba(111, 143, 215, 0.58) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 143, 215, 0.32),
+    0 0 0 2px rgba(111, 143, 215, 0.14) !important;
+}
+
+.admin-inline-glitch-editor-body.is-applied-flash {
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 143, 215, 0.55),
+    0 0 0 2px rgba(111, 143, 215, 0.2) !important;
+}
+
+.admin-inline-glitch-editor-body .admin-inline-zone {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border: none !important;
+  font-size: inherit;
+  line-height: inherit;
+  font-family: inherit;
+}
+
+.admin-inline-glitch-editor-body .admin-inline-zone.glitch-zone-has-underline,
+.admin-inline-glitch-editor-body .admin-inline-zone.glitch-zone-has-link-underline {
+  text-decoration-line: underline;
+  text-decoration-thickness: var(--glitch-underline-thickness, 2px);
+  text-underline-offset: 0.18em;
+  text-decoration-color: var(
+    --glitch-underline-color,
+    color-mix(in srgb, var(--glitch-decoration-color, currentColor) 92%, transparent)
+  );
+  text-decoration-skip-ink: none;
+}
+
+.admin-inline-glitch-editor-body .admin-inline-zone.glitch-zone-has-strikethrough {
+  position: relative;
+}
+
+.admin-inline-glitch-editor-body .admin-inline-zone.glitch-zone-has-strikethrough::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 54%;
+  height: var(--glitch-strikethrough-thickness, 2px);
+  background: var(
+    --glitch-strikethrough-color,
+    color-mix(in srgb, var(--glitch-decoration-color, currentColor) 90%, transparent)
+  );
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.admin-inline-glitch-editor-body .story-inline-quote {
+  border-left: 2px solid rgba(111, 143, 215, 0.45);
+  padding-left: 0.65rem;
+}
+
+.admin-inline-glitch-editor-body .admin-inline-zone-error:not(.glitch-zone-has-custom-color) {
+  color: rgba(130, 165, 230, 0.95);
+}
+
+.admin-inline-glitch-editor-placeholder {
+  position: absolute;
+  top: 0.65rem;
+  left: 0.75rem;
+  margin: 0;
+  pointer-events: none;
+  color: rgba(167, 243, 208, 0.35);
+  font-size: 0.92rem;
+  line-height: 1.85;
+}
+
+.glitch-float-toolbar.is-just-applied {
+  box-shadow:
+    0 0 0 1px rgba(52, 211, 153, 0.45),
+    0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+html body main.admin-page .admin-inline-glitch-editor-body.auth-input {
+  border: 1px solid rgba(111, 143, 215, 0.38) !important;
+  background: rgba(5, 6, 11, 0.92) !important;
+  color: rgba(236, 240, 245, 0.9) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72) !important;
+}
+
+html body main.admin-page .admin-inline-glitch-editor-body.auth-input:focus {
+  border-color: rgba(111, 143, 215, 0.58) !important;
+  outline: none !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 143, 215, 0.32),
+    0 0 0 2px rgba(111, 143, 215, 0.14) !important;
+}
+
+html body main.admin-page .admin-choice-btn-active {
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 143, 215, 0.2),
+    0 1px 8px rgba(53, 95, 189, 0.12) !important;
+}
+
+html body main.admin-page .admin-tab-btn {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+}
+
+html body main.admin-page .admin-tab-btn-active {
+  box-shadow:
+    inset 0 0 0 1px rgba(111, 143, 215, 0.2),
+    0 1px 8px rgba(53, 95, 189, 0.12) !important;
+}

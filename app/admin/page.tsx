@@ -17,7 +17,10 @@ import { ProfileFieldsEditor, profileFieldGlitchPath } from "@/components/admin/
 import { RelationshipsEditor } from "@/components/admin/RelationshipsEditor";
 import { BgmQuickPicker } from "@/components/admin/BgmQuickPicker";
 import { DocumentTextImport } from "@/components/admin/DocumentTextImport";
+import { useAdminHistoryNavigation } from "@/hooks/useAdminHistoryNavigation";
 import { useBgmCatalog } from "@/hooks/useBgmCatalog";
+import { createAdminHistoryState } from "@/lib/admin-history";
+import type { AdminHistoryState } from "@/types/admin.types";
 import { createDefaultProfileFields, normalizeProfileFields, profileFieldsHaveContent } from "@/lib/profile-fields";
 import {
   normalizeRelationshipEntries,
@@ -66,7 +69,6 @@ import { TextScrambleTool } from "@/components/admin/TextScrambleTool";
 import { GlitchSelectionFloatingToolbar } from "@/components/admin/GlitchSelectionFloatingToolbar";
 import { AdminInlineGlitchEditor } from "@/components/admin/AdminInlineGlitchEditor";
 import { SettingSectionOrderButtons } from "@/components/admin/SettingSectionOrderButtons";
-import { GlitchFieldPicker } from "@/components/admin/GlitchFieldPicker";
 import { SubPageEditor } from "@/components/admin/SubPageEditor";
 import { MetaFieldsEditor } from "@/components/admin/MetaFieldsEditor";
 import { PairMemberPicker } from "@/components/admin/PairMemberPicker";
@@ -556,8 +558,19 @@ export default function AdminPage() {
     useState<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
   const glitchFieldAnchorRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
   const worldGlitchFieldAnchorRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
+  const adminGlitchInteractionMountedRef = useRef(false);
   const [activeCategory, setActiveCategory] = useState<"home" | "archive" | "diary" | "guestbook" | "worlds" | "extract" | "bgm">("home");
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
+  const charactersRef = useRef(characters);
+  charactersRef.current = characters;
+  const diaryEntriesRef = useRef(diaryEntries);
+  diaryEntriesRef.current = diaryEntries;
+  const extractBannersRef = useRef(extractBanners);
+  extractBannersRef.current = extractBanners;
+  const bgmTracksRef = useRef(bgmTracks);
+  bgmTracksRef.current = bgmTracks;
+  const worldsRef = useRef(worlds);
+  worldsRef.current = worlds;
 
   const isAdmin = authUser?.email === ADMIN_AUTH_EMAIL;
   const activeCharacter = useMemo(
@@ -622,6 +635,122 @@ export default function AdminPage() {
     () => normalizeWorldEntries(activeCharacter?.worldEntries).find((entry) => entry.worldId === activeCharacterWorldId),
     [activeCharacter, activeCharacterWorldId],
   );
+
+  const applyAdminHistoryState = useCallback((snapshot: AdminHistoryState) => {
+    setAdminPanel(snapshot.panel);
+    setActiveCategory(snapshot.category);
+    setActiveCharacterKind(snapshot.characterKind);
+    setCharacterEditSection(snapshot.editSection);
+    setActiveDiaryId(snapshot.diaryId);
+    setActiveExtractBannerId(snapshot.extractBannerId);
+    setActiveBgmTrackId(snapshot.bgmTrackId);
+    setActiveWorldId(snapshot.worldId);
+    setActiveGlitchFieldPath(null);
+    setGlitchFieldSelection(null);
+    setActiveWorldGlitchFieldPath(null);
+    setWorldGlitchFieldSelection(null);
+
+    if (snapshot.characterId) {
+      const character = charactersRef.current.find((entry) => entry.id === snapshot.characterId);
+      setActiveCharacterId(snapshot.characterId);
+      if (character) {
+        const nextDraft = characterToDraft(character);
+        setDraft(nextDraft);
+        setActiveSubPageId(snapshot.subPageId || nextDraft.subPages[0]?.id || "");
+        setActiveCharacterKind(normalizeCharacterKind(character.kind));
+      } else {
+        setActiveSubPageId(snapshot.subPageId);
+      }
+    } else {
+      setActiveCharacterId("");
+      setActiveSubPageId(snapshot.subPageId);
+      if (snapshot.panel === "characters") {
+        setDraft(createBlankDraft(snapshot.characterKind));
+      }
+    }
+
+    if (snapshot.diaryId) {
+      const entry = diaryEntriesRef.current.find((item) => item.id === snapshot.diaryId);
+      if (entry) {
+        setDiaryDraft(entry);
+      }
+    }
+
+    if (snapshot.extractBannerId) {
+      const banner = extractBannersRef.current.find((item) => item.id === snapshot.extractBannerId);
+      if (banner) {
+        setExtractBannerDraft(extractBannerDraftFromBanner(banner));
+      }
+    }
+
+    if (snapshot.bgmTrackId) {
+      const track = bgmTracksRef.current.find((item) => item.id === snapshot.bgmTrackId);
+      if (track) {
+        setBgmTrackDraft(bgmTrackDraftFromTrack(track));
+      }
+    }
+
+    if (snapshot.worldId) {
+      const world = worldsRef.current.find((item) => item.id === snapshot.worldId);
+      if (world) {
+        setWorldDraft(worldToDraft(world));
+      }
+    }
+
+    if (snapshot.characterWorldId && snapshot.characterId) {
+      const character = charactersRef.current.find((entry) => entry.id === snapshot.characterId);
+      const worldEntry = character
+        ? normalizeWorldEntries(character.worldEntries).find(
+            (entry) => entry.worldId === snapshot.characterWorldId,
+          )
+        : undefined;
+      setActiveCharacterWorldId(snapshot.characterWorldId);
+      setWorldSettingsText(worldEntry?.settings.join("\n") ?? "");
+      setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
+    } else {
+      setActiveCharacterWorldId(snapshot.characterWorldId);
+      if (!snapshot.characterWorldId) {
+        setWorldSettingsText("");
+      }
+    }
+  }, []);
+
+  const adminHistoryState = useMemo(
+    () =>
+      createAdminHistoryState({
+        panel: adminPanel,
+        category: activeCategory,
+        characterKind: activeCharacterKind,
+        characterId: activeCharacterId,
+        editSection: characterEditSection,
+        subPageId: activeSubPageId,
+        diaryId: activeDiaryId,
+        extractBannerId: activeExtractBannerId,
+        bgmTrackId: activeBgmTrackId,
+        worldId: activeWorldId,
+        characterWorldId: activeCharacterWorldId,
+      }),
+    [
+      activeBgmTrackId,
+      activeCategory,
+      activeCharacterId,
+      activeCharacterKind,
+      activeCharacterWorldId,
+      activeDiaryId,
+      activeExtractBannerId,
+      activeSubPageId,
+      activeWorldId,
+      adminPanel,
+      characterEditSection,
+    ],
+  );
+
+  useAdminHistoryNavigation({
+    enabled: isAdmin,
+    state: adminHistoryState,
+    applyState: applyAdminHistoryState,
+  });
+
   // Auth, 썸네일 드래그, Firestore 컬렉션 구독을 담당하는 효과들입니다.
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -648,12 +777,23 @@ export default function AdminPage() {
   }, [worldGlitchFieldAnchorElement]);
 
   useEffect(() => {
-    setGlitchFieldSelection(null);
-  }, [activeGlitchFieldPath]);
+    adminGlitchInteractionMountedRef.current = true;
+    return () => {
+      adminGlitchInteractionMountedRef.current = false;
+    };
+  }, []);
 
-  useEffect(() => {
+  const selectGlitchField = useCallback((path: string) => {
+    setActiveGlitchFieldPath(path);
+    setGlitchFieldSelection(null);
+    setGlitchFieldAnchorElement(null);
+  }, []);
+
+  const selectWorldGlitchField = useCallback((path: string) => {
+    setActiveWorldGlitchFieldPath(path);
     setWorldGlitchFieldSelection(null);
-  }, [activeWorldGlitchFieldPath]);
+    setWorldGlitchFieldAnchorElement(null);
+  }, []);
 
   useEffect(() => {
     const handleFocusIn = (event: FocusEvent) => {
@@ -687,6 +827,10 @@ export default function AdminPage() {
       }
 
       const applySelection = (selection: GlitchTextSelection | null) => {
+        if (!adminGlitchInteractionMountedRef.current) {
+          return;
+        }
+
         setActiveWorldGlitchFieldPath(path);
         setWorldGlitchFieldSelection(selection);
         setWorldGlitchFieldAnchorElement(selection ? element : null);
@@ -709,14 +853,15 @@ export default function AdminPage() {
         return;
       }
 
-      if (
-        element.closest("[data-text-scramble-tool]") &&
-        !element.matches("[data-glitch-work-textarea]")
-      ) {
+      if (element.closest("[data-text-scramble-tool]")) {
         return;
       }
 
       const applySelection = (selection: GlitchTextSelection | null) => {
+        if (!adminGlitchInteractionMountedRef.current) {
+          return;
+        }
+
         setActiveGlitchFieldPath(path);
         setGlitchFieldSelection(selection);
         setGlitchFieldAnchorElement(selection ? element : null);
@@ -738,6 +883,10 @@ export default function AdminPage() {
     }
 
     const syncAnchoredSelection = () => {
+      if (!adminGlitchInteractionMountedRef.current) {
+        return;
+      }
+
       if (document.documentElement.dataset.glitchToolbarActive === "true") {
         return;
       }
@@ -800,6 +949,10 @@ export default function AdminPage() {
     };
 
     const clearFloatingSelections = () => {
+      if (!adminGlitchInteractionMountedRef.current) {
+        return;
+      }
+
       setGlitchFieldSelection(null);
       setGlitchFieldAnchorElement(null);
       setWorldGlitchFieldSelection(null);
@@ -2576,7 +2729,7 @@ export default function AdminPage() {
   // 관리자 페이지 실제 레이아웃입니다: 좌측 선택 패널과 우측 편집 폼을 나눠 보여줍니다.
   return (
     <main className="admin-page min-h-screen bg-black px-5 py-8 text-emerald-50 md:px-8">
-      <div className="fixed inset-0 -z-10 bg-[linear-gradient(180deg,#000000_0%,#000000_78%,#080000_100%)] pointer-events-none" />
+      <div className="fixed inset-0 -z-10 bg-[linear-gradient(180deg,#0a0c12_0%,#080a10_78%,#070910_100%)] pointer-events-none" />
       <div className="noise-layer" aria-hidden="true" />
 
       <section className="relative z-10 mx-auto grid w-full max-w-[1500px] gap-6">
@@ -3278,24 +3431,14 @@ export default function AdminPage() {
                         />
                       </label>
 
-                      <section className="grid gap-3 border border-emerald-100/10 bg-black/25 p-4">
-                        <div>
-                          <h3 className="text-sm font-semibold text-emerald-50">텍스트 오류 · 서식</h3>
-                          <p className="mt-1 text-xs leading-5 text-emerald-100/55">
-                            세계관 이름, 한 줄 설명, 상세 설명에 글자 효과를 넣을 수 있어요.
-                            {worldGlitchFieldCount > 0 ? ` · 적용 중 ${worldGlitchFieldCount}개` : ""}
-                          </p>
-                        </div>
-                        <GlitchFieldPicker
-                          groups={worldGlitchFieldPickerOptions.length > 0 ? [{ id: "world", label: "세계관 필드", options: worldGlitchFieldPickerOptions }] : []}
-                          activePath={activeWorldGlitchFieldPath}
-                          onSelect={(path) => {
-                            setActiveWorldGlitchFieldPath(path);
-                            setWorldGlitchFieldSelection(null);
-                          }}
-                        />
-                        <div id="admin-world-glitch-tool">
+                      <div id="admin-world-glitch-tool">
                         <TextScrambleTool
+                          fieldPickerGroups={
+                            worldGlitchFieldPickerOptions.length > 0
+                              ? [{ id: "world", label: "세계관 필드", options: worldGlitchFieldPickerOptions }]
+                              : []
+                          }
+                          onFieldSelect={selectWorldGlitchField}
                           activeFieldPath={activeWorldGlitchFieldPath}
                           fieldValue={
                             activeWorldGlitchFieldPath
@@ -3330,8 +3473,7 @@ export default function AdminPage() {
                           onNotice={setNotice}
                           allCharacters={characters}
                         />
-                        </div>
-                      </section>
+                      </div>
                     </section>
                   )}
 
@@ -3744,9 +3886,7 @@ export default function AdminPage() {
                           }
                           glitchBindings={bindGlitchField(settingSectionGlitchPath(section.id))}
                           placeholder={
-                            section.kind === "story"
-                              ? "스토리 본문. * ** *** $ $ 문법 또는 드래그 후 툴바 사용"
-                              : "내용 입력. 드래그 후 툴바로 서식 적용"
+                            section.kind === "story" ? "스토리 본문" : "내용 입력"
                           }
                           className={glitchFieldClass(
                             settingSectionGlitchPath(section.id),
@@ -3754,7 +3894,6 @@ export default function AdminPage() {
                             "",
                           )}
                           minHeightClass={section.kind === "story" ? "min-h-40" : "min-h-24"}
-                          storyMarkup={section.kind === "story"}
                         />
                       </article>
                     ))}
@@ -3826,23 +3965,10 @@ export default function AdminPage() {
                 )}
 
                 {characterEditSection === "glitch" && (
-                <>
-                <div>
-                  <h2 className="board-title">텍스트 오류 · 서식</h2>
-                  <p className="mt-1 text-xs leading-5 text-emerald-100/55">
-                    텍스트를 드래그하면 노션처럼 떠오르는 툴바로 서식·오류를 바로 적용할 수 있어요. 상세 설정은 「상세」 또는 이 탭에서.
-                  </p>
-                </div>
-                <GlitchFieldPicker
-                  groups={glitchFieldPickerGroups}
-                  activePath={activeGlitchFieldPath}
-                  onSelect={(path) => {
-                    setActiveGlitchFieldPath(path);
-                    setGlitchFieldSelection(null);
-                  }}
-                />
                 <div id="admin-glitch-tool">
                 <TextScrambleTool
+                  fieldPickerGroups={glitchFieldPickerGroups}
+                  onFieldSelect={selectGlitchField}
                   activeFieldPath={activeGlitchFieldPath}
                   fieldValue={
                     activeGlitchFieldPath ? getCharacterDraftFieldValue(draft, activeGlitchFieldPath) : ""
@@ -3870,9 +3996,12 @@ export default function AdminPage() {
                   allCharacters={characters}
                   currentCharacterId={draft.id}
                   currentSection={characterKindToSection(normalizeCharacterKind(draft.kind))}
+                  onZoneApplied={() => {
+                    setGlitchFieldSelection(null);
+                    setGlitchFieldAnchorElement(null);
+                  }}
                 />
                 </div>
-                </>
                 )}
 
                 {characterEditSection === "subpages" && (

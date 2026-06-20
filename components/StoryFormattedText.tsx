@@ -1,8 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { GlitchedText } from "@/components/GlitchedText";
-import { glitchConfigSignature } from "@/lib/glitch-fields";
-import { parseStoryMarkup } from "@/lib/story-text";
+import { glitchConfigSignature, sliceGlitchConfigForSourceRange } from "@/lib/glitch-fields";
+import { parseStoryMarkupSourceRanges, storyTextHasMarkup } from "@/lib/story-text";
 import type { FieldGlitchConfig } from "@/lib/types";
 import type { CharacterDetailSection } from "@/lib/zone-links";
 import { cn } from "@/utils/cn";
@@ -20,34 +21,37 @@ interface StoryFormattedTextProps {
 }
 
 function renderStyledSegment(
-  segment: ReturnType<typeof parseStoryMarkup>[number],
+  segment: ReturnType<typeof parseStoryMarkupSourceRanges>[number],
   key: number,
+  children?: ReactNode,
 ) {
+  const content = children ?? segment.text;
+
   switch (segment.type) {
     case "bold":
-      return <strong key={key}>{segment.text}</strong>;
+      return <strong key={key}>{content}</strong>;
     case "italic":
-      return <em key={key}>{segment.text}</em>;
+      return <em key={key}>{content}</em>;
     case "boldItalic":
       return (
         <strong key={key}>
-          <em>{segment.text}</em>
+          <em>{content}</em>
         </strong>
       );
     case "boldQuote":
       return (
         <strong key={key}>
-          <span className="story-inline-quote">{segment.text}</span>
+          <span className="story-inline-quote">{content}</span>
         </strong>
       );
     case "quote":
       return (
         <span key={key} className="story-inline-quote">
-          {segment.text}
+          {content}
         </span>
       );
     default:
-      return <span key={key}>{segment.text}</span>;
+      return <span key={key}>{content}</span>;
   }
 }
 
@@ -59,8 +63,21 @@ export function StoryFormattedText({
   linkContext,
   onZoneLinkClick,
 }: StoryFormattedTextProps) {
-  const segments = parseStoryMarkup(text);
   const hasGlitch = Boolean(glitch && glitchConfigSignature(text, glitch));
+  const segments = parseStoryMarkupSourceRanges(text);
+
+  if (hasGlitch && !storyTextHasMarkup(text)) {
+    return (
+      <GlitchedText
+        text={text}
+        glitch={glitch}
+        className={cn(className, preserveWhitespace && "whitespace-pre-line")}
+        preserveWhitespace={preserveWhitespace}
+        linkContext={linkContext}
+        onZoneLinkClick={onZoneLinkClick}
+      />
+    );
+  }
 
   return (
     <span
@@ -68,17 +85,34 @@ export function StoryFormattedText({
       data-text-corruptor-ignore
     >
       {segments.map((segment, index) => {
-        if (hasGlitch && segment.type === "plain") {
-          return (
+        const segmentGlitch =
+          hasGlitch && glitch
+            ? sliceGlitchConfigForSourceRange(
+                text,
+                glitch,
+                segment.sourceStart,
+                segment.sourceEnd,
+                segment.text,
+              )
+            : undefined;
+        const segmentHasGlitch = Boolean(segmentGlitch && glitchConfigSignature(segment.text, segmentGlitch));
+
+        if (segmentHasGlitch && segmentGlitch) {
+          const glitched = (
             <GlitchedText
-              key={index}
               text={segment.text}
-              glitch={glitch}
+              glitch={segmentGlitch}
               preserveWhitespace
               linkContext={linkContext}
               onZoneLinkClick={onZoneLinkClick}
             />
           );
+
+          if (segment.type === "plain") {
+            return <span key={index}>{glitched}</span>;
+          }
+
+          return renderStyledSegment(segment, index, glitched);
         }
 
         return renderStyledSegment(segment, index);

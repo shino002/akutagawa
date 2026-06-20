@@ -43,6 +43,10 @@ export function normalizeColorInput(value: string | undefined) {
     return trimmed;
   }
 
+  if (trimmed.startsWith("rgb(") || trimmed.startsWith("hsl(")) {
+    return trimmed;
+  }
+
   const withHash = trimmed.startsWith("#") ? trimmed : `#${trimmed}`;
   return HEX_COLOR_PATTERN.test(withHash) ? withHash : undefined;
 }
@@ -132,6 +136,13 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
+/**
+ * 구역에 사용자 지정 글자색이 있는지 확인합니다.
+ */
+export function glitchZoneHasCustomTextColor(style?: GlitchZoneStyle): boolean {
+  return Boolean(normalizeGlitchZoneStyle(style)?.textColor);
+}
+
 export function glitchZoneStyleSignature(style?: GlitchZoneStyle) {
   return JSON.stringify(normalizeGlitchZoneStyle(style) ?? null);
 }
@@ -187,6 +198,7 @@ export function resolveGlitchZonePresentation(
 
   if (normalized?.textColor) {
     inlineStyle.color = normalized.textColor;
+    inlineStyle["--glitch-text-color"] = normalized.textColor;
     inlineStyle["--glitch-decoration-color"] = normalized.textColor;
   }
 
@@ -224,6 +236,8 @@ export function resolveGlitchZonePresentation(
     merged: normalized ?? {},
     inlineStyle,
     decoration: {
+      bold: Boolean(markdown?.bold),
+      italic: Boolean(markdown?.italic),
       underline: wantsUnderline && !options?.linkUnderline,
       linkUnderline: Boolean(options?.linkUnderline && wantsUnderline),
       strikethrough: Boolean(markdown?.strikethrough),

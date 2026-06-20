@@ -18,8 +18,8 @@ export const CASE_FILE_THEME_FIELDS = [
 }>;
 
 export const DEFAULT_CASE_FILE_DETAIL_THEME: Required<CaseFileDetailTheme> = {
-  introLabel: "rgba(255, 196, 196, 0.46)",
-  introText: "rgba(255, 236, 236, 0.86)",
+  introLabel: "rgba(168, 184, 214, 0.5)",
+  introText: "rgba(236, 240, 245, 0.86)",
   introBackground: "rgba(0, 0, 0, 0.38)",
   introBorder: "rgba(255, 255, 255, 0.09)",
   voiceLabel: "rgba(160, 160, 160, 0.62)",

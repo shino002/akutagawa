@@ -277,12 +277,18 @@ export function CharactersSection({
       : activeCharacter.id,
   );
   const detailThemeStyle = useMemo(
-    () =>
-      caseFileDetailThemeStyle(
+    () => ({
+      ...caseFileDetailThemeStyle(
         resolvedParentCharacter.detailTheme,
         activeSubPage?.detailTheme,
       ),
-    [activeSubPage?.detailTheme, resolvedParentCharacter.detailTheme],
+      ...characterPaletteStyle(resolvedParentCharacter.palette),
+    }),
+    [
+      activeSubPage?.detailTheme,
+      resolvedParentCharacter.detailTheme,
+      resolvedParentCharacter.palette,
+    ],
   );
   const activeSettingSections = normalizeSettingSections(activeCharacter.settingSections);
   const activeMetaFields = useMemo(
@@ -354,8 +360,8 @@ export function CharactersSection({
                   className={`archive-character-card character-palette-scope text-left ${activeCharacterId === character.id ? "is-active" : ""}`}
                   style={characterPaletteStyle(character.palette)}
                 >
-                  <div className="character-palette-backdrop" aria-hidden="true" />
                   <div className="archive-character-card-image">
+                    <div className="character-palette-backdrop" aria-hidden="true" />
                     {cardImage && (
                       <ThumbnailImage
                         image={cardImage}
@@ -403,6 +409,7 @@ export function CharactersSection({
         style={detailThemeStyle}
       >
         <div className="case-file-hero" data-character-id={heroCharacterId}>
+          <div className="character-palette-backdrop" aria-hidden="true" />
           {activeMainIllustration && (
             <ThumbnailImage
               image={activeMainIllustration}
@@ -464,17 +471,7 @@ export function CharactersSection({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleDetailBack}
-            className="case-back-button"
-            style={{
-              top: "1rem",
-              right: "auto",
-              bottom: "auto",
-              left: "1rem",
-            }}
-          >
+          <button type="button" onClick={handleDetailBack} className="case-back-button">
             ← {backButtonLabel}
           </button>
           <span
@@ -714,39 +711,40 @@ export function CharactersSection({
               </div>
 
               {activeRelationshipEntries.length > 0 && (
-                <section className="relationship-map-panel static-record-panel mt-4">
-                  <div className="flex flex-wrap items-end justify-between gap-3">
+                <section className="relation-map-panel mt-4">
+                  <header className="relation-map-head">
                     <div>
-                      <p className="text-xs tracking-[0.25em] text-emerald-100/45 uppercase">Relation Map</p>
-                      <p className="mt-1 text-sm text-emerald-50/70">관계 기록</p>
+                      <p className="case-file-intro-label">Relation Map</p>
+                      <p className="relation-map-subtitle">관계 기록</p>
                     </div>
-                    <p className="text-xs text-emerald-100/45">{activeRelationshipEntries.length} links</p>
-                  </div>
-                  <div className="relationship-map-grid mt-4">
+                    <span className="world-file-tag">{activeRelationshipEntries.length} links</span>
+                  </header>
+                  <div className="relation-link-list">
                     {activeRelationshipEntries.map((entry, index) => (
-                      <article key={entry.id} className="relationship-card">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                          <div>
-                            <p className="text-[10px] tracking-[0.22em] text-emerald-100/45 uppercase">
-                              LINK {String(index + 1).padStart(2, "0")}
-                            </p>
-                            <h3 className="mt-1 text-base font-semibold text-emerald-50">
-                              {entry.name || "이름 없음"}
-                            </h3>
+                      <article key={entry.id} className="relation-link-file">
+                        <header className="relation-link-file-head">
+                          <div className="relation-link-file-meta">
+                            <span className="relation-link-file-tab">LINK</span>
+                            <span className="relation-link-file-code">
+                              NO. {String(index + 1).padStart(2, "0")}
+                            </span>
                           </div>
-                          {entry.label && (
-                            <span className="relationship-card-badge">{entry.label}</span>
-                          )}
-                        </div>
+                          <div className="relation-link-file-name-row">
+                            <h3 className="relation-link-file-name">{entry.name || "이름 없음"}</h3>
+                            {entry.label && (
+                              <span className="relation-link-file-badge">{entry.label}</span>
+                            )}
+                          </div>
+                        </header>
                         {entry.body && (
-                          <p className="mt-3 whitespace-pre-line text-sm leading-7 text-emerald-50/80">
+                          <div className="relation-link-file-body">
                             <StoryFormattedText
                               text={entry.body}
                               glitch={activeCharacter.textGlitch?.[relationshipEntryGlitchPath(entry.id)]}
                               preserveWhitespace
                               {...zoneLinkProps}
                             />
-                          </p>
+                          </div>
                         )}
                         {entry.linkedCharacterId && (
                           <button
@@ -757,10 +755,16 @@ export function CharactersSection({
                                 entry.linkedSubPageId,
                               )
                             }
-                            className="relationship-card-link"
+                            className="relation-link-file-action"
                           >
-                            {linkedCharacterNameById.get(entry.linkedCharacterId) || entry.linkedCharacterId}
-                            {entry.linkedSubPageId ? " 상세" : ""} 파일 보기
+                            <span className="relation-link-file-action-label">
+                              {linkedCharacterNameById.get(entry.linkedCharacterId) ||
+                                entry.linkedCharacterId}
+                              {entry.linkedSubPageId ? " 상세" : ""} 파일 보기
+                            </span>
+                            <span className="relation-link-file-action-icon" aria-hidden="true">
+                              ↗
+                            </span>
                           </button>
                         )}
                         {!entry.linkedCharacterId && entry.linkedSubPageId && (
@@ -773,9 +777,14 @@ export function CharactersSection({
                                 window.scrollTo({ top: 0, behavior: "smooth" });
                               }
                             }}
-                            className="relationship-card-link"
+                            className="relation-link-file-action"
                           >
-                            {ownSubPageTitleById.get(entry.linkedSubPageId) || "하위 페이지"} 보기
+                            <span className="relation-link-file-action-label">
+                              {ownSubPageTitleById.get(entry.linkedSubPageId) || "하위 페이지"} 보기
+                            </span>
+                            <span className="relation-link-file-action-icon" aria-hidden="true">
+                              ↗
+                            </span>
                           </button>
                         )}
                       </article>

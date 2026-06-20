@@ -1,12 +1,11 @@
 import type { FieldGlitchConfig, GlitchScrambleMode, GlitchZone } from "@/lib/types";
 import {
   resolveEffectiveScrambleMode,
+  resolveZoneScrambleOptions,
   zoneUsesErrorAlternation,
 } from "@/lib/glitch-scramble-options";
-import {
-  sanitizeErrorMessageText,
-  sanitizePlainText,
-} from "@/lib/glitch-display";
+import { DEFAULT_GLITCH_TICK_MS, glitchScramblePhase } from "@/lib/glitch-style";
+import { sanitizeErrorMessageText, sanitizePlainText } from "@/lib/glitch-display";
 
 const ZALGO_COMBINING = [
   "\u030D",
@@ -302,57 +301,61 @@ function assembleReferenceOnlyText(targetLength: number, poolWords: string[], se
   return assembleTextFromWordPool(targetLength, poolWords, seed);
 }
 
-function referenceScrambleIntensity(textLength: number) {
-  if (textLength <= 20) {
-    return 0.4;
-  }
-
-  if (textLength <= 48) {
-    return 0.28;
-  }
-
-  return 0.18;
-}
-
-function scrambleReferencePoolCharacters(
-  text: string,
+function assembleReferenceWithBuiltinText(
+  targetLength: number,
   poolWords: string[],
+  tokenPool: string[],
   seed: string,
-  intensity = 0.42,
 ) {
-  const poolChars = [...poolWords.join("")].filter((character) => character.trim());
-  if (poolChars.length === 0) {
-    return text;
+  if (targetLength <= 0 || poolWords.length === 0) {
+    return "";
   }
 
-  const characters = text.split("");
-  const eligibleIndexes = characters
-    .map((character, index) => (character.trim() ? index : -1))
-    .filter((index) => index >= 0);
+  const random = createSeededRandom(`${seed}:ref-builtin`);
+  const parts: string[] = [];
+  let length = 0;
+  let guard = 0;
 
-  if (eligibleIndexes.length === 0) {
-    return text;
-  }
+  while (length < targetLength && guard < targetLength * 12) {
+    const useBuiltin = tokenPool.length > 0 && random() < 0.42;
+    const token = useBuiltin
+      ? (tokenPool[Math.floor(random() * tokenPool.length)] ?? "#")
+      : (poolWords[Math.floor(random() * poolWords.length)] ?? poolWords[0]);
 
-  const preserve = new Set<number>([
-    eligibleIndexes[0],
-    eligibleIndexes[eligibleIndexes.length - 1],
-  ]);
-  const random = createSeededRandom(`${seed}:ref-chars`);
-
-  return characters
-    .map((character, index) => {
-      if (!character.trim() || preserve.has(index) || random() > intensity) {
-        return character;
+    if (length + token.length > targetLength && parts.length > 0) {
+      const remaining = targetLength - length;
+      if (remaining > 0) {
+        parts.push(token.slice(0, remaining));
+        length += remaining;
       }
+      break;
+    }
 
-      return poolChars[Math.floor(random() * poolChars.length)] ?? character;
-    })
-    .join("");
-}
+    const piece = parts.length > 0 ? ` ${token}` : token;
+    if (length + piece.length > targetLength && parts.length > 0) {
+      const remaining = targetLength - length;
+      if (remaining > 0) {
+        parts.push(token.slice(0, remaining));
+        length += remaining;
+      }
+      break;
+    }
 
-function shouldApplyZalgoToError(pool: string, scrambleMode?: GlitchScrambleMode) {
-  return resolveEffectiveScrambleMode(pool, scrambleMode) !== "referenceOnly";
+    parts.push(piece);
+    length += piece.length;
+    guard += 1;
+  }
+
+  let result = parts.join("").slice(0, targetLength);
+
+  if (result.length < targetLength) {
+    const padded = assembleTextFromWordPool(targetLength, poolWords, `${seed}:pad`);
+    if (padded.length > result.length) {
+      result = padded.slice(0, targetLength);
+    }
+  }
+
+  return result.slice(0, targetLength);
 }
 
 function scrambleFromReferencePool(
@@ -368,13 +371,17 @@ function scrambleFromReferencePool(
   }
 
   const targetLength = Math.min(selectedText.length, 256);
-  const referenceText = assembleTextFromWordPool(targetLength, poolWords, seed);
 
   if (mode === "referenceOnly") {
-    return referenceText;
+    return assembleReferenceOnlyText(targetLength, poolWords, seed);
   }
 
-  return glitchCharacters(referenceText, 0.18, seed, resolveBuiltinGlitchChars(builtinTokens));
+  return assembleReferenceWithBuiltinText(
+    targetLength,
+    poolWords,
+    resolveBuiltinTokenPool(builtinTokens),
+    seed,
+  );
 }
 
 export interface ScrambleErrorOptions {
@@ -382,6 +389,11 @@ export interface ScrambleErrorOptions {
   scrambleMode?: GlitchScrambleMode;
   builtinTokens?: string[];
   seed: string;
+}
+
+export interface GenerateErrorMessageCandidateOptions extends Omit<ScrambleErrorOptions, "seed"> {
+  /** 바꿀 때마다 다른 후보가 나오도록 구분하는 값 */
+  seedSalt?: string | number;
 }
 
 export function scrambleErrorText(selectedText: string, options: ScrambleErrorOptions) {
@@ -396,13 +408,7 @@ export function scrambleErrorText(selectedText: string, options: ScrambleErrorOp
   } else if (effectiveMode === "referenceOnly") {
     const poolWords = extractWords(pool);
     const targetLength = Math.min(selectedText.length, 256);
-    const assembled = assembleReferenceOnlyText(targetLength, poolWords, options.seed);
-    result = scrambleReferencePoolCharacters(
-      assembled,
-      poolWords,
-      options.seed,
-      referenceScrambleIntensity(targetLength),
-    );
+    result = assembleReferenceOnlyText(targetLength, poolWords, options.seed);
   } else {
     result = scrambleFromReferencePool(
       selectedText,
@@ -418,24 +424,21 @@ export function scrambleErrorText(selectedText: string, options: ScrambleErrorOp
 
 export function generateErrorMessageCandidates(
   selectedText: string,
-  options: Omit<ScrambleErrorOptions, "seed">,
+  options: GenerateErrorMessageCandidateOptions,
   count = 4,
 ) {
+  const { seedSalt = 0, ...scrambleOptions } = options;
   const seen = new Set<string>();
   const results: string[] = [];
   let attempt = 0;
 
   while (results.length < count && attempt < count * 10) {
-    const seed = `candidate:${selectedText}:${attempt}`;
+    const seed = `candidate:${selectedText}:${seedSalt}:${attempt}`;
     const base = scrambleErrorText(selectedText, {
-      ...options,
+      ...scrambleOptions,
       seed,
     });
-    const candidate = sanitizeErrorMessageText(
-      shouldApplyZalgoToError(options.wordPool?.trim() ?? "", options.scrambleMode)
-        ? applyControlledZalgoGlitch(base, seed)
-        : base,
-    );
+    const candidate = sanitizeErrorMessageText(base);
     attempt += 1;
 
     if (!candidate || seen.has(candidate)) {
@@ -544,35 +547,49 @@ function resolveZoneErrorText(zone: GlitchZone, config: FieldGlitchConfig, error
     return sanitizeErrorMessageText(trimmed);
   }
 
-  const pool = config.wordPool?.trim() ?? "";
-  const poolWords = extractWords(pool);
+  const scrambleOptions = resolveZoneScrambleOptions(zone, config);
+  const poolWords = extractWords(scrambleOptions.wordPool);
   const seed = `${zone.id}:${errorCycle}:${zone.original}`;
 
   const errorText = scrambleErrorText(zone.original, {
-    wordPool: config.wordPool,
-    scrambleMode: config.scrambleMode,
-    builtinTokens: config.builtinTokens,
+    wordPool: scrambleOptions.wordPool,
+    scrambleMode: scrambleOptions.scrambleMode,
+    builtinTokens: scrambleOptions.builtinTokens,
     seed,
   });
 
   const fitted = fitTextToLength(errorText, zone.original.length, poolWords);
-  if (!shouldApplyZalgoToError(pool, config.scrambleMode)) {
-    return sanitizeErrorMessageText(fitted);
-  }
-
-  return sanitizeErrorMessageText(applyControlledZalgoGlitch(fitted, seed));
+  return sanitizeErrorMessageText(fitted);
 }
 
-export function buildZoneDisplayText(zones: GlitchZone[], config: FieldGlitchConfig, phase = 0) {
-  const displayMode = config.errorDisplayMode ?? "alternate";
+export type BuildZoneDisplayTextOptions = {
+  /** 글로벌 펄스 시각(ms). 구간별 tickMs로 phase를 계산합니다. */
+  pulse?: number;
+  /** animate=false 등 고정 phase가 필요할 때 */
+  fixedPhase?: number;
+};
 
-  if (displayMode === "alternate" && phase % 2 === 0) {
-    return Object.fromEntries(zones.map((zone) => [zone.id, zone.original]));
-  }
-
-  const errorCycle = phase;
+export function buildZoneDisplayText(
+  zones: GlitchZone[],
+  config: FieldGlitchConfig,
+  options: BuildZoneDisplayTextOptions = {},
+) {
+  const pulse = options.pulse ?? 0;
+  const useFixedPhase = options.fixedPhase !== undefined;
 
   return Object.fromEntries(
-    zones.map((zone) => [zone.id, resolveZoneErrorText(zone, config, errorCycle)]),
+    zones.map((zone) => {
+      const scrambleOptions = resolveZoneScrambleOptions(zone, config);
+      const tickMs = scrambleOptions.tickMs ?? config.tickMs ?? DEFAULT_GLITCH_TICK_MS;
+      const phase = useFixedPhase ? options.fixedPhase! : glitchScramblePhase(pulse, tickMs);
+      const displayMode = scrambleOptions.errorDisplayMode ?? "alternate";
+      const errorCycle = phase;
+
+      if (displayMode === "alternate" && phase % 2 === 0) {
+        return [zone.id, zone.original];
+      }
+
+      return [zone.id, resolveZoneErrorText(zone, config, errorCycle)];
+    }),
   );
 }

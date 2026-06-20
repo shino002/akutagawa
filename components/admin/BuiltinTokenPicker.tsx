@@ -39,7 +39,8 @@ export function BuiltinTokenPicker({ selectedTokens, onChange }: BuiltinTokenPic
     <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
       <legend className="px-1 text-[11px] font-medium text-emerald-100/85">기본 기호 선택</legend>
       <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
-        고르지 않으면 전체 기호 풀을 씁니다. 네모(▓) 등 원하는 기호만 골라 랜덤에 쓸 수 있어요.
+        「전체 기호」는 ERR·NULL·▓ 등 기본 풀 전체를 씁니다. 원하는 기호만 고르면 그것만 번갈아
+        나옵니다.
       </p>
 
       <div className="mt-2 flex flex-wrap gap-2">

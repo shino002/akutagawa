@@ -8,7 +8,7 @@ import {
   type StoryTextSegment,
 } from "@/lib/story-text";
 
-const STORY_QUOTE_COLOR = "rgba(255, 196, 196, 0.96)";
+const STORY_QUOTE_COLOR = "rgba(170, 192, 232, 0.96)";
 
 function createZoneId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

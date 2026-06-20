@@ -749,14 +749,9 @@ export function SubPageEditor({
                           )
                         }
                         glitchBindings={bindSubPageField(settingSectionGlitchPath(section.id))}
-                        placeholder={
-                          section.kind === "story"
-                            ? "스토리 본문. * ** $ 문법 또는 드래그 후 툴바"
-                            : "이 박스 안에 들어갈 내용을 입력"
-                        }
+                        placeholder={section.kind === "story" ? "스토리 본문" : "이 박스 안에 들어갈 내용을 입력"}
                         className={subPageFieldClass(settingSectionGlitchPath(section.id), "")}
                         minHeightClass={section.kind === "story" ? "min-h-40" : "min-h-24"}
-                        storyMarkup={section.kind === "story"}
                       />
                     </article>
                   ))

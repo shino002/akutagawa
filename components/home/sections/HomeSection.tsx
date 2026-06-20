@@ -75,7 +75,7 @@ export function HomeSection({
         <h2 className="archive-title site-logo-title mt-4 text-3xl md:text-5xl">
           <TextGlitch text={homeContent.title} />
         </h2>
-        <p className="mt-5 max-w-3xl border-l border-stone-400/25 bg-black/25 px-4 py-3 text-sm leading-8 whitespace-pre-line text-emerald-50/82 md:text-base">
+        <p className="mt-5 max-w-3xl border-l border-stone-400/25 bg-white/[0.04] px-4 py-3 text-sm leading-8 whitespace-pre-line text-emerald-50/82 md:text-base">
           {homeContent.body}
         </p>
       </ArchiveMotion>

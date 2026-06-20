@@ -301,6 +301,54 @@ export function parseStoryMarkupRanges(text: string): StoryMarkupRange[] {
     : [{ type: "plain", text: source, strippedStart: 0, strippedEnd: source.length }];
 }
 
+export type StoryMarkupSourceRange = StoryTextSegment & {
+  sourceStart: number;
+  sourceEnd: number;
+};
+
+export function parseStoryMarkupSourceRanges(text: string): StoryMarkupSourceRange[] {
+  const source = normalizeStorySource(text);
+  const ranges: StoryMarkupSourceRange[] = [];
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    const match = findEarliestMarkup(source, cursor);
+
+    if (!match || match.start > source.length) {
+      if (cursor < source.length) {
+        ranges.push({
+          type: "plain",
+          text: source.slice(cursor),
+          sourceStart: cursor,
+          sourceEnd: source.length,
+        });
+      }
+      break;
+    }
+
+    if (match.start > cursor) {
+      ranges.push({
+        type: "plain",
+        text: source.slice(cursor, match.start),
+        sourceStart: cursor,
+        sourceEnd: match.start,
+      });
+    }
+
+    ranges.push({
+      type: match.type,
+      text: match.text,
+      sourceStart: match.start,
+      sourceEnd: match.end,
+    });
+    cursor = match.end;
+  }
+
+  return ranges.length > 0
+    ? ranges
+    : [{ type: "plain", text: source, sourceStart: 0, sourceEnd: source.length }];
+}
+
 export function parseStoryMarkup(text: string): StoryTextSegment[] {
   const source = normalizeStorySource(text);
   const segments: StoryTextSegment[] = [];

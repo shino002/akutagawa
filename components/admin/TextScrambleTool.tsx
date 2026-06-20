@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { keepAdminTextSelection } from "@/lib/admin-interaction";
+import {
+  keepAdminTextSelection,
+  preserveAdminGlitchToolPointerDown,
+} from "@/lib/admin-interaction";
 import {
   GlitchStyleEditor,
-  GlitchTickEditor,
   createDefaultGlitchDraft,
 } from "@/components/admin/GlitchStyleEditor";
-import { GlitchZoneMark } from "@/components/GlitchZoneMark";
 import { GlitchedText } from "@/components/GlitchedText";
-import { ZoneErrorMessageEditor } from "@/components/admin/ZoneErrorMessageEditor";
-import { BuiltinTokenPicker } from "@/components/admin/BuiltinTokenPicker";
+import { ZoneScrambleSettingsEditor, type ZoneScrambleDraft } from "@/components/admin/ZoneScrambleSettingsEditor";
 import { GlitchZoneRangePicker } from "@/components/admin/GlitchZoneRangePicker";
 import {
   DEFAULT_GLITCH_TICK_MS,
@@ -19,39 +19,46 @@ import {
   glitchZoneStyleSignature,
   glitchZoneStylesEqual,
   hasGlitchPresentation,
+  isValidFieldGlitchConfig,
+  mergeGlitchZoneStyles,
   normalizeGlitchZoneStyle,
 } from "@/lib/glitch-style";
-import { glitchTextWasSanitized, sanitizePlainText } from "@/lib/glitch-display";
-import { zonesOverlap, type GlitchZone } from "@/lib/text-scramble";
-import { getGlitchFieldLabel, glitchConfigSignature } from "@/lib/glitch-fields";
-import type { GlitchTextSelection } from "@/lib/glitch-selection";
-import { readGlitchTextSelection, scheduleReadGlitchTextSelection } from "@/lib/glitch-selection";
+import {
+  applyGlitchZone,
+  findMatchingGlitchZone,
+  glitchZoneHasEffect,
+  mergePendingGlitchZonePreview,
+} from "@/lib/glitch-zone-apply";
+import { type GlitchZone } from "@/lib/text-scramble";
+import {
+  getGlitchFieldLabel,
+  reanchorGlitchConfig,
+} from "@/lib/glitch-fields";
+import {
+  findGlitchTextSelection,
+  scheduleReadGlitchTextSelection,
+  type GlitchTextSelection,
+} from "@/lib/glitch-selection";
 import { normalizeFieldGlitchConfig } from "@/lib/normalize-text-glitch";
 import { ensureZoneErrorAlternation } from "@/lib/glitch-scramble-options";
 import type {
   FieldGlitchConfig,
-  GlitchErrorDisplayMode,
   GlitchErrorMessageSource,
-  GlitchScrambleMode,
   GlitchZoneStyle,
   Character,
   ZoneLinkTarget,
 } from "@/lib/types";
-import {
-  formatZoneLinkLabel,
-  normalizeZoneLinkTarget,
-  resolveZoneLink,
-  type CharacterDetailSection,
-} from "@/lib/zone-links";
+import { normalizeZoneLinkTarget, type CharacterDetailSection } from "@/lib/zone-links";
 import { AdminChoiceButton } from "@/components/admin/AdminChoiceButton";
-import { AdminCollapsiblePanel } from "@/components/admin/AdminCollapsiblePanel";
+import {
+  GlitchFieldPicker,
+  type GlitchFieldOptionGroup,
+} from "@/components/admin/GlitchFieldPicker";
 import { GlitchZoneListItem } from "@/components/admin/GlitchZoneListItem";
 import { ZoneLinkEditor } from "@/components/admin/ZoneLinkEditor";
 
-interface PendingZoneDraft {
+interface PendingZoneDraft extends ZoneScrambleDraft {
   style: GlitchZoneStyle;
-  errorMessageSource: GlitchErrorMessageSource;
-  errorMessage?: string;
   linkTarget?: ZoneLinkTarget;
 }
 
@@ -59,47 +66,161 @@ function createDefaultPendingZoneDraft(style: GlitchZoneStyle): PendingZoneDraft
   return {
     style,
     errorMessageSource: "none",
+    wordPool: "",
+    scrambleMode: "referenceOnly",
+    builtinScramble: true,
+    builtinTokens: [],
+    errorDisplayMode: "alternate",
+    tickMs: DEFAULT_GLITCH_TICK_MS,
+  };
+}
+
+function pendingDraftFromZone(zone: GlitchZone): PendingZoneDraft {
+  return {
+    style: zone.style ?? {},
+    errorMessageSource: zone.errorMessageSource ?? "none",
+    errorMessage: zone.errorMessage,
+    linkTarget: zone.linkTarget,
+    wordPool: zone.wordPool ?? "",
+    scrambleMode: zone.scrambleMode ?? "referenceOnly",
+    builtinScramble: zone.builtinScramble ?? true,
+    builtinTokens: zone.builtinTokens ?? [],
+    errorDisplayMode: zone.errorDisplayMode ?? "alternate",
+    tickMs: zone.tickMs ?? DEFAULT_GLITCH_TICK_MS,
+  };
+}
+
+function appendScrambleFieldsToZone(zone: GlitchZone, draft: PendingZoneDraft): GlitchZone {
+  const pool = draft.wordPool.trim();
+  const next: GlitchZone = { ...zone };
+
+  if (pool) {
+    next.wordPool = pool;
+    next.scrambleMode = draft.scrambleMode;
+    delete next.builtinScramble;
+  } else if (draft.builtinScramble) {
+    next.builtinScramble = true;
+    delete next.wordPool;
+    delete next.scrambleMode;
+  } else {
+    delete next.wordPool;
+    delete next.scrambleMode;
+    delete next.builtinScramble;
+  }
+
+  if (draft.builtinTokens.length > 0) {
+    next.builtinTokens = draft.builtinTokens;
+  } else {
+    delete next.builtinTokens;
+  }
+
+  if (draft.errorDisplayMode === "randomOnly") {
+    next.errorDisplayMode = "randomOnly";
+  } else {
+    delete next.errorDisplayMode;
+  }
+
+  if (draft.errorMessageSource !== "none") {
+    next.tickMs = clampGlitchTickMs(draft.tickMs);
+  } else {
+    delete next.tickMs;
+  }
+
+  return next;
+}
+
+function scrambleApplyOptionsFromDraft(draft: PendingZoneDraft) {
+  return {
+    wordPool: draft.wordPool.trim(),
+    scrambleMode: draft.scrambleMode,
+    builtinScramble: draft.builtinScramble,
+    builtinTokens: draft.builtinTokens.length ? draft.builtinTokens : undefined,
+    errorDisplayMode: draft.errorDisplayMode,
+    tickMs: draft.tickMs,
   };
 }
 
 interface TextScrambleToolConfigOptions {
-  wordPool: string;
   zones: GlitchZone[];
-  tickMs: number;
   defaultStyle?: GlitchZoneStyle;
-  scrambleMode?: GlitchScrambleMode;
-  builtinScramble?: boolean;
-  errorDisplayMode?: GlitchErrorDisplayMode;
-  builtinTokens?: string[];
+  legacy?: Pick<
+    FieldGlitchConfig,
+    "wordPool" | "scrambleMode" | "builtinScramble" | "errorDisplayMode" | "builtinTokens" | "tickMs"
+  >;
 }
 
 function buildConfig({
-  wordPool,
   zones,
-  tickMs,
   defaultStyle,
-  scrambleMode,
-  builtinScramble,
-  errorDisplayMode,
-  builtinTokens,
+  legacy,
 }: TextScrambleToolConfigOptions): FieldGlitchConfig | undefined {
   if (zones.length === 0) {
     return undefined;
   }
 
+  const wordPool = legacy?.wordPool?.trim() ?? "";
+
   return normalizeFieldGlitchConfig({
-    wordPool: wordPool.trim(),
+    wordPool,
     zones: ensureZoneErrorAlternation(zones, {
-      wordPool: wordPool.trim(),
-      builtinScramble,
+      wordPool,
+      builtinScramble: legacy?.builtinScramble,
     }),
-    tickMs: clampGlitchTickMs(tickMs),
+    tickMs: legacy?.tickMs ? clampGlitchTickMs(legacy.tickMs) : undefined,
     defaultStyle,
-    scrambleMode: wordPool.trim() ? (scrambleMode ?? "referenceOnly") : undefined,
-    builtinScramble,
-    errorDisplayMode,
-    builtinTokens: builtinTokens?.length ? builtinTokens : undefined,
+    scrambleMode: wordPool ? (legacy?.scrambleMode ?? "referenceOnly") : undefined,
+    builtinScramble: legacy?.builtinScramble,
+    errorDisplayMode: legacy?.errorDisplayMode,
+    builtinTokens: legacy?.builtinTokens?.length ? legacy.builtinTokens : undefined,
   });
+}
+
+/** 저장용 normalize 없이 미리보기 전용 config (검증 실패로 plain 텍스트만 보이는 것 방지) */
+function buildLivePreviewConfig(
+  options: TextScrambleToolConfigOptions,
+): FieldGlitchConfig | undefined {
+  if (options.zones.length === 0) {
+    return undefined;
+  }
+
+  const wordPool = options.legacy?.wordPool?.trim() ?? "";
+  const zones = ensureZoneErrorAlternation(options.zones, {
+    wordPool,
+    builtinScramble: options.legacy?.builtinScramble,
+  });
+  const defaultStyle = normalizeGlitchZoneStyle(options.defaultStyle);
+  const candidate: FieldGlitchConfig = {
+    wordPool,
+    zones,
+    ...(defaultStyle ? { defaultStyle } : {}),
+    ...(options.legacy?.tickMs ? { tickMs: clampGlitchTickMs(options.legacy.tickMs) } : {}),
+    ...(wordPool ? { scrambleMode: options.legacy?.scrambleMode ?? "referenceOnly" } : {}),
+    ...(options.legacy?.builtinScramble ? { builtinScramble: true } : {}),
+    ...(options.legacy?.errorDisplayMode === "randomOnly"
+      ? { errorDisplayMode: "randomOnly" }
+      : {}),
+    ...(options.legacy?.builtinTokens?.length
+      ? { builtinTokens: options.legacy.builtinTokens }
+      : {}),
+  };
+
+  if (!isValidFieldGlitchConfig(candidate)) {
+    const hasPreviewEffect = candidate.zones.some(
+      (zone) =>
+        hasGlitchPresentation(zone.style) ||
+        zone.errorMessageSource === "auto" ||
+        zone.errorMessageSource === "custom" ||
+        Boolean(zone.linkTarget || zone.linkSubPageId),
+    );
+
+    if (!hasPreviewEffect) {
+      return undefined;
+    }
+
+    return candidate;
+  }
+
+  return candidate;
 }
 
 interface TextScrambleToolProps {
@@ -114,14 +235,67 @@ interface TextScrambleToolProps {
   allCharacters?: Character[];
   currentCharacterId?: string;
   currentSection?: CharacterDetailSection;
+  fieldPickerGroups?: GlitchFieldOptionGroup[];
+  onFieldSelect?: (path: string) => void;
+  /** 구간 적용 성공 직후 호출 (예: 선택 해제) */
+  onZoneApplied?: () => void;
 }
 
-function createZoneId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
+function glitchSelectionKey(selection: GlitchTextSelection) {
+  return `${selection.start}:${selection.end}:${selection.text}`;
+}
+
+function findEnclosingGlitchZone(zones: GlitchZone[], selection: GlitchTextSelection) {
+  return zones.find((zone) => zone.start <= selection.start && zone.end >= selection.end);
+}
+
+function buildPendingGlitchZone(
+  selection: GlitchTextSelection,
+  draft: PendingZoneDraft,
+  options: { zoneId?: string; inheritedStyle?: GlitchZoneStyle } = {},
+): GlitchZone {
+  const normalizedStyle = normalizeGlitchZoneStyle(
+    mergeGlitchZoneStyles(draft.style, options.inheritedStyle),
+  );
+  const errorMessageSource =
+    draft.errorMessageSource === "auto" || draft.errorMessageSource === "custom"
+      ? draft.errorMessageSource
+      : "none";
+  const customMessage = errorMessageSource === "custom" ? draft.errorMessage?.trim() : undefined;
+  const linkTarget = normalizeZoneLinkTarget(draft.linkTarget);
+
+  return appendScrambleFieldsToZone(
+    {
+      id: options.zoneId ?? "preview-pending",
+      start: selection.start,
+      end: selection.end,
+      original: selection.text,
+      style: normalizedStyle,
+      errorMessageSource,
+      ...(customMessage ? { errorMessage: customMessage } : {}),
+      ...(linkTarget ? { linkTarget } : {}),
+    },
+    draft,
+  );
+}
+
+function finalizeGlitchConfig(
+  options: TextScrambleToolConfigOptions,
+): FieldGlitchConfig | undefined {
+  if (options.zones.length === 0) {
+    return undefined;
   }
 
-  return `zone-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return buildConfig(options) ?? buildLivePreviewConfig(options);
+}
+
+function isPendingDraftStaleForZone(draft: PendingZoneDraft, zone: GlitchZone) {
+  const draftHasEffect =
+    draft.errorMessageSource !== "none" ||
+    hasGlitchPresentation(draft.style) ||
+    Boolean(normalizeZoneLinkTarget(draft.linkTarget));
+
+  return !draftHasEffect && glitchZoneHasEffect(zone);
 }
 
 export function TextScrambleTool({
@@ -136,20 +310,15 @@ export function TextScrambleTool({
   allCharacters = [],
   currentCharacterId = "",
   currentSection = "characters",
+  fieldPickerGroups,
+  onFieldSelect,
+  onZoneApplied,
 }: TextScrambleToolProps) {
   const defaults = createDefaultGlitchDraft();
-  const [wordPool, setWordPool] = useState(glitchConfig?.wordPool ?? "");
-  const [scrambleMode, setScrambleMode] = useState<GlitchScrambleMode>(
-    glitchConfig?.scrambleMode ?? "referenceOnly",
-  );
-  const [builtinScramble, setBuiltinScramble] = useState(glitchConfig?.builtinScramble === true);
-  const [errorDisplayMode, setErrorDisplayMode] = useState<GlitchErrorDisplayMode>(
-    glitchConfig?.errorDisplayMode ?? "alternate",
-  );
-  const [builtinTokens, setBuiltinTokens] = useState<string[]>(glitchConfig?.builtinTokens ?? []);
+  const toolMountedRef = useRef(false);
   const [workSelection, setWorkSelection] = useState<GlitchTextSelection | null>(null);
+  const [pinnedSelection, setPinnedSelection] = useState<GlitchTextSelection | null>(null);
   const [toolNotice, setToolNotice] = useState("");
-  const [tickMs, setTickMs] = useState(glitchConfig?.tickMs ?? DEFAULT_GLITCH_TICK_MS);
   const [zoneStyle, setZoneStyle] = useState<GlitchZoneStyle>(
     glitchConfig?.defaultStyle ?? defaults.zoneStyle,
   );
@@ -157,98 +326,117 @@ export function TextScrambleTool({
     createDefaultPendingZoneDraft(glitchConfig?.defaultStyle ?? defaults.zoneStyle),
   );
   const workTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastLoadedSelectionKeyRef = useRef<string | null>(null);
+  const pendingZoneDraftRef = useRef(pendingZoneDraft);
+  const errorMessageTouchedRef = useRef(false);
+  pendingZoneDraftRef.current = pendingZoneDraft;
 
-  const zones = glitchConfig?.zones ?? [];
-  const draftConfig = {
-    wordPool,
-    zones,
-    builtinScramble,
-    scrambleMode,
-    errorDisplayMode,
-    builtinTokens,
-  };
-  const hasScramble = fieldGlitchHasScramble(draftConfig);
-  const pendingUsesError = pendingZoneDraft.errorMessageSource !== "none";
-  const showScrambleSettings =
-    hasScramble || pendingUsesError || Boolean(wordPool.trim()) || builtinScramble;
-  const showBuiltinTokenPicker = Boolean(
-    showScrambleSettings &&
-    (wordPool.trim() ? scrambleMode === "referenceWithBuiltin" : builtinScramble),
-  );
-  const activeSelection = workSelection ?? externalSelection;
-  const zoneFingerprint = zones
-    .map((zone) => `${zone.id}:${zone.start}:${zone.end}:${zone.original}`)
-    .join("|");
-  const previewConfig = useMemo(
-    () =>
-      zones.length > 0
-        ? buildConfig({
-            wordPool,
-            zones,
-            tickMs,
-            defaultStyle: zoneStyle,
-            scrambleMode,
-            builtinScramble,
-            errorDisplayMode,
-            builtinTokens,
-          })
-        : undefined,
+  const legacyConfig = useMemo(
+    () => ({
+      wordPool: glitchConfig?.wordPool,
+      scrambleMode: glitchConfig?.scrambleMode,
+      builtinScramble: glitchConfig?.builtinScramble,
+      errorDisplayMode: glitchConfig?.errorDisplayMode,
+      builtinTokens: glitchConfig?.builtinTokens,
+      tickMs: glitchConfig?.tickMs,
+    }),
     [
-      builtinScramble,
-      builtinTokens,
-      errorDisplayMode,
-      scrambleMode,
-      tickMs,
-      wordPool,
-      zoneStyle,
-      zones,
-    ],
-  );
-  const previewLoopSignature = useMemo(
-    () => glitchConfigSignature(fieldValue, previewConfig ?? glitchConfig),
-    [
-      fieldValue,
-      previewConfig,
       glitchConfig?.wordPool,
       glitchConfig?.scrambleMode,
       glitchConfig?.builtinScramble,
-      glitchConfig?.builtinTokens,
       glitchConfig?.errorDisplayMode,
+      glitchConfig?.builtinTokens,
       glitchConfig?.tickMs,
-      glitchConfig?.defaultStyle,
-      zoneFingerprint,
     ],
   );
-  const activeFieldLabel = activeFieldPath ? getGlitchFieldLabel(activeFieldPath) : null;
-  const selectionStyle = normalizeGlitchZoneStyle(pendingZoneDraft.style);
-  const canPreviewSelection = Boolean(activeSelection && hasGlitchPresentation(selectionStyle));
+
+  const zones = useMemo(() => {
+    return reanchorGlitchConfig(fieldValue, glitchConfig)?.zones ?? glitchConfig?.zones ?? [];
+  }, [fieldValue, glitchConfig]);
+  const pendingUsesError = pendingZoneDraft.errorMessageSource !== "none";
+  const activeSelection = pinnedSelection ?? workSelection ?? externalSelection;
+  const livePreviewZones = useMemo(() => {
+    if (!activeSelection) {
+      return zones;
+    }
+
+    const enclosingZone = findEnclosingGlitchZone(zones, activeSelection);
+    const pendingZone = buildPendingGlitchZone(activeSelection, pendingZoneDraft, {
+      inheritedStyle: enclosingZone?.style,
+    });
+
+    return mergePendingGlitchZonePreview(zones, activeSelection, fieldValue, pendingZone);
+  }, [zones, activeSelection, pendingZoneDraft, fieldValue]);
+  const hasScramble = fieldGlitchHasScramble({
+    wordPool: legacyConfig.wordPool ?? "",
+    zones: livePreviewZones,
+    builtinScramble: legacyConfig.builtinScramble,
+  });
+
+  const livePreviewConfig = useMemo(
+    () =>
+      livePreviewZones.length > 0
+        ? buildLivePreviewConfig({
+            zones: livePreviewZones,
+            defaultStyle: zoneStyle,
+            legacy: legacyConfig,
+          })
+        : undefined,
+    [livePreviewZones, legacyConfig, zoneStyle],
+  );
   const pendingZonePreview: GlitchZone | null = activeSelection
-    ? {
-        id: "pending",
-        start: activeSelection.start,
-        end: activeSelection.end,
-        original: activeSelection.text,
-        style: pendingZoneDraft.style,
-        errorMessageSource: pendingZoneDraft.errorMessageSource,
-        ...(pendingZoneDraft.errorMessage ? { errorMessage: pendingZoneDraft.errorMessage } : {}),
-        ...(pendingZoneDraft.linkTarget ? { linkTarget: pendingZoneDraft.linkTarget } : {}),
-      }
+    ? buildPendingGlitchZone(activeSelection, pendingZoneDraft, {
+        zoneId: "pending",
+        inheritedStyle: findEnclosingGlitchZone(zones, activeSelection)?.style,
+      })
     : null;
+  const selectionPreviewConfig = useMemo(() => {
+    if (!activeSelection || !pendingZonePreview) {
+      return undefined;
+    }
+
+    return buildLivePreviewConfig({
+      zones: [
+        {
+          ...pendingZonePreview,
+          start: 0,
+          end: activeSelection.text.length,
+          original: activeSelection.text,
+        },
+      ],
+      defaultStyle: zoneStyle,
+    });
+  }, [activeSelection, pendingZonePreview, zoneStyle]);
+  const selectionPreviewKey = activeSelection
+    ? glitchSelectionKey(activeSelection)
+    : "selection-preview";
+  const livePreviewKey = activeFieldPath ?? "live-preview";
+  const activeFieldLabel = activeFieldPath ? getGlitchFieldLabel(activeFieldPath) : null;
 
   const notify = (message: string) => {
     setToolNotice(message);
-    onNotice?.(message);
+    if (onNotice) {
+      queueMicrotask(() => onNotice(message));
+    }
   };
 
   const defaultStyleSignature = glitchZoneStyleSignature(glitchConfig?.defaultStyle);
 
   useEffect(() => {
-    setWordPool(glitchConfig?.wordPool ?? "");
-    setScrambleMode(glitchConfig?.scrambleMode ?? "referenceOnly");
-    setBuiltinScramble(glitchConfig?.builtinScramble === true);
-    setErrorDisplayMode(glitchConfig?.errorDisplayMode ?? "alternate");
-    setBuiltinTokens(glitchConfig?.builtinTokens ?? []);
-    setTickMs(glitchConfig?.tickMs ?? DEFAULT_GLITCH_TICK_MS);
+    toolMountedRef.current = true;
+    return () => {
+      toolMountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setWorkSelection(null);
+    setPinnedSelection(null);
+    lastLoadedSelectionKeyRef.current = null;
+    errorMessageTouchedRef.current = false;
+  }, [activeFieldPath]);
+
+  useEffect(() => {
     setZoneStyle((current) => {
       const next = glitchConfig?.defaultStyle ?? defaults.zoneStyle;
       return glitchZoneStylesEqual(current, next) ? current : next;
@@ -261,237 +449,270 @@ export function TextScrambleTool({
 
       return createDefaultPendingZoneDraft(nextStyle);
     });
-    setWorkSelection(null);
-  }, [
-    activeFieldPath,
-    glitchConfig?.builtinScramble,
-    glitchConfig?.builtinTokens,
-    defaultStyleSignature,
-    glitchConfig?.errorDisplayMode,
-    glitchConfig?.scrambleMode,
-    glitchConfig?.tickMs,
-    glitchConfig?.wordPool,
-  ]);
+  }, [activeFieldPath, defaultStyleSignature, glitchConfig?.defaultStyle]);
 
-  const commitConfig = (
-    options: Partial<TextScrambleToolConfigOptions> & { zones: GlitchZone[] },
-  ) => {
+  const commitConfig = (options: { zones: GlitchZone[]; defaultStyle?: GlitchZoneStyle }) => {
     onGlitchChange(
-      buildConfig({
-        wordPool: options.wordPool ?? wordPool,
+      finalizeGlitchConfig({
         zones: options.zones,
-        tickMs: options.tickMs ?? tickMs,
         defaultStyle: options.defaultStyle ?? zoneStyle,
-        scrambleMode: options.scrambleMode ?? scrambleMode,
-        builtinScramble: options.builtinScramble ?? builtinScramble,
-        errorDisplayMode: options.errorDisplayMode ?? errorDisplayMode,
-        builtinTokens: options.builtinTokens ?? builtinTokens,
+        legacy: legacyConfig,
       }),
     );
   };
 
-  const handleErrorDisplayModeChange = (nextMode: GlitchErrorDisplayMode) => {
-    setErrorDisplayMode(nextMode);
-    if (zones.length > 0) {
-      commitConfig({ zones, errorDisplayMode: nextMode });
-    }
-  };
-
-  const handleBuiltinTokensChange = (nextTokens: string[]) => {
-    setBuiltinTokens(nextTokens);
-    if (zones.length > 0) {
-      commitConfig({ zones, builtinTokens: nextTokens });
-    }
-  };
-
-  useEffect(() => {
+  const applyPendingZoneDraftPatch = (patch: Partial<PendingZoneDraft>) => {
     setPendingZoneDraft((current) => {
-      if (glitchZoneStylesEqual(current.style, zoneStyle)) {
-        return current;
+      const matched = activeSelection
+        ? findMatchingGlitchZone(zones, activeSelection, fieldValue)
+        : undefined;
+
+      if (!matched) {
+        return { ...current, ...patch };
       }
 
-      return {
-        ...current,
-        style: zoneStyle,
-      };
-    });
-  }, [zoneStyle]);
+      const zoneDraft = pendingDraftFromZone(matched);
 
-  useEffect(() => {
-    if (!activeSelection) {
+      if (isPendingDraftStaleForZone(current, matched)) {
+        errorMessageTouchedRef.current = false;
+        return { ...zoneDraft, ...patch };
+      }
+
+      const next = { ...current, ...patch };
+
+      if (
+        !errorMessageTouchedRef.current &&
+        !("errorMessageSource" in patch) &&
+        !("errorMessage" in patch) &&
+        next.errorMessageSource === "none" &&
+        zoneDraft.errorMessageSource !== "none"
+      ) {
+        next.errorMessageSource = zoneDraft.errorMessageSource;
+        next.errorMessage = zoneDraft.errorMessage;
+      }
+
+      return next;
+    });
+  };
+
+  const loadPendingDraftForSelection = (selection: GlitchTextSelection) => {
+    errorMessageTouchedRef.current = false;
+    const matchingZone = findMatchingGlitchZone(zones, selection, fieldValue);
+
+    if (matchingZone) {
+      setPendingZoneDraft(pendingDraftFromZone(matchingZone));
       return;
     }
 
-    setPendingZoneDraft((current) => {
-      if (glitchZoneStylesEqual(current.style, zoneStyle)) {
-        return current;
-      }
+    const enclosingZone = findEnclosingGlitchZone(zones, selection);
+    if (enclosingZone) {
+      setPendingZoneDraft(pendingDraftFromZone(enclosingZone));
+      return;
+    }
 
-      return {
-        ...current,
-        style: zoneStyle,
-      };
-    });
-  }, [activeSelection?.start, activeSelection?.end, activeSelection?.text, zoneStyle]);
+    setPendingZoneDraft(createDefaultPendingZoneDraft(zoneStyle));
+  };
 
-  const updatePendingZoneDraft = (patch: Partial<PendingZoneDraft>) => {
-    setPendingZoneDraft((current) => ({ ...current, ...patch }));
+  const clearWorkSelection = () => {
+    lastLoadedSelectionKeyRef.current = null;
+    errorMessageTouchedRef.current = false;
+    setPinnedSelection(null);
+    setWorkSelection(null);
+  };
+
+  const restoreWorkTextareaSelection = (selection: GlitchTextSelection) => {
+    const textarea = workTextareaRef.current;
+    if (!textarea || textarea.disabled) {
+      return;
+    }
+
+    textarea.focus({ preventScroll: true });
+    textarea.setSelectionRange(selection.start, selection.end);
+  };
+
+  const applyWorkSelection = (selection: GlitchTextSelection) => {
+    const key = glitchSelectionKey(selection);
+    const matchedZone = findMatchingGlitchZone(zones, selection, fieldValue);
+
+    if (key !== lastLoadedSelectionKeyRef.current) {
+      lastLoadedSelectionKeyRef.current = key;
+      loadPendingDraftForSelection(selection);
+    } else if (
+      matchedZone &&
+      isPendingDraftStaleForZone(pendingZoneDraftRef.current, matchedZone)
+    ) {
+      loadPendingDraftForSelection(selection);
+    }
+
+    setPinnedSelection(selection);
+    setWorkSelection(selection);
   };
 
   const updateSelectionFromTextarea = (element: HTMLTextAreaElement) => {
     scheduleReadGlitchTextSelection(element, (selection) => {
-      setWorkSelection(selection);
+      if (!toolMountedRef.current || !selection) {
+        return;
+      }
+
+      applyWorkSelection(selection);
     });
   };
 
-  const handleTickMsChange = (nextTickMs: number) => {
-    const clamped = clampGlitchTickMs(nextTickMs);
-    setTickMs(clamped);
-  };
-
-  const handleTickMsCommit = (nextTickMs: number) => {
-    const clamped = clampGlitchTickMs(nextTickMs);
-    setTickMs(clamped);
-    if (zones.length > 0) {
-      commitConfig({ zones, tickMs: clamped });
-    }
-  };
-
-  const handleZoneStyleChange = (nextStyle: GlitchZoneStyle) => {
-    const normalized = normalizeGlitchZoneStyle(nextStyle) ?? {};
-    if (glitchZoneStylesEqual(normalized, zoneStyle)) {
+  useEffect(() => {
+    const selection = pinnedSelection ?? workSelection;
+    if (!selection) {
       return;
     }
 
-    setZoneStyle(normalized);
-    updatePendingZoneDraft({ style: normalized });
-    if (zones.length > 0) {
-      commitConfig({ zones, defaultStyle: normalized });
+    const currentText = fieldValue.slice(selection.start, selection.end);
+    if (currentText === selection.text) {
+      return;
     }
-  };
 
-  const handleScrambleModeChange = (nextMode: GlitchScrambleMode) => {
-    setScrambleMode(nextMode);
-    if (zones.length > 0) {
-      const nextZones =
-        nextMode === "referenceOnly"
-          ? zones.map((zone) => {
-              if (zone.errorMessageSource !== "custom") {
-                return zone;
-              }
-
-              const { errorMessage: _removed, ...rest } = zone;
-              return { ...rest, errorMessageSource: "auto" as const };
-            })
-          : zones;
-      commitConfig({ zones: nextZones, scrambleMode: nextMode });
-      notify(
-        nextMode === "referenceOnly"
-          ? "오류 메시지에 참조 단어 글자만 무작위로 섞어 씁니다."
-          : "오류 메시지에 참조 단어 글자를 섞고 기본 기호도 함께 넣습니다.",
-      );
+    const matchedZone = findMatchingGlitchZone(zones, selection, fieldValue);
+    if (matchedZone) {
+      const nextSelection = {
+        start: matchedZone.start,
+        end: matchedZone.end,
+        text: matchedZone.original,
+      };
+      lastLoadedSelectionKeyRef.current = glitchSelectionKey(nextSelection);
+      setPinnedSelection(nextSelection);
+      setWorkSelection(nextSelection);
+      return;
     }
-  };
 
-  const handleBuiltinScrambleChange = (nextValue: boolean) => {
-    setBuiltinScramble(nextValue);
-    if (zones.length > 0) {
-      commitConfig({ zones, builtinScramble: nextValue });
+    const relocated = findGlitchTextSelection(fieldValue, selection.text);
+    if (relocated) {
+      lastLoadedSelectionKeyRef.current = glitchSelectionKey(relocated);
+      setPinnedSelection(relocated);
+      setWorkSelection(relocated);
+      return;
     }
+
+    lastLoadedSelectionKeyRef.current = null;
+    setPinnedSelection(null);
+    setWorkSelection(null);
+  }, [fieldValue, pinnedSelection, workSelection, zones]);
+
+  const handlePendingStyleChange = (nextStyle: GlitchZoneStyle) => {
+    const normalized = normalizeGlitchZoneStyle(nextStyle);
+    if (glitchZoneStylesEqual(normalized, pendingZoneDraft.style)) {
+      return;
+    }
+
+    errorMessageTouchedRef.current = true;
+    applyPendingZoneDraftPatch({ style: normalized ?? {} });
   };
 
   const handleAddZone = (selectionOverride?: GlitchTextSelection | null) => {
     if (!activeFieldPath) {
-      notify("위 편집 칸을 클릭해서 어느 필드에 적용할지 먼저 선택해주세요.");
+      notify("먼저 필드를 고르세요.");
       return;
     }
 
     const selection = selectionOverride ?? activeSelection;
 
     if (!selection) {
-      notify("구간을 선택해주세요. 아래 「드래그 없이 구간 지정」도 사용할 수 있어요.");
+      notify("텍스트를 드래그해서 구간을 선택하세요.");
       return;
     }
 
     const normalizedStyle = normalizeGlitchZoneStyle(pendingZoneDraft.style);
-    const pool = wordPool.trim();
+    const pool = pendingZoneDraft.wordPool.trim();
     const wantsReference = Boolean(pool);
-    const wantsBuiltin = !pool && builtinScramble;
-    const hasPresentation = hasGlitchPresentation(normalizedStyle);
+    const wantsBuiltin = !pool && pendingZoneDraft.builtinScramble;
+    const pendingZone = buildPendingGlitchZone(selection, pendingZoneDraft, {
+      inheritedStyle: findEnclosingGlitchZone(zones, selection)?.style,
+    });
+    const applyStyle = pendingZone.style ?? normalizedStyle;
+    const hasPresentation = hasGlitchPresentation(applyStyle);
     const hasLink = Boolean(normalizeZoneLinkTarget(pendingZoneDraft.linkTarget));
+    const pendingUsesErrorMessage = pendingZone.errorMessageSource !== "none";
+    const scrambleOptions = scrambleApplyOptionsFromDraft(pendingZoneDraft);
 
-    if (!wantsReference && !wantsBuiltin && !hasPresentation && !hasLink) {
-      notify("참조 단어, 기본 오류, 서식, 페이지 이동 연결 중 하나 이상을 설정해주세요.");
+    if (
+      !wantsReference &&
+      !wantsBuiltin &&
+      !hasPresentation &&
+      !hasLink &&
+      !pendingUsesErrorMessage
+    ) {
+      notify("서식, 오류 메시지, 페이지 연결 중 하나를 설정한 뒤 적용하세요.");
       return;
     }
 
-    const errorMessageSource =
-      pendingZoneDraft.errorMessageSource !== "none"
-        ? pendingZoneDraft.errorMessageSource
-        : wantsReference || wantsBuiltin
-          ? ("auto" as const)
-          : ("none" as const);
-    const customMessage =
-      errorMessageSource === "custom" ? pendingZoneDraft.errorMessage?.trim() : undefined;
-    const linkTarget = normalizeZoneLinkTarget(pendingZoneDraft.linkTarget);
-
-    const matchingZone = zones.find(
-      (zone) =>
-        zone.start === selection.start &&
-        zone.end === selection.end &&
-        zone.original === selection.text,
-    );
-    if (matchingZone) {
-      const nextZones = zones.map((zone) =>
-        zone.id === matchingZone.id
-          ? {
-              ...zone,
-              style: normalizedStyle,
-              errorMessageSource,
-              ...(customMessage ? { errorMessage: customMessage } : { errorMessage: undefined }),
-              ...(linkTarget
-                ? { linkTarget, linkSubPageId: undefined }
-                : { linkTarget: undefined, linkSubPageId: undefined }),
-            }
-          : zone,
-      );
-      commitConfig({ zones: nextZones, defaultStyle: normalizedStyle ?? zoneStyle });
-      notify("선택한 구간 설정을 갱신했어요.");
-      return;
-    }
-
-    const overlaps = zones.some((zone) => zonesOverlap(zone, selection));
-    if (overlaps) {
-      notify("이미 적용된 구간과 겹칩니다. 「스타일 수정」으로 바꾸거나 다른 구간을 선택해주세요.");
-      return;
-    }
-
-    const nextZone: GlitchZone = {
-      id: createZoneId(),
-      start: selection.start,
-      end: selection.end,
-      original: selection.text,
-      style: normalizedStyle,
-      errorMessageSource,
-      ...(customMessage ? { errorMessage: customMessage } : {}),
-      ...(linkTarget ? { linkTarget } : {}),
+    const baseConfig = finalizeGlitchConfig({
+      zones,
+      defaultStyle: zoneStyle,
+      legacy: legacyConfig,
+    }) ?? {
+      wordPool: legacyConfig.wordPool?.trim() ?? "",
+      zones,
+      ...(zoneStyle ? { defaultStyle: zoneStyle } : {}),
     };
 
-    const nextZones = [...zones, nextZone].sort((left, right) => left.start - right.start);
-    commitConfig({ zones: nextZones, defaultStyle: normalizedStyle ?? zoneStyle });
-    setPendingZoneDraft(createDefaultPendingZoneDraft(normalizedStyle ?? zoneStyle));
+    const result = applyGlitchZone(baseConfig, selection, {
+      style: applyStyle,
+      errorMessageSource: pendingZone.errorMessageSource,
+      errorMessage: pendingZone.errorMessage,
+      linkTarget: pendingZoneDraft.linkTarget,
+      fieldText: fieldValue,
+      ...scrambleOptions,
+    });
 
-    notify(
-      wantsReference || wantsBuiltin || errorMessageSource === "custom"
-        ? `${activeFieldLabel} · ${selection.start + 1}~${selection.end}번째 글자에 오류를 지정했어요.`
-        : hasLink
-          ? `${activeFieldLabel} · ${selection.start + 1}~${selection.end}번째 글자에 페이지 이동을 연결했어요.`
-          : `${activeFieldLabel} · ${selection.start + 1}~${selection.end}번째 글자에 서식을 적용했어요.`,
-    );
+    if (!result.ok) {
+      notify(result.message);
+      return;
+    }
+
+    const savedConfig =
+      finalizeGlitchConfig({
+        zones: result.config.zones,
+        defaultStyle: result.config.defaultStyle ?? zoneStyle,
+        legacy: {
+          wordPool: result.config.wordPool,
+          scrambleMode: result.config.scrambleMode,
+          builtinScramble: result.config.builtinScramble,
+          errorDisplayMode: result.config.errorDisplayMode,
+          builtinTokens: result.config.builtinTokens,
+          tickMs: result.config.tickMs,
+        },
+      }) ?? (isValidFieldGlitchConfig(result.config) ? result.config : undefined);
+
+    if (!savedConfig) {
+      notify("오류 설정을 저장하지 못했어요. 구간 설정을 다시 확인해주세요.");
+      return;
+    }
+
+    onGlitchChange(savedConfig);
+
+    const appliedZone =
+      findMatchingGlitchZone(result.config.zones, selection, fieldValue) ??
+      result.config.zones.find(
+        (zone) => zone.start === selection.start && zone.end === selection.end,
+      );
+
+    if (appliedZone) {
+      setPendingZoneDraft(pendingDraftFromZone(appliedZone));
+      lastLoadedSelectionKeyRef.current = glitchSelectionKey(selection);
+      errorMessageTouchedRef.current = false;
+    } else {
+      setPendingZoneDraft(createDefaultPendingZoneDraft(zoneStyle));
+    }
+
+    notify(result.message);
+    clearWorkSelection();
+    onExternalSelectionClear?.();
+    onZoneApplied?.();
   };
 
   const applySelection = (selection: GlitchTextSelection) => {
+    lastLoadedSelectionKeyRef.current = glitchSelectionKey(selection);
+    setPinnedSelection(selection);
     setWorkSelection(selection);
+    restoreWorkTextareaSelection(selection);
+    loadPendingDraftForSelection(selection);
     onExternalSelectionClear?.();
   };
 
@@ -517,401 +738,282 @@ export function TextScrambleTool({
     notify("이 필드의 적용 구간을 모두 제거했어요.");
   };
 
-  const handleZoneErrorUpdate = (zoneId: string, patch: Partial<GlitchZone>) => {
-    const nextZones = zones.map((zone) => (zone.id === zoneId ? { ...zone, ...patch } : zone));
-    commitConfig({ zones: nextZones });
-  };
-
-  const handleZoneLinkChange = (zoneId: string, target: ZoneLinkTarget | undefined) => {
-    const nextZones = zones.map((zone) => {
-      if (zone.id !== zoneId) {
-        return zone;
-      }
-
-      if (!target) {
-        const { linkTarget: _linkTarget, linkSubPageId: _linkSubPageId, ...rest } = zone;
-        return rest;
-      }
-
-      return {
-        ...zone,
-        linkTarget: target,
-        linkSubPageId: undefined,
-      };
-    });
-
-    commitConfig({ zones: nextZones });
-    notify(
-      target
-        ? `「${zones.find((zone) => zone.id === zoneId)?.original ?? ""}」 → ${formatZoneLinkLabel(target, allCharacters)}`
-        : "페이지 이동 연결을 해제했어요.",
-    );
-  };
-
   const selectZoneForEditing = (zone: GlitchZone) => {
-    setWorkSelection({
+    const selection = {
       start: zone.start,
       end: zone.end,
       text: zone.original,
-    });
+    };
+    lastLoadedSelectionKeyRef.current = glitchSelectionKey(selection);
+    errorMessageTouchedRef.current = false;
+    setPinnedSelection(selection);
+    setWorkSelection(selection);
+    setPendingZoneDraft(pendingDraftFromZone(zone));
+    restoreWorkTextareaSelection(selection);
     onExternalSelectionClear?.();
-    notify(`구간 ${zone.start + 1}~${zone.end}을(를) 다시 선택했어요.`);
   };
 
-  const handleZoneStyleUpdate = (zoneId: string, nextStyle: GlitchZoneStyle) => {
-    const normalizedStyle = normalizeGlitchZoneStyle(nextStyle);
-    const currentZone = zones.find((zone) => zone.id === zoneId);
-    if (glitchZoneStylesEqual(normalizedStyle, currentZone?.style)) {
-      return;
-    }
-
-    const nextZones = zones.map((zone) => {
-      if (zone.id !== zoneId) {
-        return zone;
-      }
-
-      return normalizedStyle ? { ...zone, style: normalizedStyle } : { ...zone, style: undefined };
-    });
-    commitConfig({ zones: nextZones });
-  };
+  const activeEditingZoneId = activeSelection
+    ? findMatchingGlitchZone(zones, activeSelection, fieldValue)?.id
+    : undefined;
 
   return (
     <section
-      className="max-w-full min-w-0 border border-emerald-100/15 bg-black/30 p-4 pb-6"
+      className="admin-glitch-tool max-w-full min-w-0 border border-emerald-100/15 bg-black/30 p-4 pb-6"
       data-text-corruptor-ignore
       data-text-scramble-tool
+      onMouseDownCapture={preserveAdminGlitchToolPointerDown}
     >
-      <h3 className="text-sm font-semibold text-emerald-50">텍스트 오류 · 서식 도구</h3>
-
-      <ol className="mt-3 grid gap-2 sm:grid-cols-3">
-        {[
-          { step: "1", label: "필드 선택", done: Boolean(activeFieldPath) },
-          { step: "2", label: "구간 지정", done: Boolean(activeSelection) },
-          { step: "3", label: "적용", done: zones.length > 0 },
-        ].map((item) => (
-          <li
-            key={item.step}
-            className={
-              item.done
-                ? "border border-emerald-200/25 bg-emerald-950/35 px-3 py-2 text-xs text-emerald-50"
-                : "border border-emerald-100/10 bg-black/20 px-3 py-2 text-xs text-emerald-100/55"
-            }
-          >
-            <span className="font-semibold">{item.step}.</span> {item.label}
-          </li>
-        ))}
-      </ol>
-
-      {activeFieldPath ? (
-        <div className="mt-3 border border-emerald-200/25 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-50">
-          현재 필드: <span className="font-semibold">{activeFieldLabel}</span>
-          {zones.length > 0 && (
-            <span className="ml-2 text-emerald-100/60">· 적용 구간 {zones.length}개</span>
-          )}
-        </div>
-      ) : (
-        <p className="mt-3 border border-amber-400/30 bg-amber-950/20 p-3 text-xs leading-6 text-amber-100">
-          위에서 필드를 고른 뒤, 작업 텍스트에서 구간을 선택하거나 「드래그 없이 구간 지정」을
-          사용하세요.
+      <div>
+        <h3 className="text-sm font-semibold text-emerald-50">텍스트 오류</h3>
+        <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
+          필드 고르기 → 텍스트 드래그 → 서식·오류 설정 → 적용. 다른 탭에서는 드래그 툴바로 서식만
+          빠르게 넣을 수 있어요.
         </p>
-      )}
-
-      <div className="mt-4 space-y-3">
-        <AdminCollapsiblePanel
-          title="구간 지정"
-          description="작업 텍스트 편집 · 드래그 선택 · 문구 찾기 · 전체 적용"
-          defaultOpen
-        >
-          <label className="grid gap-2 text-xs text-emerald-100/70">
-            작업 텍스트
-            <textarea
-              ref={workTextareaRef}
-              value={fieldValue}
-              data-glitch-work-textarea
-              {...(activeFieldPath ? { "data-glitch-field": activeFieldPath } : {})}
-              onChange={(event) => onFieldValueChange(event.target.value)}
-              onSelect={(event) => updateSelectionFromTextarea(event.currentTarget)}
-              onKeyUp={(event) => updateSelectionFromTextarea(event.currentTarget)}
-              onMouseUp={(event) => updateSelectionFromTextarea(event.currentTarget)}
-              placeholder={
-                activeFieldPath
-                  ? "여기서 텍스트를 고치거나 드래그로 구간을 선택할 수 있어요."
-                  : "먼저 필드를 선택해주세요."
-              }
-              disabled={!activeFieldPath}
-              className="auth-input min-h-32 disabled:cursor-not-allowed disabled:opacity-50"
-              data-text-corruptor-ignore
-            />
-          </label>
-
-          <GlitchZoneRangePicker
-            fieldValue={fieldValue}
-            disabled={!activeFieldPath}
-            onSelect={applySelection}
-            onApply={(selection) => handleAddZone(selection)}
-            onNotice={notify}
-          />
-        </AdminCollapsiblePanel>
-
-        <AdminCollapsiblePanel
-          title="공통 오류 설정"
-          description="참조 단어 · 오류 메시지 구성 · 전환 간격"
-          defaultOpen={!zones.length || hasScramble || Boolean(wordPool.trim())}
-        >
-          {!activeSelection ? (
-            <GlitchStyleEditor style={zoneStyle} onStyleChange={handleZoneStyleChange} />
-          ) : (
-            <p className="text-[11px] leading-5 text-emerald-100/50">
-              구간을 선택한 상태에서는 아래 「선택 구간 설정」에서 스타일을 바꿀 수 있어요.
-            </p>
-          )}
-
-          <label className="mt-3 grid gap-2 text-xs text-emerald-100/70">
-            참조 단어 <span className="text-emerald-100/45">(선택 · 오류 메시지를 쓰는 구간만)</span>
-            <textarea
-              value={wordPool}
-              onChange={(event) => {
-                const raw = event.target.value;
-                const next = sanitizePlainText(raw);
-                setWordPool(next);
-                if (zones.length > 0) {
-                  commitConfig({ zones, wordPool: next });
-                }
-                if (glitchTextWasSanitized(raw, next)) {
-                  notify(
-                    "참조 단어는 일반 글자만 넣어주세요. 오류 문구는 자동으로 뒤죽박죽(합성 기호) 처리됩니다.",
-                  );
-                }
-              }}
-              placeholder={"한 줄에 하나씩 · 예: 오류\n불완전\nNULL"}
-              className="auth-input min-h-20 max-w-full break-all"
-              data-text-corruptor-ignore
-            />
-          </label>
-
-          {showScrambleSettings && wordPool.trim() ? (
-            <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
-              <legend className="px-1 text-[11px] font-medium text-emerald-100/85">
-                오류 메시지 구성
-              </legend>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <AdminChoiceButton
-                  active={scrambleMode === "referenceOnly"}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => handleScrambleModeChange("referenceOnly")}
-                >
-                  참조 단어만
-                </AdminChoiceButton>
-                <AdminChoiceButton
-                  active={scrambleMode === "referenceWithBuiltin"}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => handleScrambleModeChange("referenceWithBuiltin")}
-                >
-                  참조 단어 + 기본 기호
-                </AdminChoiceButton>
-              </div>
-              <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
-                「기본 기호」는 #, ?, ERR, NULL, ??? 같은 기본 제공 문구·기호입니다.
-                {scrambleMode === "referenceOnly"
-                  ? " 참조 단어 글자만 무작위로 섞어 구간 길이에 맞춥니다."
-                  : " 참조 단어로 문구를 만든 뒤 기본 기호로 일부 글자를 더 섞습니다."}
-              </p>
-            </fieldset>
-          ) : showScrambleSettings ? (
-            <label className="mt-3 flex items-start gap-2 border border-emerald-100/15 bg-black/25 p-3 text-xs text-emerald-100/75">
-              <input
-                type="checkbox"
-                checked={builtinScramble}
-                onChange={(event) => handleBuiltinScrambleChange(event.target.checked)}
-                className="mt-1"
-              />
-              <span>
-                <span className="font-medium text-emerald-50">기본 오류 메시지 사용</span>
-                <span className="mt-1 block text-[11px] leading-5 text-emerald-100/50">
-                  「오류 메시지 사용」을 켠 구간에 ERR, NULL, ??? 같은 기본 문구를 넣습니다.
-                </span>
-              </span>
-            </label>
-          ) : null}
-
-          {showBuiltinTokenPicker ? (
-            <BuiltinTokenPicker selectedTokens={builtinTokens} onChange={handleBuiltinTokensChange} />
-          ) : null}
-
-          {showScrambleSettings && hasScramble ? (
-            <fieldset className="mt-3 border border-emerald-100/15 bg-black/25 p-3">
-              <legend className="px-1 text-[11px] font-medium text-emerald-100/85">전환 방식</legend>
-              <div className="mt-2 flex flex-wrap gap-2">
-                <AdminChoiceButton
-                  active={errorDisplayMode === "alternate"}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => handleErrorDisplayModeChange("alternate")}
-                >
-                  원문 ↔ 오류 번갈아
-                </AdminChoiceButton>
-                <AdminChoiceButton
-                  active={errorDisplayMode === "randomOnly"}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => handleErrorDisplayModeChange("randomOnly")}
-                >
-                  오류만 랜덤
-                </AdminChoiceButton>
-              </div>
-              <p className="mt-2 text-[11px] leading-5 text-emerald-100/50">
-                {errorDisplayMode === "alternate"
-                  ? "본 페이지처럼 원문과 오류 메시지가 번갈아 보입니다."
-                  : "원문 없이 오류 메시지만 계속 바뀝니다."}
-              </p>
-            </fieldset>
-          ) : null}
-
-          {hasScramble ? (
-            <GlitchTickEditor
-              tickMs={tickMs}
-              onTickMsChange={handleTickMsChange}
-              onTickMsCommit={handleTickMsCommit}
-            />
-          ) : null}
-        </AdminCollapsiblePanel>
       </div>
+
+      {fieldPickerGroups && fieldPickerGroups.length > 0 && onFieldSelect ? (
+        <div className="mt-4">
+          <GlitchFieldPicker
+            groups={fieldPickerGroups}
+            activePath={activeFieldPath}
+            onSelect={onFieldSelect}
+          />
+        </div>
+      ) : null}
+
+      <p className="mt-3 border border-emerald-100/10 bg-black/25 px-3 py-2 text-xs text-emerald-100/75">
+        {!activeFieldPath ? (
+          "필드를 고르세요."
+        ) : (
+          <>
+            <span className="font-semibold text-emerald-50">{activeFieldLabel}</span>
+            {activeSelection ? (
+              <span>
+                {" "}
+                · {activeSelection.start + 1}~{activeSelection.end}번째 「{activeSelection.text}」
+              </span>
+            ) : (
+              <span className="text-emerald-100/50"> · 아래 텍스트에서 구간을 선택하세요</span>
+            )}
+            {zones.length > 0 ? (
+              <span className="text-emerald-100/50"> · 적용 {zones.length}구간</span>
+            ) : null}
+          </>
+        )}
+      </p>
+
+      <label className="mt-3 grid gap-2 text-xs text-emerald-100/70">
+        <span>② 텍스트 · 구간 선택</span>
+        <textarea
+          ref={workTextareaRef}
+          value={fieldValue}
+          data-glitch-work-textarea
+          {...(activeFieldPath ? { "data-glitch-field": activeFieldPath } : {})}
+          onChange={(event) => onFieldValueChange(event.target.value)}
+          onSelect={(event) => updateSelectionFromTextarea(event.currentTarget)}
+          onKeyUp={(event) => updateSelectionFromTextarea(event.currentTarget)}
+          onMouseUp={(event) => updateSelectionFromTextarea(event.currentTarget)}
+          placeholder={
+            activeFieldPath
+              ? "텍스트를 고치거나 드래그로 구간을 선택하세요."
+              : "먼저 위에서 필드를 고르세요."
+          }
+          disabled={!activeFieldPath}
+          className="auth-input min-h-36 disabled:cursor-not-allowed disabled:opacity-50"
+          data-text-corruptor-ignore
+        />
+      </label>
+
+      {activeFieldPath && fieldValue && !activeSelection ? (
+        <div className="mt-3 border border-emerald-200/25 bg-emerald-950/30 p-3">
+          <p className="mb-2 text-[10px] font-medium text-emerald-100/55">실시간 미리보기</p>
+          <p className="mb-2 text-[10px] leading-5 text-emerald-100/45">
+            {hasScramble ? "원문과 오류 글자가 번갈아 보입니다." : "적용된 서식·연결이 반영됩니다."}
+          </p>
+          <p className="text-sm leading-7 break-words whitespace-pre-wrap text-emerald-50/90">
+            {livePreviewConfig ? (
+              <GlitchedText
+                key={livePreviewKey}
+                text={fieldValue}
+                glitch={livePreviewConfig}
+                preserveWhitespace
+                animate
+              />
+            ) : (
+              fieldValue
+            )}
+          </p>
+        </div>
+      ) : null}
+
+      <GlitchZoneRangePicker
+        fieldValue={fieldValue}
+        disabled={!activeFieldPath}
+        onSelect={applySelection}
+        onApply={(selection) => handleAddZone(selection)}
+        onNotice={notify}
+      />
 
       {activeSelection && pendingZonePreview ? (
         <div
           className="mt-3 border border-amber-300/35 bg-amber-950/25 p-3"
+          data-glitch-selection-panel
           onMouseDown={keepAdminTextSelection}
         >
-          <p className="text-xs font-medium text-amber-100">
-            선택 구간 설정 · {activeSelection.start + 1}~{activeSelection.end}번째 글자 (
-            {activeSelection.text.length}자)
-          </p>
+          <p className="text-xs font-medium text-amber-100">③ 선택 구간 설정</p>
+          <div className="mt-2 grid gap-1 border border-emerald-100/10 bg-black/25 px-3 py-2 text-[10px] leading-5 text-emerald-100/55">
+            <p>
+              <span className="font-medium text-emerald-100/80">고정 서식</span> — 글자는 그대로,
+              색·굵게·밑줄만
+            </p>
+            <p>
+              <span className="font-medium text-emerald-100/80">오류 설정</span> — 켜면 참조 단어·
+              전환 속도·원문↔오류 방식을 이 구간만 따로 조절
+            </p>
+          </div>
           <p className="mt-2 text-sm leading-7 break-all text-emerald-50/90">
-            {fieldValue.slice(Math.max(0, activeSelection.start - 24), activeSelection.start)}
+            {fieldValue.slice(Math.max(0, activeSelection.start - 20), activeSelection.start)}
             <mark className="bg-amber-300/35 px-1 text-amber-50">{activeSelection.text}</mark>
-            {fieldValue.slice(activeSelection.end, activeSelection.end + 24)}
+            {fieldValue.slice(activeSelection.end, activeSelection.end + 20)}
           </p>
-          {canPreviewSelection ? (
-            <div className="mt-3 border border-emerald-100/15 bg-black/30 p-2">
-              <p className="text-[11px] text-emerald-100/55">서식 미리보기</p>
-              <p className="mt-2 text-sm leading-7 text-emerald-50/90">
-                <GlitchZoneMark
+          <GlitchStyleEditor
+            compact
+            style={pendingZoneDraft.style}
+            onStyleChange={handlePendingStyleChange}
+          />
+          <ZoneScrambleSettingsEditor
+            draft={pendingZoneDraft}
+            onChange={(patch) => {
+              if (
+                "errorMessageSource" in patch ||
+                "errorMessage" in patch ||
+                "style" in patch ||
+                "tickMs" in patch ||
+                "errorDisplayMode" in patch ||
+                "wordPool" in patch ||
+                "scrambleMode" in patch ||
+                "builtinScramble" in patch ||
+                "builtinTokens" in patch
+              ) {
+                errorMessageTouchedRef.current = true;
+              }
+              applyPendingZoneDraftPatch(patch);
+            }}
+            onNotice={notify}
+          />
+          {selectionPreviewConfig ? (
+            <div className="border border-violet-300/25 bg-violet-950/20 p-3">
+              <p className="mb-2 text-[10px] font-medium text-violet-100/70">선택 구간 미리보기</p>
+              <p className="mb-2 text-[10px] leading-5 text-emerald-100/45">
+                {pendingUsesError
+                  ? "아래 글자에 오류 설정이 적용됩니다."
+                  : "아래 글자에 서식·연결이 적용됩니다."}
+              </p>
+              <p className="text-base leading-8 break-words whitespace-pre-wrap text-emerald-50">
+                <GlitchedText
+                  key={selectionPreviewKey}
                   text={activeSelection.text}
-                  original={activeSelection.text}
-                  zoneStyle={selectionStyle}
+                  glitch={selectionPreviewConfig}
+                  preserveWhitespace
+                  animate
                 />
               </p>
             </div>
           ) : null}
-          <GlitchStyleEditor
-            compact
-            style={pendingZoneDraft.style}
-            onStyleChange={(nextStyle) => {
-              handleZoneStyleChange(nextStyle);
-            }}
-          />
-          <ZoneErrorMessageEditor
-            zone={pendingZonePreview}
-            wordPool={wordPool}
-            scrambleMode={scrambleMode}
-            builtinScramble={builtinScramble}
-            builtinTokens={builtinTokens}
-            onChange={(patch) =>
-              updatePendingZoneDraft({
-                errorMessageSource: patch.errorMessageSource ?? pendingZoneDraft.errorMessageSource,
-                errorMessage: patch.errorMessage,
-              })
-            }
-          />
-          <ZoneLinkEditor
-            target={pendingZoneDraft.linkTarget}
-            allCharacters={allCharacters}
-            currentCharacterId={currentCharacterId}
-            currentSection={currentSection}
-            onChange={(nextTarget) => updatePendingZoneDraft({ linkTarget: nextTarget })}
-            immediateApply
-          />
+          <div className="border border-emerald-200/25 bg-black/35 p-3">
+            <p className="mb-2 text-[10px] font-medium text-emerald-100/55">전체 필드 미리보기</p>
+            <p className="mb-2 text-[10px] leading-5 text-emerald-100/45">
+              선택 구간 설정이 전체 텍스트에 반영된 모습입니다.
+            </p>
+            <p className="max-h-[min(32vh,240px)] overflow-y-auto text-sm leading-7 break-words whitespace-pre-wrap text-emerald-50/90">
+              {livePreviewConfig ? (
+                <GlitchedText
+                  key={`panel-${livePreviewKey}`}
+                  text={fieldValue}
+                  glitch={livePreviewConfig}
+                  preserveWhitespace
+                  animate
+                />
+              ) : (
+                fieldValue
+              )}
+            </p>
+          </div>
+          <details className="mt-3 border border-emerald-100/10 bg-black/20">
+            <summary className="cursor-pointer px-3 py-2 text-[11px] text-emerald-100/70">
+              페이지 연결 (선택)
+            </summary>
+            <div className="border-t border-emerald-100/10 p-3 pt-2">
+              <ZoneLinkEditor
+                target={pendingZoneDraft.linkTarget}
+                allCharacters={allCharacters}
+                currentCharacterId={currentCharacterId}
+                currentSection={currentSection}
+                onChange={(nextTarget) => applyPendingZoneDraftPatch({ linkTarget: nextTarget })}
+                immediateApply
+              />
+            </div>
+          </details>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <AdminChoiceButton
+              variant="primary"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => handleAddZone()}
+              className="px-3 py-2 text-xs"
+            >
+              이 구간에 적용
+            </AdminChoiceButton>
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={clearWorkSelection}
+              className="admin-ghost-btn px-3 py-2 text-xs"
+            >
+              선택 취소
+            </button>
+          </div>
         </div>
-      ) : (
-        <p className="mt-3 border border-stone-500/20 bg-stone-950/30 p-3 text-xs leading-6 text-stone-300">
-          위 「드래그 없이 구간 지정」에서 전체 적용, 문구 찾기, 글자 번호를 사용하거나 작업
-          텍스트를 드래그한 뒤, 여기서 스타일·오류·이동 연결을 먼저 설정하세요.
-        </p>
-      )}
+      ) : null}
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <AdminChoiceButton
-          variant="primary"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => handleAddZone()}
-          disabled={!activeFieldPath || !activeSelection}
-          className="px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          이 구간에 적용
-        </AdminChoiceButton>
-        <button
-          type="button"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={handleClearAllZones}
-          disabled={!activeFieldPath || zones.length === 0}
-          className="admin-ghost-btn px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          이 필드 전부 제거
-        </button>
-      </div>
-
-      {zones.length > 0 && (
-        <AdminCollapsiblePanel
-          title={`저장될 구간 (${zones.length}개)`}
-          description="구간을 눌러 세부 설정을 펼치거나, 「구간 선택」으로 다시 고칠 수 있어요."
-          defaultOpen
-        >
-          <div className="space-y-2">
+      {zones.length > 0 ? (
+        <details className="mt-4 border border-emerald-100/10 bg-black/25" open>
+          <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-emerald-50">
+            적용된 구간 ({zones.length})
+          </summary>
+          <div className="space-y-2 border-t border-emerald-100/10 p-3 pt-2">
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={handleClearAllZones}
+                className="admin-ghost-btn px-2 py-1 text-[11px]"
+              >
+                이 필드 전부 제거
+              </button>
+            </div>
             {zones.map((zone, index) => (
               <GlitchZoneListItem
                 key={zone.id}
                 zone={zone}
                 index={index}
-                zoneStyle={zoneStyle}
-                wordPool={wordPool}
-                scrambleMode={scrambleMode}
-                builtinScramble={builtinScramble}
-                builtinTokens={builtinTokens}
                 allCharacters={allCharacters}
                 currentCharacterId={currentCharacterId}
                 currentSection={currentSection}
+                isActive={zone.id === activeEditingZoneId}
                 onSelectZone={selectZoneForEditing}
                 onRemoveZone={handleRemoveZone}
-                onZoneErrorUpdate={handleZoneErrorUpdate}
-                onZoneStyleUpdate={handleZoneStyleUpdate}
-                onZoneLinkChange={handleZoneLinkChange}
               />
             ))}
           </div>
-        </AdminCollapsiblePanel>
-      )}
+        </details>
+      ) : null}
 
-      <div className="mt-4 border border-emerald-100/15 bg-black/40 p-3">
-        <p className="text-xs font-medium text-emerald-100/80">본 페이지 미리보기</p>
-        <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
-          {hasScramble
-            ? errorDisplayMode === "alternate"
-              ? "본 페이지와 같이 원문 ↔ 오류 메시지가 번갈아 바뀝니다."
-              : "본 페이지와 같이 오류 메시지만 계속 랜덤으로 바뀝니다."
-            : "본 페이지와 같이 서식·색상이 적용된 모습입니다."}
-        </p>
-        <p className="mt-3 min-h-[4.5rem] text-sm leading-7 break-words whitespace-pre-wrap text-emerald-50/90">
-          {previewLoopSignature && previewConfig ? (
-            <GlitchedText text={fieldValue} glitch={previewConfig} preserveWhitespace />
-          ) : (
-            <span className="text-emerald-100/35">구간을 적용하면 미리보기가 나타납니다.</span>
-          )}
-        </p>
-      </div>
-
-      {toolNotice && (
+      {toolNotice ? (
         <p className="mt-3 border border-stone-400/25 bg-stone-900/25 p-2 text-xs leading-6 text-stone-200">
           {toolNotice}
         </p>
-      )}
+      ) : null}
     </section>
   );
 }

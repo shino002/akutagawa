@@ -1,5 +1,52 @@
-import type { FieldGlitchConfig, GlitchErrorDisplayMode, GlitchScrambleMode, GlitchZone } from "@/lib/types";
-import { hasGlitchPresentation } from "@/lib/glitch-style";
+import { sanitizePlainText } from "@/lib/glitch-display";
+import type {
+  FieldGlitchConfig,
+  GlitchErrorDisplayMode,
+  GlitchScrambleMode,
+  GlitchZone,
+} from "@/lib/types";
+
+/**
+ * 구간에 저장된 값을 우선하고, 없으면 필드(레거시) 기본값을 씁니다.
+ */
+export function resolveZoneScrambleOptions(
+  zone: GlitchZone,
+  fieldConfig: Pick<
+    FieldGlitchConfig,
+    "wordPool" | "scrambleMode" | "builtinScramble" | "builtinTokens" | "errorDisplayMode" | "tickMs"
+  >,
+) {
+  const zonePool = typeof zone.wordPool === "string" ? sanitizePlainText(zone.wordPool.trim()) : "";
+  const fieldPool =
+    typeof fieldConfig.wordPool === "string" ? sanitizePlainText(fieldConfig.wordPool.trim()) : "";
+  const wordPool = zonePool || fieldPool;
+  const scrambleMode = zone.scrambleMode ?? fieldConfig.scrambleMode;
+  const builtinScramble = zone.builtinScramble ?? fieldConfig.builtinScramble;
+  const builtinTokens = zone.builtinTokens ?? fieldConfig.builtinTokens;
+  const errorDisplayMode = zone.errorDisplayMode ?? fieldConfig.errorDisplayMode;
+  const tickMs = zone.tickMs ?? fieldConfig.tickMs;
+
+  return {
+    wordPool,
+    scrambleMode,
+    builtinScramble,
+    builtinTokens,
+    errorDisplayMode,
+    tickMs,
+  };
+}
+
+export function zoneHasScrambleSource(
+  zone: GlitchZone,
+  fieldConfig?: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">,
+) {
+  const options = resolveZoneScrambleOptions(zone, {
+    wordPool: fieldConfig?.wordPool ?? "",
+    builtinScramble: fieldConfig?.builtinScramble,
+  });
+
+  return Boolean(options.wordPool.trim()) || options.builtinScramble === true;
+}
 
 export function resolveEffectiveScrambleMode(
   wordPool: string,
@@ -12,8 +59,11 @@ export function resolveEffectiveScrambleMode(
   return scrambleMode ?? "referenceOnly";
 }
 
-export function zoneUsesErrorAlternation(zone: GlitchZone, config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">) {
-  if (zone.errorMessageSource === "none") {
+export function zoneUsesErrorAlternation(
+  zone: GlitchZone,
+  _config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">,
+) {
+  if (zone.errorMessageSource === "none" || zone.errorMessageSource === undefined) {
     return false;
   }
 
@@ -21,15 +71,13 @@ export function zoneUsesErrorAlternation(zone: GlitchZone, config: Pick<FieldGli
     return Boolean(zone.errorMessage?.trim());
   }
 
-  const pool = config.wordPool?.trim() ?? "";
-  if (pool) {
-    return true;
-  }
-
-  return config.builtinScramble !== false;
+  // auto: 참조 단어·필드 기본 오류가 없어도 ERR/NULL 등 내장 토큰으로 번갈아 표시
+  return zone.errorMessageSource === "auto";
 }
 
-export function fieldConfigHasScrambleAlternation(config?: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble" | "zones">) {
+export function fieldConfigHasScrambleAlternation(
+  config?: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble" | "zones">,
+) {
   if (!config?.zones?.length) {
     return false;
   }
@@ -37,32 +85,27 @@ export function fieldConfigHasScrambleAlternation(config?: Pick<FieldGlitchConfi
   return config.zones.some((zone) => zoneUsesErrorAlternation(zone, config));
 }
 
-/** 참조 단어·기본 오류가 켜져 있는데 구간만 none으로 남은 경우 자동 생성으로 복구 */
+/** 구간별 errorMessageSource를 명시적으로 맞춥니다. 서식만 있는 구간은 none으로 유지합니다. */
 export function ensureZoneErrorAlternation(
   zones: GlitchZone[],
-  config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">,
+  _config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">,
 ): GlitchZone[] {
-  const hasPool = Boolean(config.wordPool?.trim());
-  const hasBuiltin = config.builtinScramble !== false;
-
-  if (!hasPool && !hasBuiltin) {
-    return zones;
-  }
-
   return zones.map((zone) => {
-    if (zone.errorMessageSource === "none") {
+    const explicit = normalizeErrorMessageSource(zone.errorMessageSource);
+
+    if (explicit === "none") {
       return zone;
     }
 
-    if (zone.errorMessageSource !== undefined) {
+    if (explicit === "custom") {
       return zone;
     }
 
-    if (hasGlitchPresentation(zone.style) || zone.linkTarget || zone.linkSubPageId) {
+    if (explicit === "auto") {
       return zone;
     }
 
-    return { ...zone, errorMessageSource: "auto" as const };
+    return { ...zone, errorMessageSource: "none" as const };
   });
 }
 
@@ -70,7 +113,9 @@ export function normalizeScrambleMode(value: unknown): GlitchScrambleMode | unde
   return value === "referenceOnly" || value === "referenceWithBuiltin" ? value : undefined;
 }
 
-export function normalizeErrorMessageSource(value: unknown): GlitchZone["errorMessageSource"] | undefined {
+export function normalizeErrorMessageSource(
+  value: unknown,
+): GlitchZone["errorMessageSource"] | undefined {
   return value === "auto" || value === "custom" || value === "none" ? value : undefined;
 }
 

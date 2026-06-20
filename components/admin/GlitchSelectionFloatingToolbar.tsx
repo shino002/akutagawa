@@ -100,6 +100,7 @@ export function GlitchSelectionFloatingToolbar({
   const toolbarRef = useRef<HTMLDivElement | null>(null);
   const colorInputRef = useRef<HTMLInputElement | null>(null);
   const selectionSnapshotRef = useRef<GlitchTextSelection | null>(null);
+  const toolbarMountedRef = useRef(false);
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const [justApplied, setJustApplied] = useState(false);
 
@@ -130,6 +131,13 @@ export function GlitchSelectionFloatingToolbar({
   useLayoutEffect(() => {
     selectionSnapshotRef.current = resolvedSelection;
   }, [resolvedSelection]);
+
+  useLayoutEffect(() => {
+    toolbarMountedRef.current = true;
+    return () => {
+      toolbarMountedRef.current = false;
+    };
+  }, []);
 
   const selectionStyle = useMemo(() => {
     if (!resolvedSelection) {
@@ -239,7 +247,11 @@ export function GlitchSelectionFloatingToolbar({
 
     onApply(result.config, result.message);
     setJustApplied(true);
-    window.setTimeout(() => setJustApplied(false), 480);
+    window.setTimeout(() => {
+      if (toolbarMountedRef.current) {
+        setJustApplied(false);
+      }
+    }, 480);
   };
 
   const applyMarkdown = (key: keyof GlitchMarkdown) => {

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import {
   DECORATION_THICKNESS_STEP_PX,
   DEFAULT_DECORATION_THICKNESS_PX,
@@ -47,11 +46,12 @@ function ColorField({
   const pickerColor = resolvedColor ?? DEFAULT_PICKER_COLOR;
 
   const handlePickerChange = (next: string) => {
-    if (!resolvedColor && next.toLowerCase() === DEFAULT_PICKER_COLOR.toLowerCase()) {
+    const normalized = normalizeColorInput(next);
+    if (!normalized) {
       return;
     }
 
-    onChange(next);
+    onChange(normalized);
   };
 
   return (
@@ -158,12 +158,18 @@ export function GlitchStyleEditor({ style, onStyleChange, compact = false }: Gli
 
   return (
     <div className={compact ? "space-y-3" : "mt-3 space-y-3 border border-emerald-100/15 bg-black/25 p-3"}>
-      {!compact && (
+      {compact ? (
         <div>
-          <p className="text-xs font-medium text-emerald-100/85">구간 스타일</p>
+          <p className="text-[11px] font-medium text-emerald-100/85">고정 서식</p>
+          <p className="mt-0.5 text-[10px] leading-5 text-emerald-100/45">
+            원문 글자는 그대로 두고, 색·굵게·밑줄·취소선만 바꿉니다.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <p className="text-xs font-medium text-emerald-100/85">고정 서식</p>
           <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
-            글자색·굵게·기울임·밑줄·취소선을 적용할 수 있습니다. 밑줄·취소선은 각각 색과 굵기도
-            조절할 수 있습니다.
+            원문 글자는 그대로 두고, 색·굵게·기울임·밑줄·취소선만 바꿉니다.
           </p>
         </div>
       )}
@@ -256,18 +262,13 @@ interface GlitchTickEditorProps {
 }
 
 export function GlitchTickEditor({ tickMs, onTickMsChange, onTickMsCommit }: GlitchTickEditorProps) {
-  const [draftTickMs, setDraftTickMs] = useState(tickMs);
-  const seconds = (draftTickMs / 1000).toFixed(1);
-
-  useEffect(() => {
-    setDraftTickMs(tickMs);
-  }, [tickMs]);
+  const clampedTickMs = clampGlitchTickMs(tickMs);
+  const seconds = (clampedTickMs / 1000).toFixed(1);
 
   const commitTickMs = (value: number) => {
-    const clamped = clampGlitchTickMs(value);
-    setDraftTickMs(clamped);
-    onTickMsChange(clamped);
-    onTickMsCommit?.(clamped);
+    const next = clampGlitchTickMs(value);
+    onTickMsChange(next);
+    onTickMsCommit?.(next);
   };
 
   return (
@@ -281,11 +282,11 @@ export function GlitchTickEditor({ tickMs, onTickMsChange, onTickMsCommit }: Gli
         min={MIN_GLITCH_TICK_MS}
         max={MAX_GLITCH_TICK_MS}
         step={50}
-        value={draftTickMs}
-        onChange={(event) => setDraftTickMs(Number(event.target.value))}
-        onPointerUp={(event) => commitTickMs(Number(event.currentTarget.value))}
-        onTouchEnd={(event) => commitTickMs(Number(event.currentTarget.value))}
+        value={clampedTickMs}
+        onChange={(event) => commitTickMs(Number(event.target.value))}
+        onInput={(event) => commitTickMs(Number(event.currentTarget.value))}
         className="w-full accent-emerald-300"
+        data-admin-interactive
       />
       <p className="text-[11px] leading-5 text-emerald-100/50">
         원문과 오류 메시지가 번갈아 보입니다. 0.1초~10초 사이에서 각 상태가 유지되는 시간을

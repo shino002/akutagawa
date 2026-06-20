@@ -28,8 +28,10 @@ import { useDiaryEntries } from "@/hooks/useDiaryEntries";
 import { useGuestbook } from "@/hooks/useGuestbook";
 import { useHomeModals } from "@/hooks/useHomeModals";
 import { useWorldUnlock } from "@/hooks/useWorldUnlock";
+import { useAppHistoryNavigation } from "@/hooks/useAppHistoryNavigation";
+import { createAppHistoryState } from "@/lib/app-history";
 import { defaultArchiveContent, defaultExtractContent, defaultHomeContent, type ArchiveSubSectionId, type SectionId } from "@/constants/home";
-import type { CharacterDetailTab, DetailNavSnapshot } from "@/types/home.types";
+import type { AppHistoryState, CharacterDetailTab } from "@/types/home.types";
 import { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { filterCharactersByKind } from "@/lib/character-kind";
 import type { CharacterKind } from "@/lib/types";
@@ -47,7 +49,6 @@ export default function Home() {
   const [activeCharacterWorldId, setActiveCharacterWorldId] = useState("");
   const [activeSubPageId, setActiveSubPageId] = useState("");
   const [activeTab, setActiveTab] = useState<CharacterDetailTab>("settings");
-  const [detailNavStack, setDetailNavStack] = useState<DetailNavSnapshot[]>([]);
   const [menuOpen, setMenuOpen] = useState(true);
 
   useEffect(() => {
@@ -100,68 +101,60 @@ export default function Home() {
     charactersError || worldsError || homeError || archiveError || extractError || diaryError || guestbookError;
   const displayedNotice = authNotice || subscriptionError || "";
 
-  const pushDetailNavSnapshot = useCallback(() => {
-    if (activeSection !== "archive") {
-      return;
+  const applyAppHistoryState = useCallback((snapshot: AppHistoryState) => {
+    setActiveSection(snapshot.section);
+    setActiveArchiveSub(snapshot.archiveSub);
+    setActiveCharacterId(snapshot.characterId);
+    setActiveSubPageId(snapshot.subPageId);
+    setActiveTab(snapshot.tab);
+    setActiveWorldId(snapshot.worldId);
+    setActiveCharacterWorldId(snapshot.characterWorldId);
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  }, []);
 
-    if (!activeCharacterId) {
-      return;
-    }
-
-    setDetailNavStack((stack) => [
-      ...stack,
-      {
-        section: "archive",
+  const appHistoryState = useMemo(
+    () =>
+      createAppHistoryState({
+        section: activeSection,
         archiveSub: activeArchiveSub,
         characterId: activeCharacterId,
         subPageId: activeSubPageId,
         tab: activeTab,
-      },
-    ]);
-  }, [activeArchiveSub, activeCharacterId, activeSection, activeSubPageId, activeTab]);
+        worldId: activeWorldId,
+        characterWorldId: activeCharacterWorldId,
+      }),
+    [
+      activeArchiveSub,
+      activeCharacterId,
+      activeCharacterWorldId,
+      activeSection,
+      activeSubPageId,
+      activeTab,
+      activeWorldId,
+    ],
+  );
 
-  const clearDetailNavStack = useCallback(() => {
-    setDetailNavStack([]);
-  }, []);
+  const { canGoBack, goBack } = useAppHistoryNavigation({
+    state: appHistoryState,
+    applyState: applyAppHistoryState,
+  });
 
   const navigateToArchiveCharacter = useCallback(
-    (characterId: string, options?: { tab?: CharacterDetailTab; pushStack?: boolean }) => {
-      const archiveSub = characterSectionForId(characters, characterId);
-      if (options?.pushStack) {
-        pushDetailNavSnapshot();
-      } else {
-        clearDetailNavStack();
-      }
+    (characterId: string, options?: { tab?: CharacterDetailTab }) => {
       setActiveSection("archive");
-      setActiveArchiveSub(archiveSub);
+      setActiveArchiveSub(characterSectionForId(characters, characterId));
       setActiveCharacterId(characterId);
       setActiveSubPageId("");
       if (options?.tab) {
         setActiveTab(options.tab);
       }
     },
-    [characters, clearDetailNavStack, pushDetailNavSnapshot],
+    [characters],
   );
 
-  const navigateBackFromDetail = useCallback((): boolean => {
-    if (detailNavStack.length === 0) {
-      return false;
-    }
-
-    const previous = detailNavStack[detailNavStack.length - 1]!;
-    setDetailNavStack((stack) => stack.slice(0, -1));
-    setActiveSection(previous.section);
-    setActiveArchiveSub(previous.archiveSub);
-    setActiveCharacterId(previous.characterId);
-    setActiveSubPageId(previous.subPageId);
-    setActiveTab(previous.tab);
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-
-    return true;
-  }, [detailNavStack]);
+  const navigateBackFromDetail = useCallback((): boolean => goBack(), [goBack]);
 
   const handleWorldPasswordChange = (worldId: string, value: string) => {
     worldUnlock.setWorldPasswordDrafts((current) => ({ ...current, [worldId]: value }));
@@ -188,7 +181,7 @@ export default function Home() {
   };
 
   const navigateToLinkedCharacter = (characterId: string, subPageId?: string) => {
-    navigateToArchiveCharacter(characterId, { pushStack: true, tab: "settings" });
+    navigateToArchiveCharacter(characterId, { tab: "settings" });
     if (subPageId) {
       setActiveSubPageId(subPageId);
     }
@@ -198,20 +191,17 @@ export default function Home() {
   };
 
   const handleSelectCharacter = (characterId: string) => {
-    clearDetailNavStack();
     setActiveCharacterId(characterId);
     setActiveSubPageId("");
   };
 
   const handleSelectSection = (section: SectionId) => {
-    clearDetailNavStack();
     setActiveSection(section);
     setActiveSubPageId("");
     setActiveCharacterId("");
   };
 
   const handleSelectArchiveSub = (sub: ArchiveSubSectionId) => {
-    clearDetailNavStack();
     setActiveSection("archive");
     setActiveArchiveSub(sub);
     setActiveSubPageId("");
@@ -219,7 +209,6 @@ export default function Home() {
   };
 
   const navigateToZoneLink = (target: ZoneLinkTarget) => {
-    pushDetailNavSnapshot();
     setActiveSection("archive");
     setActiveArchiveSub(target.section);
     setActiveCharacterId(target.characterId);
@@ -252,7 +241,7 @@ export default function Home() {
       onNavigateToLinkedCharacter={navigateToLinkedCharacter}
       onZoneLinkNavigate={navigateToZoneLink}
       onDetailNavigateBack={navigateBackFromDetail}
-      hasDetailNavHistory={detailNavStack.length > 0}
+      hasDetailNavHistory={canGoBack}
       activeTab={activeTab}
       setActiveTab={setActiveTab}
       worlds={worlds}
@@ -306,7 +295,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-black text-emerald-50">
+    <main className="min-h-screen overflow-x-hidden bg-transparent text-emerald-50">
       <style jsx global>{`
         @font-face {
           font-family: "KbizHanmaumMyungjo";
@@ -324,7 +313,7 @@ export default function Home() {
           font-family: "KbizHanmaumMyungjo", "Zen Old Mincho", serif !important;
         }
       `}</style>
-      <div className="fixed inset-0 bg-black" />
+      <div className="fixed inset-0 z-0" aria-hidden="true" />
       <div className="noise-layer" aria-hidden="true" />
 
       <SideMenu

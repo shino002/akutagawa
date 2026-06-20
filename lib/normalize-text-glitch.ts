@@ -10,7 +10,6 @@ import { normalizeBuiltinTokens } from "@/lib/text-scramble";
 import { sanitizeErrorMessageText, sanitizePlainText } from "@/lib/glitch-display";
 import {
   clampGlitchTickMs,
-  hasGlitchPresentation,
   isValidFieldGlitchConfig,
   normalizeGlitchZoneStyle,
 } from "@/lib/glitch-style";
@@ -31,7 +30,7 @@ export function stripUndefinedDeep<T>(value: T): T {
   ) as T;
 }
 
-function normalizeZone(zone: GlitchZone, wordPool: string): GlitchZone {
+function normalizeZone(zone: GlitchZone, fieldWordPool: string): GlitchZone {
   const style = normalizeGlitchZoneStyle(zone.style);
   const errorMessage =
     typeof zone.errorMessage === "string" ? sanitizeErrorMessageText(zone.errorMessage.trim()) : "";
@@ -41,8 +40,15 @@ function normalizeZone(zone: GlitchZone, wordPool: string): GlitchZone {
     typeof zone.linkSubPageId === "string" && zone.linkSubPageId.trim()
       ? zone.linkSubPageId.trim()
       : undefined;
-  const errorMessageSource =
-    explicitSource ?? (errorMessage ? "custom" : hasGlitchPresentation(style) ? "none" : "auto");
+  const errorMessageSource = explicitSource ?? (errorMessage ? "custom" : "none");
+  const zoneWordPool =
+    typeof zone.wordPool === "string" ? sanitizePlainText(zone.wordPool.trim()) : "";
+  const scrambleMode = zoneWordPool
+    ? (normalizeScrambleMode(zone.scrambleMode) ?? "referenceOnly")
+    : undefined;
+  const builtinScramble = !zoneWordPool && zone.builtinScramble === true ? true : undefined;
+  const builtinTokens = normalizeBuiltinTokens(zone.builtinTokens);
+  const errorDisplayMode = normalizeErrorDisplayMode(zone.errorDisplayMode);
 
   const next: GlitchZone = {
     id: zone.id,
@@ -66,8 +72,27 @@ function normalizeZone(zone: GlitchZone, wordPool: string): GlitchZone {
     next.errorMessage = errorMessage;
   }
 
-  if (errorMessageSource === "none") {
-    next.errorMessageSource = "none";
+  if (zoneWordPool) {
+    next.wordPool = zoneWordPool;
+    if (scrambleMode) {
+      next.scrambleMode = scrambleMode;
+    }
+  } else if (builtinScramble) {
+    next.builtinScramble = true;
+  } else if (!zoneWordPool && fieldWordPool.trim() && errorMessageSource === "auto") {
+    // 레거시: 필드 공통 참조 단어만 있던 구간
+  }
+
+  if (builtinTokens) {
+    next.builtinTokens = builtinTokens;
+  }
+
+  if (errorDisplayMode === "randomOnly") {
+    next.errorDisplayMode = errorDisplayMode;
+  }
+
+  if (zone.tickMs !== undefined) {
+    next.tickMs = clampGlitchTickMs(zone.tickMs);
   }
 
   return next;
@@ -98,13 +123,13 @@ export function normalizeFieldGlitchConfig(config: unknown): FieldGlitchConfig |
   const zones = Array.isArray(source.zones)
     ? ensureZoneErrorAlternation(
         source.zones.filter(isGlitchZone).map((zone) => normalizeZone(zone, wordPool)),
-        { wordPool, builtinScramble: source.builtinScramble !== false },
+        { wordPool, builtinScramble: source.builtinScramble === true },
       )
     : [];
   const scrambleMode = wordPool
     ? (normalizeScrambleMode(source.scrambleMode) ?? "referenceOnly")
     : undefined;
-  const builtinScramble = source.builtinScramble !== false;
+  const builtinScramble = source.builtinScramble === true;
   const errorDisplayMode = normalizeErrorDisplayMode(source.errorDisplayMode);
   const builtinTokens = normalizeBuiltinTokens(source.builtinTokens);
 
@@ -116,7 +141,7 @@ export function normalizeFieldGlitchConfig(config: unknown): FieldGlitchConfig |
   const candidate: FieldGlitchConfig = {
     wordPool,
     zones,
-    builtinScramble,
+    ...(builtinScramble ? { builtinScramble: true } : {}),
     defaultStyle,
     ...(errorDisplayMode === "randomOnly" ? { errorDisplayMode } : {}),
     ...(builtinTokens ? { builtinTokens } : {}),
@@ -130,7 +155,7 @@ export function normalizeFieldGlitchConfig(config: unknown): FieldGlitchConfig |
   const next: FieldGlitchConfig = {
     wordPool,
     zones,
-    builtinScramble,
+    ...(builtinScramble ? { builtinScramble: true } : {}),
   };
 
   if (errorDisplayMode === "randomOnly") {

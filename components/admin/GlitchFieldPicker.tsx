@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+
 export interface GlitchFieldOption {
   path: string;
   label: string;
@@ -40,10 +42,10 @@ function FieldButton({
       onClick={() => onSelect(option.path)}
       className={
         active
-          ? "bg-amber-200/90 px-2.5 py-1.5 text-[11px] font-semibold text-amber-950"
+          ? "admin-glitch-field-btn is-active bg-amber-200/90 px-2.5 py-1.5 text-[11px] font-semibold text-amber-950"
           : option.hasGlitch
-            ? "border border-emerald-200/35 bg-emerald-950/35 px-2.5 py-1.5 text-[11px] text-emerald-50"
-            : "border border-emerald-100/15 px-2.5 py-1.5 text-[11px] text-emerald-100/70 hover:border-emerald-100/30 hover:text-emerald-50"
+            ? "admin-glitch-field-btn border border-emerald-200/35 bg-emerald-950/35 px-2.5 py-1.5 text-[11px] text-emerald-50"
+            : "admin-glitch-field-btn border border-emerald-100/15 px-2.5 py-1.5 text-[11px] text-emerald-100/70 hover:border-emerald-100/30 hover:text-emerald-50"
       }
       title={zoneBadge ? `${option.label} · ${zoneBadge}` : option.label}
     >
@@ -65,6 +67,9 @@ function FieldButton({
   );
 }
 
+const countGroupApplied = (group: GlitchFieldOptionGroup) =>
+  group.options.filter((option) => option.hasGlitch).length;
+
 export function GlitchFieldPicker({
   groups,
   options,
@@ -78,57 +83,86 @@ export function GlitchFieldPicker({
       ? [{ id: "all", label: "필드", options }]
       : []);
 
+  const activeOption = useMemo(
+    () =>
+      resolvedGroups
+        .flatMap((group) => group.options)
+        .find((option) => option.path === activePath),
+    [activePath, resolvedGroups],
+  );
+
   if (resolvedGroups.length === 0) {
     return null;
   }
 
   const totalOptions = resolvedGroups.reduce((count, group) => count + group.options.length, 0);
   const appliedCount = resolvedGroups.reduce(
-    (count, group) => count + group.options.filter((option) => option.hasGlitch).length,
+    (count, group) => count + countGroupApplied(group),
     0,
   );
+  const useCategoryDropdowns = resolvedGroups.length > 1;
 
   return (
-    <div className="border border-emerald-100/15 bg-black/30 p-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-xs font-medium text-emerald-100/85">오류 넣을 필드</p>
-          <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
-            버튼을 눌러 필드를 고르세요.
-            {appliedCount > 0 ? ` · ${appliedCount}/${totalOptions}개 적용 중` : ""}
-          </p>
-        </div>
-        {onOpenGlitchTab ? (
+    <div className="admin-glitch-field-picker">
+      <p className="text-[11px] text-emerald-100/55">
+        ① 필드
+        {appliedCount > 0 ? ` · ${appliedCount}/${totalOptions}개 적용 중` : ""}
+        {activeOption ? (
+          <>
+            {" "}
+            · 선택: <span className="font-medium text-emerald-100/85">{activeOption.label}</span>
+          </>
+        ) : null}
+      </p>
+      {onOpenGlitchTab ? (
+        <div className="mt-2 flex justify-end">
           <button
             type="button"
             onClick={onOpenGlitchTab}
-            className="shrink-0 border border-emerald-100/20 px-2 py-1 text-[11px] text-emerald-50"
+            className="border border-emerald-100/20 px-2 py-1 text-[11px] text-emerald-50"
           >
             오류 탭 열기
           </button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      <div className="mt-3 space-y-3">
-        {resolvedGroups.map((group) => (
-          <div key={group.id}>
-            {resolvedGroups.length > 1 ? (
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-100/45">
-                {group.label}
-              </p>
-            ) : null}
-            <div className="flex flex-wrap gap-2">
-              {group.options.map((option) => (
-                <FieldButton
-                  key={option.path}
-                  option={option}
-                  active={activePath === option.path}
-                  onSelect={onSelect}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="mt-3 space-y-2">
+        {resolvedGroups.map((group) => {
+          const groupApplied = countGroupApplied(group);
+          const groupHasActive = group.options.some((option) => option.path === activePath);
+          const groupSummary = useCategoryDropdowns
+            ? `${group.label} · ${group.options.length}개${
+                groupApplied > 0 ? ` · ${groupApplied}개 적용` : ""
+              }`
+            : "필드 목록";
+
+          return (
+            <details
+              key={group.id}
+              className="border border-emerald-100/10 bg-black/20"
+              open={groupHasActive}
+            >
+              <summary className="cursor-pointer list-none px-3 py-2 text-[11px] font-medium text-emerald-100/80 [&::-webkit-details-marker]:hidden">
+                <span className="flex flex-wrap items-center justify-between gap-2">
+                  <span>{groupSummary}</span>
+                  <span className="text-[10px] font-normal text-emerald-100/45">
+                    {groupHasActive ? "펼침" : "클릭해서 열기"}
+                  </span>
+                </span>
+              </summary>
+              <div className="flex flex-wrap gap-2 border-t border-emerald-100/10 px-3 py-2">
+                {group.options.map((option) => (
+                  <FieldButton
+                    key={option.path}
+                    option={option}
+                    active={activePath === option.path}
+                    onSelect={onSelect}
+                  />
+                ))}
+              </div>
+            </details>
+          );
+        })}
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { GlitchZoneMark } from "@/components/GlitchZoneMark";
 import { TextGlitch } from "@/components/TextGlitch";
 import { glitchConfigSignature, reanchorGlitchConfig } from "@/lib/glitch-fields";
-import { fieldGlitchHasScramble, glitchScramblePhase } from "@/lib/glitch-style";
+import { fieldGlitchHasScramble, mergeGlitchZoneStyles } from "@/lib/glitch-style";
 import {
   getGlitchPulseServerSnapshot,
   getGlitchPulseSnapshot,
@@ -72,22 +72,18 @@ function GlitchedTextLive({
   );
 
   const zones = glitch.zones;
-  const scramblePhase = useMemo(() => {
+
+  const displayByZone = useMemo(() => {
     if (!shouldScramble) {
-      return 0;
+      return buildZoneDisplayText(zones, glitch, { fixedPhase: 0 });
     }
 
     if (!animate) {
-      return 1;
+      return buildZoneDisplayText(zones, glitch, { fixedPhase: 1 });
     }
 
-    return glitchScramblePhase(pulse, glitch.tickMs);
-  }, [animate, glitch.tickMs, pulse, shouldScramble]);
-
-  const displayByZone = useMemo(
-    () => buildZoneDisplayText(zones, glitch, scramblePhase),
-    [glitch, scramblePhase, zones],
-  );
+    return buildZoneDisplayText(zones, glitch, { pulse });
+  }, [animate, glitch, pulse, shouldScramble, zones]);
 
   const segments = useMemo(
     () => composeTextSegments(text, zones, displayByZone),
@@ -95,8 +91,11 @@ function GlitchedTextLive({
   );
 
   const zoneStyleById = useMemo(
-    () => Object.fromEntries(zones.map((zone) => [zone.id, zone.style])),
-    [zones],
+    () =>
+      Object.fromEntries(
+        zones.map((zone) => [zone.id, mergeGlitchZoneStyles(zone.style, glitch.defaultStyle)]),
+      ),
+    [glitch.defaultStyle, zones],
   );
   const zoneLinkById = useMemo(
     () =>
@@ -147,25 +146,7 @@ export function GlitchedText({
   linkContext,
 }: GlitchedTextProps) {
   const safeText = useMemo(() => sanitizePlainText(text), [text]);
-
-  const zoneFingerprint = glitch?.zones
-    ?.map((zone) => `${zone.id}:${zone.start}:${zone.end}:${zone.original}`)
-    .join("|");
-
-  const loopSignature = useMemo(
-    () => glitchConfigSignature(safeText, glitch),
-    [
-      glitch?.wordPool,
-      glitch?.scrambleMode,
-      glitch?.builtinScramble,
-      glitch?.errorDisplayMode,
-      glitch?.builtinTokens,
-      glitch?.tickMs,
-      glitch?.defaultStyle,
-      safeText,
-      zoneFingerprint,
-    ],
-  );
+  const loopSignature = glitchConfigSignature(safeText, glitch);
 
   const resolvedGlitch = useMemo(
     () => (loopSignature ? reanchorGlitchConfig(safeText, glitch) : undefined),

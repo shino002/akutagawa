@@ -80,9 +80,19 @@ export function scheduleReadGlitchTextSelection(
   element: HTMLInputElement | HTMLTextAreaElement,
   callback: (selection: GlitchTextSelection | null) => void,
 ) {
+  let cancelled = false;
+
   window.requestAnimationFrame(() => {
     window.requestAnimationFrame(() => {
+      if (cancelled) {
+        return;
+      }
+
       callback(readGlitchTextSelection(element));
     });
   });
+
+  return () => {
+    cancelled = true;
+  };
 }

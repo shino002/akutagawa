@@ -1,0 +1,83 @@
+/* 전역 폰트와 색상 변수: 사이트 전체의 검정/블루 신호 테마 기준값입니다. */
+@font-face {
+  font-family: "KbizHanmaumMyungjo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_one@1.0/KBIZHanmaumMyungjo.woff")
+    format("woff");
+  font-weight: normal;
+  font-display: swap;
+}
+
+:root {
+  --background: #080a10;
+  --foreground: #e8ecf1;
+  --blood: #6f8fd7;
+  --blood-dark: #101a32;
+  --signal-blue: #355fbd;
+  --signal-yellow-white: #f4eecf;
+  --surface-base: #080a10;
+  --surface-card: #0c0f16;
+  --surface-raised: #10141e;
+  --surface-deep: #05060b;
+  --character-card-divider: #455f8a;
+  --archive-ink: #000000;
+  --archive-panel: rgba(0, 0, 0, 0.96);
+  --archive-line: rgba(111, 143, 215, 0.26);
+  --archive-muted: rgba(214, 208, 188, 0.62);
+  --border-muted: rgba(111, 143, 215, 0.18);
+  --border-accent: rgba(111, 143, 215, 0.22);
+  /* 노션식: 본문 폰트에 기호·이모지 폴백을 이어 붙여 □(토후) 대신 시스템 글리프 사용 */
+  --font-ui-stack:
+    "Noto Sans KR", "Noto Sans Symbols 2", "Segoe UI Symbol", "Apple Symbols", "Malgun Gothic",
+    "Apple SD Gothic Neo", ui-sans-serif, system-ui, sans-serif;
+  --font-emoji-stack: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-ui-stack), var(--font-emoji-stack);
+  letter-spacing: -0.01em;
+  line-height: 1.65;
+  text-rendering: geometricPrecision;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(111, 143, 215, 0.58) rgba(0, 0, 0, 0.88);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.9);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid rgba(0, 0, 0, 0.94);
+  background: rgba(111, 143, 215, 0.55);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+::selection {
+  background: rgba(111, 143, 215, 0.72);
+}

@@ -1,4 +1,5 @@
 import type { Character, SettingSection, UploadedImage, Work } from "@/lib/types";
+import type { ArchiveSubSectionId, SectionId } from "@/constants/home";
 
 /**
  * 공개 페이지(홈)에서 사용하는 이미지 갤러리 모달 상태입니다.
@@ -37,9 +38,19 @@ export type ReaderModalItem = {
  */
 export type CharacterDetailTab = "settings" | "images" | "works" | "worlds";
 
-import type { ArchiveSubSectionId } from "@/constants/home";
+/** 브라우저 history / URL과 동기화되는 SPA 화면 상태 */
+export type AppHistoryState = {
+  v: 1;
+  section: SectionId;
+  archiveSub: ArchiveSubSectionId;
+  characterId: string;
+  subPageId: string;
+  tab: CharacterDetailTab;
+  worldId: string;
+  characterWorldId: string;
+};
 
-/** 상세 화면(Archive: OC/페어/어나더)에서 뒤로가기용 이전 위치 */
+/** @deprecated AppHistoryState를 사용합니다. */
 export type DetailNavSnapshot = {
   section: "archive";
   archiveSub: ArchiveSubSectionId;

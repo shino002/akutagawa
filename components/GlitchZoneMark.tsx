@@ -3,7 +3,7 @@
 import type { GlitchZoneStyle } from "@/lib/types";
 import type { ZoneLinkTarget } from "@/lib/types";
 import { hasCombiningMarks, sanitizeErrorMessageText } from "@/lib/glitch-display";
-import { resolveGlitchZonePresentation } from "@/lib/glitch-style";
+import { glitchZoneHasCustomTextColor, resolveGlitchZonePresentation } from "@/lib/glitch-style";
 import { cn } from "@/utils/cn";
 
 interface GlitchZoneMarkProps {
@@ -16,11 +16,15 @@ interface GlitchZoneMarkProps {
 }
 
 function decorationClassName(decoration: {
+  bold: boolean;
+  italic: boolean;
   underline: boolean;
   linkUnderline: boolean;
   strikethrough: boolean;
 }) {
   return cn(
+    decoration.bold && "glitch-zone-has-bold",
+    decoration.italic && "glitch-zone-has-italic",
     decoration.underline && "glitch-zone-has-underline",
     decoration.linkUnderline && "glitch-zone-has-link-underline",
     decoration.strikethrough && "glitch-zone-has-strikethrough",
@@ -45,6 +49,7 @@ export function GlitchZoneMark({
     "glitch-zone-mark",
     isChaos && "glitch-zone-chaos",
     zoneStyle?.storyQuote && "story-inline-quote",
+    glitchZoneHasCustomTextColor(zoneStyle) && "glitch-zone-has-custom-color",
     decorationClassName(decoration),
     className,
   );

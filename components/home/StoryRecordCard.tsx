@@ -39,7 +39,12 @@ export function StoryRecordCard({
         <span className="story-record-card-badge">STORY LOG</span>
       </div>
 
-      <p className="story-record-card-excerpt">
+      <p
+        className={cn(
+          "story-record-card-excerpt",
+          customExcerpt && "story-record-card-excerpt-custom",
+        )}
+      >
         {excerpt ? (
           <StoryFormattedText text={customExcerpt || excerpt} glitch={customExcerpt ? excerptGlitch : undefined} />
         ) : (

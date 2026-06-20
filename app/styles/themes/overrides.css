@@ -1,0 +1,1801 @@
+/* themes/overrides.css — 테마 보정·레이아웃·모션. Surface tone pass가 최종 면/배경 톤을 덮어씁니다. */
+[class*="text-emerald-50"] {
+  color: rgba(236, 240, 245, var(--tw-text-opacity, 1)) !important;
+}
+
+[class*="text-emerald-100"] {
+  color: rgba(200, 205, 212, var(--tw-text-opacity, 1)) !important;
+}
+
+[class*="text-emerald-200"] {
+  color: rgba(111, 143, 215, var(--tw-text-opacity, 1)) !important;
+}
+
+[class*="text-emerald-950"] {
+  color: #f4eecf !important;
+}
+
+[class*="bg-emerald-100"] {
+  background-color: rgba(244, 238, 207, 0.08) !important;
+}
+
+[class*="bg-emerald-200"] {
+  background: linear-gradient(180deg, #101a32, #03050c) !important;
+  border: 1px solid rgba(111, 143, 215, 0.45) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.55),
+    0 0 12px rgba(53, 95, 189, 0.08) !important;
+}
+
+[class*="bg-emerald-950"] {
+  background-color: rgba(0, 0, 0, 0.96) !important;
+}
+
+[class*="border-emerald-100"] {
+  border-color: rgba(150, 145, 126, 0.18) !important;
+}
+
+[class*="placeholder:text-emerald-100"]::placeholder {
+  color: rgba(244, 241, 234, 0.38) !important;
+}
+
+.world-profile-card {
+  display: grid;
+}
+
+.world-profile-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  border-top: 1px solid rgba(111, 143, 215, 0.24);
+  background: var(--surface-deep);
+  padding: 0.85rem 1rem;
+  color: #f4e6dc;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: left;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.world-profile-banner span:last-child {
+  color: rgba(111, 143, 215, 0.72);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+}
+
+.world-profile-banner:hover {
+  background: var(--surface-raised);
+}
+
+.bgm-record-button,
+.bgm-record-disc,
+.bgm-record-disc::before,
+.bgm-record-disc::after,
+.bgm-record-hole,
+.bgm-mini-record,
+.bgm-mini-record-hole {
+  border-radius: 9999px !important;
+}
+
+@keyframes rain-fall {
+  0% {
+    transform: translate3d(0, -20vh, 0);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate3d(-20px, 130vh, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes noise-drift {
+  0% {
+    transform: translate(0, 0);
+  }
+
+  50% {
+    transform: translate(-12px, 8px);
+  }
+
+  100% {
+    transform: translate(8px, -12px);
+  }
+}
+
+@keyframes black-glitch-slice {
+  0%,
+  82%,
+  100% {
+    clip-path: inset(0 0 0 0);
+    transform: translate3d(0, 0, 0);
+    opacity: 0.36;
+  }
+
+  84% {
+    clip-path: inset(10% 0 70% 0);
+    transform: translate3d(-12px, 0, 0);
+    opacity: 0.78;
+  }
+
+  86% {
+    clip-path: inset(42% 0 36% 0);
+    transform: translate3d(10px, 0, 0);
+    opacity: 0.72;
+  }
+
+  88% {
+    clip-path: inset(66% 0 12% 0);
+    transform: translate3d(-8px, 0, 0);
+    opacity: 0.82;
+  }
+}
+
+@keyframes black-title-glitch {
+  0%,
+  88%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    text-shadow:
+      3px 0 rgba(255, 255, 255, 0.38),
+      -4px 0 rgba(0, 0, 0, 1),
+      0 0 3px rgba(255, 255, 255, 0.3),
+      0 0 12px rgba(0, 0, 0, 0.95);
+  }
+
+  90% {
+    transform: translate3d(-3px, 0, 0);
+    text-shadow:
+      8px 0 rgba(255, 255, 255, 0.58),
+      -7px 0 rgba(0, 0, 0, 1),
+      0 0 5px rgba(255, 255, 255, 0.28);
+  }
+
+  92% {
+    transform: translate3d(3px, 0, 0);
+    text-shadow:
+      -7px 0 rgba(255, 255, 255, 0.52),
+      7px 0 rgba(0, 0, 0, 1),
+      0 0 5px rgba(255, 255, 255, 0.24);
+  }
+}
+
+@keyframes current-text-glitch {
+  0%,
+  92%,
+  100% {
+    filter: none;
+    opacity: 1;
+    transform: translate3d(0, 0, 0) skewX(0deg) scaleX(1);
+    text-shadow: none;
+  }
+
+  94% {
+    filter: blur(0.24px) saturate(0.75);
+    opacity: 0.97;
+    transform: translate3d(-0.2px, 0, 0) skewX(-0.45deg) scaleX(0.992);
+    text-shadow:
+      0.7px 0 rgba(0, 0, 0, 0.95),
+      -0.35px 0 color-mix(in srgb, currentColor 26%, transparent);
+  }
+
+  95% {
+    filter: blur(0.16px) saturate(0.85);
+    opacity: 0.98;
+    transform: translate3d(0.2px, 0, 0) skewX(0.45deg) scaleX(1.006);
+    text-shadow:
+      -0.7px 0 rgba(0, 0, 0, 0.95),
+      0.35px 0 color-mix(in srgb, currentColor 24%, transparent);
+  }
+
+  96% {
+    filter: none;
+    opacity: 1;
+    transform: translate3d(0, 0, 0) skewX(0deg) scaleX(1);
+    text-shadow: none;
+  }
+}
+
+@keyframes current-heading-glitch {
+  0%,
+  91%,
+  100% {
+    filter: none;
+    opacity: 1;
+    transform: translate3d(0, 0, 0) skewX(0deg) scaleX(1);
+    text-shadow: none;
+  }
+
+  93% {
+    filter: blur(0.28px) saturate(0.7);
+    opacity: 0.96;
+    transform: translate3d(-0.45px, 0, 0) skewX(-0.65deg) scaleX(0.99);
+    text-shadow:
+      1px 0 rgba(0, 0, 0, 0.96),
+      -0.5px 0 color-mix(in srgb, currentColor 30%, transparent);
+  }
+
+  94% {
+    filter: blur(0.2px) saturate(0.82);
+    opacity: 0.98;
+    transform: translate3d(0.45px, 0, 0) skewX(0.65deg) scaleX(1.008);
+    text-shadow:
+      -1px 0 rgba(0, 0, 0, 0.96),
+      0.5px 0 color-mix(in srgb, currentColor 28%, transparent);
+  }
+
+  95% {
+    filter: none;
+    opacity: 1;
+    transform: translate3d(0, 0, 0) skewX(0deg) scaleX(1);
+    text-shadow: none;
+  }
+}
+
+@keyframes black-scan-drift {
+  0%,
+  100% {
+    background-position:
+      0 0,
+      0 0,
+      0 0;
+  }
+
+  50% {
+    background-position:
+      0 7px,
+      -10px 0,
+      0 0;
+  }
+}
+
+/* Performance mode: 자료가 많아져도 스크롤/탭 전환이 버벅이지 않게 무거운 효과를 정적 질감으로 낮춥니다. */
+.noise-layer,
+.noise-layer::after,
+main *,
+main *::before,
+main *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+}
+
+.glass-card,
+.archive-panel,
+.dossier-viewer,
+.side-menu,
+.bgm-player,
+.gallery-tile,
+.archive-character-card,
+.character-card,
+.case-setting-note,
+.case-side-record,
+.case-evidence-preview,
+.case-profile-cell {
+  backdrop-filter: none !important;
+  filter: none !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.88),
+    2px 2px 0 rgba(0, 0, 0, 0.88) !important;
+}
+
+.archive-character-card-image img,
+.gallery-tile img,
+.case-file-hero-image,
+.case-evidence-preview img,
+.world-profile-card img {
+  filter: none !important;
+  transition: opacity 120ms ease !important;
+  transform: none !important;
+}
+
+.archive-character-card:hover .archive-character-card-image img,
+.gallery-tile:hover img,
+.case-evidence-preview:hover img,
+.world-profile-card:hover img,
+.group:hover img {
+  transform: none !important;
+}
+
+.bgm-record-disc.is-playing,
+.bgm-mini-record.is-playing {
+  animation: none !important;
+}
+
+.noise-layer {
+  opacity: 0.08 !important;
+}
+
+.noise-layer::after {
+  display: none !important;
+}
+
+/* Browser chrome + form input: 붉은 accent/스크롤바 차단 */
+
+/* Browser chrome/input guard: 스크롤바, 선택 영역, placeholder, caret도 붉은색을 쓰지 않습니다. */
+* {
+  scrollbar-color: rgba(111, 143, 215, 0.45) rgba(0, 0, 0, 0.9) !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(111, 143, 215, 0.42) !important;
+}
+
+::selection {
+  background: rgba(53, 95, 189, 0.42) !important;
+  color: #f4eecf !important;
+}
+
+main input,
+main textarea,
+main select,
+.auth-input,
+.archive-input {
+  border-color: rgba(150, 145, 126, 0.22) !important;
+  background: rgba(2, 2, 3, 0.95) !important;
+  color: #d6d0bc !important;
+  caret-color: #6f8fd7 !important;
+}
+
+main input::placeholder,
+main textarea::placeholder,
+.auth-input::placeholder,
+.archive-input::placeholder,
+[class*="placeholder:text-emerald-100"]::placeholder {
+  color: rgba(214, 208, 188, 0.45) !important;
+}
+
+main input:focus,
+main textarea:focus,
+main select:focus,
+.auth-input:focus,
+.archive-input:focus {
+  border-color: rgba(111, 143, 215, 0.48) !important;
+  outline: 1px solid rgba(111, 143, 215, 0.34) !important;
+  box-shadow: none !important;
+}
+
+/* Text cleanup: 본문 텍스트 노드에만 박스 배경을 붙이지 않습니다. */
+main
+  :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6):not(
+    .image-credit-label
+  ):not(.case-file-meta-line):not(.case-file-meta-line *):not(.case-evidence-stamp):not(
+    .glitch-zone-mark
+  ):not(.glitch-zone-mark *):not(.case-setting-note):not(.case-empty-note):not(.case-side-record):not(
+    .case-evidence-preview
+  ):not(.plain-empty-note):not(.case-profile-chip):not(.story-record-card-badge):not(
+    .case-file-intro-text
+  ):not(.character-index-blue-text) {
+  background: transparent !important;
+}
+
+.archive-character-card-body,
+.case-profile-chip-label,
+.case-profile-chip-value,
+.case-file-title-block,
+.case-setting-note span:not(.archive-submit-button) {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* World rhythm: 색인 패널·도시에 간격을 일정하게 정리합니다. */
+.world-archive-section .world-index-panel,
+.world-archive-section .world-file-detail {
+  padding-block: clamp(1.25rem, 2.4vw, 1.8rem);
+}
+
+.world-archive-section .world-index-header {
+  border-bottom: 1px solid rgba(111, 143, 215, 0.34);
+}
+
+.world-archive-section .blue-emphasis {
+  display: block;
+  max-width: 36rem;
+}
+
+/* 파랑 강조 텍스트: 사용자가 개별 지정한 색이 없을 때만 파란 톤으로 */
+.world-archive-section .blue-emphasis:not(.glitch-zone-has-custom-color),
+.world-archive-section
+  .blue-emphasis
+  .glitch-zone-mark:not([style*="color"]):not(.glitch-zone-has-custom-color) {
+  color: rgba(150, 178, 236, 0.92) !important;
+}
+
+.world-file-doc-name .glitch-zone-mark,
+.world-file-card-title .glitch-zone-mark,
+.world-file-card-summary .glitch-zone-mark {
+  vertical-align: baseline;
+}
+
+.plain-empty-note {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0.4rem 0 !important;
+  color: rgba(214, 208, 188, 0.62) !important;
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+/* 도시에 내부 자동 래퍼(grid/flex)에는 테마 박스가 끼지 않게 */
+.archive-character-card-body,
+.case-file-title-block,
+.world-file-record .world-file-record-layout,
+.world-file-record .world-file-record-settings,
+.world-file-record .world-file-record-visual,
+.world-file-record .world-file-record-extra,
+.case-profile-cell dt,
+.case-profile-cell dd {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Tailwind red/rose/pink → slate-blue neutralization */
+
+main,
+main :where(*) {
+  --tw-ring-color: rgba(111, 143, 215, 0.32) !important;
+  --tw-ring-offset-color: #020202 !important;
+  --tw-shadow-color: rgba(0, 0, 0, 0.92) !important;
+  --tw-gradient-from: #08080d !important;
+  --tw-gradient-via: #101a32 !important;
+  --tw-gradient-to: #020208 !important;
+  accent-color: #6f8fd7 !important;
+}
+
+[class*="red-"],
+[class*="rose-"],
+[class*="pink-"],
+[class*="from-red"],
+[class*="from-rose"],
+[class*="from-pink"],
+[class*="via-red"],
+[class*="via-rose"],
+[class*="via-pink"],
+[class*="to-red"],
+[class*="to-rose"],
+[class*="to-pink"] {
+  --tw-gradient-from: #08080d !important;
+  --tw-gradient-via: #101a32 !important;
+  --tw-gradient-to: #020208 !important;
+  border-color: rgba(111, 143, 215, 0.28) !important;
+  color: rgba(214, 208, 188, 0.82) !important;
+  background-color: #070708 !important;
+  background-image: none !important;
+  outline-color: rgba(111, 143, 215, 0.34) !important;
+  text-decoration-color: rgba(111, 143, 215, 0.34) !important;
+}
+
+.archive-kicker,
+.case-file-kicker,
+.case-tab-button span,
+.case-setting-note span,
+.case-file-meta-line,
+.case-evidence-stamp,
+.world-profile-banner span:last-child,
+.archive-character-card-id,
+.bgm-player p,
+main [class*="text-red"],
+main [class*="text-rose"],
+main [class*="text-pink"],
+main [class*="text-stone"],
+main [class*="text-emerald-200"] {
+  color: #6f8fd7 !important;
+}
+
+main input,
+main textarea,
+main select,
+.auth-input,
+.archive-input {
+  border-color: rgba(111, 143, 215, 0.28) !important;
+  background: rgba(2, 2, 5, 0.95) !important;
+  color: #d6d0bc !important;
+  caret-color: #6f8fd7 !important;
+}
+
+main input::placeholder,
+main textarea::placeholder,
+.auth-input::placeholder,
+.archive-input::placeholder,
+[class*="placeholder:text-emerald-100"]::placeholder {
+  color: rgba(214, 208, 188, 0.45) !important;
+}
+
+main input:focus,
+main textarea:focus,
+main select:focus,
+.auth-input:focus,
+.archive-input:focus {
+  border-color: rgba(111, 143, 215, 0.52) !important;
+  outline: 1px solid rgba(111, 143, 215, 0.36) !important;
+  box-shadow: none !important;
+}
+
+.bgm-record-disc,
+.bgm-mini-record {
+  filter: grayscale(1) contrast(0.95) brightness(0.82) !important;
+}
+
+main img,
+main video,
+.case-file-hero-image,
+.archive-character-card-image img,
+.gallery-tile img,
+.case-evidence-preview img,
+.world-profile-card img {
+  filter: none !important;
+}
+
+/* Border/pseudo guards + hero mark (배경은 Surface pass가 담당) */
+
+.glass-card::before,
+.glass-card::after,
+.archive-row::before,
+.archive-character-card::before,
+.case-file-hero-grid,
+.case-file-hero::before,
+.case-file-hero::after,
+.noise-layer,
+.noise-layer::before,
+.noise-layer::after {
+  border-color: rgba(111, 143, 215, 0.16) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.glass-card::before,
+.glass-card::after,
+.archive-row::before,
+.archive-character-card::before,
+.case-file-hero-grid,
+.noise-layer,
+.noise-layer::before,
+.noise-layer::after {
+  opacity: 0 !important;
+}
+
+.case-file-hero::before {
+  opacity: 1 !important;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.97) 0%,
+    rgba(0, 0, 0, 0.9) 34%,
+    rgba(0, 0, 0, 0.62) 50%,
+    rgba(0, 0, 0, 0.24) 58%,
+    transparent 64%
+  ) !important;
+}
+
+.case-file-hero::after {
+  content: none !important;
+  display: none !important;
+}
+
+.case-file-hero-mark {
+  position: absolute !important;
+  left: auto !important;
+  right: 0.85rem !important;
+  bottom: -0.75rem !important;
+  top: auto !important;
+  z-index: 3 !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  max-width: calc(100% - 1.7rem) !important;
+  padding-right: 0.9rem !important;
+  font-size: clamp(3.8rem, 10vw, 8rem) !important;
+  color: rgba(111, 143, 215, 0.18) !important;
+  background: transparent !important;
+  opacity: 1 !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1 !important;
+  text-align: right !important;
+  animation: current-heading-glitch 2.4s steps(1, end) infinite;
+}
+
+.text-glitch {
+  animation: none;
+  filter: none;
+  text-shadow: none;
+  transform: none;
+}
+
+main
+  :where(
+    [class*="border-stone"],
+    [class*="border-red"],
+    [class*="border-rose"],
+    [class*="border-pink"],
+    [class*="border-emerald"]
+  ) {
+  border-color: rgba(111, 143, 215, 0.24) !important;
+}
+
+main
+  :where(
+    [class*="divide-stone"],
+    [class*="divide-red"],
+    [class*="divide-rose"],
+    [class*="divide-pink"],
+    [class*="divide-emerald"]
+  )
+  > :not([hidden])
+  ~ :not([hidden]) {
+  border-color: rgba(111, 143, 215, 0.2) !important;
+}
+
+html body main .image-credit-label {
+  border: 1px solid rgba(56, 189, 248, 0.46) !important;
+  background: rgba(7, 15, 32, 0.82) !important;
+  color: #f7f1dc !important;
+}
+
+html body main .character-palette-surface {
+  background: var(--character-palette-background) !important;
+  background-image: var(--character-palette-background) !important;
+}
+
+html body main .static-record-panel,
+html body main .static-record-panel:hover {
+  align-self: start;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  border-style: solid !important;
+  border-width: 1px !important;
+  border-color: rgba(111, 143, 215, 0.32) !important;
+  background: #070708 !important;
+  background-color: #070708 !important;
+  background-image: none !important;
+  outline-color: rgba(111, 143, 215, 0.24) !important;
+  padding: 1rem;
+  transform: none !important;
+}
+
+html body main .static-record-panel :where(p, dd, span, .glitch-zone-mark) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.story-record-card {
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+}
+
+html body main .story-record-card.static-record-panel {
+  display: grid !important;
+}
+
+.story-record-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.story-record-card-kicker {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgba(111, 143, 215, 0.55);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+}
+
+.story-record-card-badge {
+  flex: 0 0 auto;
+  align-self: center;
+  border: 1px solid rgba(120, 130, 150, 0.32);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(200, 208, 220, 0.88);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.62rem;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  padding: 0.28rem 0.45rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.story-record-card-excerpt {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: rgba(200, 208, 220, 0.82);
+  font-size: 0.875rem;
+  line-height: 1.75rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.story-record-card-excerpt-custom {
+  display: block;
+  overflow: visible;
+  white-space: pre-line;
+  -webkit-box-orient: unset;
+  -webkit-line-clamp: unset;
+}
+
+.story-record-card-open {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  margin: 0;
+  border: 1px solid rgba(111, 143, 215, 0.28);
+  background: rgba(0, 0, 0, 0.42);
+  color: rgba(226, 236, 255, 0.9);
+  font-size: 0.82rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  padding: 0.72rem 0.9rem;
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.story-record-card-open:hover,
+.story-record-card-open:focus-visible {
+  border-color: rgba(140, 155, 180, 0.45);
+  background: rgba(18, 18, 18, 0.95);
+  color: #eceff4;
+}
+
+.story-record-card-open:active {
+  border-color: rgba(130, 145, 170, 0.5);
+  background: #000000;
+}
+
+.story-record-card-open-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+}
+
+.story-record-card-open-icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.story-viewer-body {
+  background: #000000;
+}
+
+.ebook-reader.dossier-viewer,
+.story-log-viewer.dossier-viewer {
+  border-color: rgba(100, 100, 100, 0.28);
+  background: #000000;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.96);
+}
+
+.ebook-reader .story-viewer-body,
+.ebook-reader .story-viewer-header,
+.story-log-viewer .story-viewer-body,
+.story-log-viewer .story-viewer-header {
+  background: #000000;
+}
+
+.story-viewer-content {
+  max-width: 42rem;
+  margin-inline: auto;
+}
+
+.story-viewer-paragraph {
+  margin: 0 0 1.35rem;
+  color: rgba(200, 208, 220, 0.86);
+  font-size: 0.95rem;
+  line-height: 2.05;
+  white-space: pre-line;
+}
+
+.story-viewer-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.story-inline-quote {
+  display: inline-block;
+  margin-top: 0.15rem;
+  border-left: 2px solid rgba(111, 143, 215, 0.55);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  letter-spacing: 0.04em;
+  padding-left: 0.65rem;
+}
+
+.story-inline-quote:not(.glitch-zone-has-custom-color) {
+  color: rgba(200, 210, 230, 0.92);
+  font-weight: 600;
+  text-shadow: 0 0 18px rgba(111, 143, 215, 0.16);
+}
+
+.glitch-zone-mark.glitch-zone-has-custom-color,
+.admin-inline-zone.glitch-zone-has-custom-color {
+  color: var(--glitch-text-color, currentColor) !important;
+  --glitch-decoration-color: var(--glitch-text-color, currentColor);
+}
+
+/* 인용(story quote)은 테마 강조색(파랑)으로 통일. 과거에 분홍/붉은색이
+   custom color로 저장된 데이터도 파란 톤으로 보이도록 덮어씁니다. */
+html body main .story-inline-quote,
+html body main .story-inline-quote.glitch-zone-has-custom-color {
+  color: rgba(170, 192, 232, 0.96) !important;
+  --glitch-text-color: rgba(170, 192, 232, 0.96) !important;
+  --glitch-decoration-color: rgba(170, 192, 232, 0.96) !important;
+}
+
+/* OC / World interaction motion: WAAPI(ArchiveMotion) + 호버/클릭 피드백 */
+html body main .character-index-panel .archive-character-card,
+html body main .world-index-panel .world-file-card,
+html body main .dossier-viewer .case-tab-button,
+html body main .dossier-viewer .case-side-record,
+html body main .dossier-viewer .case-setting-note,
+html body main .dossier-viewer .case-evidence-preview,
+html body main .dossier-viewer .gallery-tile button,
+html body main .dossier-viewer .relation-link-file,
+html body main .dossier-viewer .relation-link-file-action,
+html body main .world-archive-section .case-setting-note,
+html body main .world-archive-section .case-side-record,
+html body main .world-archive-section .gallery-tile button,
+html body main .world-archive-section .archive-submit-button,
+html body main .world-archive-section .world-profile-banner {
+  transition:
+    border-color 360ms ease,
+    background 360ms ease,
+    transform 340ms ease,
+    opacity 340ms ease,
+    box-shadow 340ms ease !important;
+}
+
+html body main .character-index-panel .archive-character-card:active,
+html body main .world-index-panel .world-file-card:active,
+html body main .dossier-viewer .case-tab-button:active,
+html body main .dossier-viewer .case-side-record:active,
+html body main .dossier-viewer .case-setting-note:active,
+html body main .dossier-viewer .case-evidence-preview:active,
+html body main .world-archive-section .case-setting-note:active,
+html body main .world-archive-section .case-side-record:active,
+html body main .world-archive-section .archive-submit-button:active {
+  transform: translate3d(0, 1px, 0) scale(0.992) !important;
+}
+
+html body main .character-index-panel .archive-character-card:hover,
+html body main .world-index-panel .world-file-card:hover {
+  transform: translate3d(0, -3px, 0) !important;
+  border-color: rgba(111, 143, 215, 0.55) !important;
+}
+
+html body main .dossier-viewer .gallery-tile img,
+html body main .dossier-viewer .case-evidence-preview img,
+html body main .dossier-viewer .world-profile-card img,
+html body main .world-archive-section .gallery-tile img {
+  transition:
+    transform 520ms ease,
+    opacity 440ms ease !important;
+}
+
+html body main .dossier-viewer .gallery-tile:hover img,
+html body main .dossier-viewer .case-evidence-preview:hover img,
+html body main .dossier-viewer .world-profile-card:hover img,
+html body main .world-archive-section .gallery-tile:hover img,
+html body main .dossier-viewer .group:hover img {
+  transform: scale(1.05) !important;
+  opacity: 1 !important;
+}
+
+html body main .dossier-viewer .case-tab-button.is-active {
+  box-shadow: inset 0 -2px 0 rgba(111, 143, 215, 0.55) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body main .character-index-panel .archive-character-card:hover,
+  html body main .world-index-panel .world-file-card:hover,
+  html body main .dossier-viewer .gallery-tile:hover img,
+  html body main .world-archive-section .gallery-tile:hover img {
+    transform: none !important;
+  }
+}
+
+.glitch-zone-mark:not(.admin-inline-zone) {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  background: none !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  border: none !important;
+  font-size: inherit;
+  line-height: inherit;
+  font-family: var(--font-ui-stack), var(--font-emoji-stack);
+  animation: none !important;
+  transform: none !important;
+  filter: none !important;
+  --glitch-decoration-color: currentColor;
+}
+
+.glitch-zone-mark.glitch-zone-has-bold {
+  font-weight: 700 !important;
+}
+
+.glitch-zone-mark.glitch-zone-has-italic {
+  font-style: italic !important;
+}
+
+.glitch-zone-mark.glitch-zone-has-underline,
+.glitch-zone-mark.glitch-zone-has-link-underline {
+  text-decoration-line: underline !important;
+  text-decoration-thickness: var(--glitch-underline-thickness, 2px) !important;
+  text-underline-offset: 0.18em;
+  text-decoration-color: var(
+    --glitch-underline-color,
+    color-mix(in srgb, var(--glitch-decoration-color) 92%, transparent)
+  ) !important;
+  text-decoration-skip-ink: none;
+}
+
+.glitch-zone-mark.glitch-zone-chaos {
+  display: inline-block;
+  max-width: 100%;
+  line-height: 1.2;
+  max-height: 1.35em;
+  overflow: hidden;
+  vertical-align: text-bottom;
+}
+
+.glitch-zone-mark.glitch-zone-has-strikethrough {
+  position: relative;
+  display: inline;
+}
+
+.glitch-zone-mark.glitch-zone-has-strikethrough::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 54%;
+  height: var(--glitch-strikethrough-thickness, 2px);
+  background: var(
+    --glitch-strikethrough-color,
+    color-mix(in srgb, var(--glitch-decoration-color) 90%, transparent)
+  ) !important;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.glitch-zone-link {
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.glitch-zone-link:hover {
+  text-decoration-color: var(--glitch-underline-color, var(--glitch-decoration-color)) !important;
+}
+
+.pair-member-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 1.25rem;
+}
+
+.pair-member-switcher__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(7, 15, 32, 0.55);
+  padding: 0.55rem 0.85rem;
+  color: rgba(191, 219, 254, 0.82);
+  font-size: 0.82rem;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.pair-member-switcher__button:hover {
+  border-color: rgba(125, 211, 252, 0.72);
+  transform: translateY(-1px);
+}
+
+.pair-member-switcher__button.is-active {
+  border-color: rgba(111, 143, 215, 0.55);
+  background: var(--surface-raised);
+  color: rgba(236, 240, 245, 0.95);
+}
+
+.pair-member-switcher__index {
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  opacity: 0.72;
+}
+
+.pair-member-switcher__name {
+  font-weight: 700;
+}
+
+.pair-member-switcher__button--link {
+  width: fit-content;
+  max-width: 100%;
+  padding-right: 0.85rem;
+  justify-content: flex-start;
+}
+
+.pair-member-switcher__hint {
+  margin-left: 0.15rem;
+  padding-left: 0.55rem;
+  border-left: 1px solid rgba(111, 143, 215, 0.32);
+  color: rgba(111, 143, 215, 0.78);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.pair-member-switcher__kanji {
+  font-size: 0.72em;
+  color: rgba(214, 211, 209, 0.62);
+}
+
+/* SideMenu Archive accordion: override global animation/transform resets */
+html body main .side-menu .archive-submenu {
+  overflow: hidden !important;
+  transition:
+    max-height 320ms cubic-bezier(0.08, 0.72, 0.12, 1),
+    opacity 240ms ease !important;
+}
+
+html body main .side-menu .archive-submenu.is-collapsed {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+html body main .side-menu .archive-submenu.is-open {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+html body main .side-menu .archive-submenu-mark {
+  transition: transform 280ms cubic-bezier(0.08, 0.72, 0.12, 1) !important;
+}
+
+html body main .side-menu .archive-submenu-mark.is-open {
+  transform: rotate(45deg) !important;
+}
+
+html body main .side-menu .archive-submenu.is-open .archive-submenu-item {
+  animation: archive-submenu-in 260ms cubic-bezier(0.08, 0.72, 0.12, 1) both !important;
+  animation-delay: var(--archive-submenu-delay, 0ms) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body main .side-menu .archive-submenu,
+  html body main .side-menu .archive-submenu-mark {
+    transition: none !important;
+  }
+
+  html body main .side-menu .archive-submenu.is-open .archive-submenu-item {
+    animation: none !important;
+  }
+}
+
+.extract-banner-link {
+  display: block;
+  width: 200px;
+  height: 40px;
+  overflow: hidden;
+  border: 1px solid rgba(168, 162, 158, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  transition:
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.extract-banner-link:hover {
+  border-color: rgba(214, 211, 209, 0.35);
+  background: rgba(12, 12, 12, 0.55);
+}
+
+.extract-banner-image {
+  display: block;
+  width: 200px;
+  height: 40px;
+  object-fit: cover;
+  opacity: 0.95;
+}
+
+/* 색 분위기: 그라데이션 백드롭 1장 + 칸은 테두리만 (전역 테마 !important보다 뒤에 둡니다). */
+html body main .character-palette-scope {
+  position: relative;
+  isolation: isolate;
+  background: #000 !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0 !important;
+  pointer-events: none;
+  background: var(
+    --character-palette-background,
+    linear-gradient(90deg, #09090b 0%, #000 52%, #18181b 100%)
+  );
+  background-image: var(
+    --character-palette-background,
+    linear-gradient(90deg, #09090b 0%, #000 52%, #18181b 100%)
+  );
+}
+
+html body main .character-palette-scope.case-file-detail .character-palette-backdrop {
+  display: none;
+}
+
+html body main .case-file-detail.dossier-viewer,
+html body main .case-file-detail .dossier-body {
+  background: #000000 !important;
+  background-image: none !important;
+}
+
+html body main .case-file-detail .case-file-hero {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+html
+  body
+  main
+  .case-file-detail
+  :is(
+    .archive-row,
+    .case-setting-note,
+    .case-empty-note,
+    .case-side-record,
+    .case-evidence-preview,
+    .gallery-tile,
+    .archive-input,
+    .pair-member-switcher__button
+  ) {
+  border: 1px solid rgba(111, 143, 215, 0.24) !important;
+  background: rgba(0, 0, 0, 0.46) !important;
+  background-color: rgba(0, 0, 0, 0.46) !important;
+  background-image: none !important;
+  box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.72) !important;
+}
+
+html body main .case-file-detail :is(.case-file-meta-line, .case-evidence-stamp, .case-profile-chip),
+html body main .world-file-detail :is(.case-file-meta-line, .case-evidence-stamp, .case-profile-chip) {
+  border: 1px solid rgba(111, 143, 215, 0.3) !important;
+  background: rgba(0, 0, 0, 0.42) !important;
+  background-color: rgba(0, 0, 0, 0.42) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active {
+  background: rgba(0, 0, 0, 0.36) !important;
+  background-color: rgba(0, 0, 0, 0.36) !important;
+  background-image: none !important;
+}
+
+html
+  body
+  main
+  .case-file-detail
+  :is(.case-tab-button:hover, .archive-row:hover, .case-side-record:hover, .gallery-tile:hover) {
+  background: rgba(0, 0, 0, 0.3) !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  background-image: none !important;
+}
+
+html body main .case-file-detail .case-profile-panel {
+  margin-top: 1.15rem !important;
+  border-color: rgba(111, 143, 215, 0.2) !important;
+  background: rgba(0, 0, 0, 0.38) !important;
+  background-image: none !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}
+
+html body main .case-file-detail .case-profile-kicker {
+  color: rgba(168, 176, 188, 0.55) !important;
+}
+
+html body main .case-file-detail .case-profile-chip {
+  border-color: rgba(111, 143, 215, 0.14) !important;
+  background: rgba(0, 0, 0, 0.46) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-profile-chip-label {
+  color: rgba(168, 176, 188, 0.58) !important;
+}
+
+html body main .case-file-detail .case-profile-chip-value {
+  display: flex !important;
+  align-items: center !important;
+  color: rgba(236, 240, 245, 0.92) !important;
+  line-height: 1.3 !important;
+}
+
+html body main .case-file-detail .case-tab-strip {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: flex-end !important;
+  gap: 0.3rem !important;
+  padding-top: 0.42rem !important;
+  grid-template-columns: unset !important;
+  border-bottom: none !important;
+}
+
+html body main .case-file-detail .case-tab-button {
+  position: relative !important;
+  flex: 1 1 7.25rem !important;
+  min-width: 7.25rem !important;
+  margin-bottom: 0 !important;
+  border-radius: 0.55rem 0.55rem 0 0 !important;
+  border-color: rgba(111, 143, 215, 0.2) !important;
+  border-bottom-color: rgba(111, 143, 215, 0.16) !important;
+  background: rgba(0, 0, 0, 0.48) !important;
+  background-image: none !important;
+  color: rgba(200, 208, 220, 0.72) !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .case-tab-button::before {
+  border-color: rgba(111, 143, 215, 0.2) !important;
+  background: rgba(0, 0, 0, 0.48) !important;
+}
+
+html body main .case-file-detail .case-tab-button span {
+  color: rgba(140, 155, 180, 0.78) !important;
+  text-shadow: none !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active {
+  margin-bottom: -1px !important;
+  border-color: rgba(111, 143, 215, 0.3) !important;
+  border-bottom-color: rgba(0, 0, 0, 0.88) !important;
+  background: rgba(0, 0, 0, 0.88) !important;
+  color: #eceff4 !important;
+  box-shadow: none !important;
+  z-index: 3 !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active::before {
+  border-color: rgba(111, 143, 215, 0.3) !important;
+  background: rgba(0, 0, 0, 0.88) !important;
+}
+
+html body main .case-file-detail .case-tab-button:hover:not(.is-active) {
+  border-color: rgba(111, 143, 215, 0.26) !important;
+  background: rgba(8, 8, 8, 0.72) !important;
+  color: #e8ecf1 !important;
+}
+
+html body main .case-file-detail .case-tab-panel {
+  margin-top: 0 !important;
+  padding: 1.15rem 1rem 1.25rem !important;
+  border-color: rgba(111, 143, 215, 0.22) !important;
+  background: rgba(0, 0, 0, 0.28) !important;
+  background-image: none !important;
+}
+
+@media (min-width: 768px) {
+  html body main .case-file-detail .case-tab-panel {
+    padding: 1.25rem 1.35rem 1.5rem !important;
+  }
+}
+
+html body main .case-file-detail .case-file-intro-label,
+html body main .world-file-detail .case-file-intro-label {
+  color: var(--case-intro-label, rgba(168, 176, 188, 0.62)) !important;
+}
+
+html body main .case-file-detail .case-file-intro-text,
+html body main .world-file-detail .case-file-intro-text {
+  border: 1px solid var(--case-intro-border, rgba(111, 143, 215, 0.22)) !important;
+  background: var(--case-intro-bg, rgba(0, 0, 0, 0.35)) !important;
+  color: var(--case-intro-text, rgba(236, 240, 245, 0.86)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+html
+  body
+  main
+  :is(.case-file-detail, .world-file-detail)
+  .case-file-intro-text
+  :where(span:not(.glitch-zone-mark), em, strong) {
+  color: inherit !important;
+  font-family: inherit !important;
+}
+
+html body main .case-file-detail .case-file-intro-text::before,
+html body main .world-file-detail .case-file-intro-text::before {
+  border-top-color: color-mix(
+    in srgb,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22)) 85%,
+    #6f8fd7
+  ) !important;
+  border-left-color: color-mix(
+    in srgb,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22)) 85%,
+    #6f8fd7
+  ) !important;
+}
+
+html body main .case-file-detail .case-file-intro-text::after,
+html body main .world-file-detail .case-file-intro-text::after {
+  border-right-color: color-mix(
+    in srgb,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22)) 65%,
+    #6f8fd7
+  ) !important;
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22)) 65%,
+    #6f8fd7
+  ) !important;
+}
+
+html body main .case-file-detail .case-file-voice .case-file-intro-label {
+  color: var(--case-voice-label, var(--case-intro-label, rgba(168, 176, 188, 0.62))) !important;
+}
+
+html body main .case-file-detail .case-file-voice .case-file-intro-text {
+  border: 1px solid var(
+    --case-voice-border,
+    var(--case-intro-border, rgba(111, 143, 215, 0.22))
+  ) !important;
+  background: var(--case-voice-bg, var(--case-intro-bg, rgba(0, 0, 0, 0.35))) !important;
+  color: var(--case-voice-text, var(--case-intro-text, rgba(236, 240, 245, 0.86))) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+html body main .case-file-detail .case-file-intro-text .glitch-zone-mark {
+  text-shadow: none !important;
+}
+
+html body main .case-file-detail .case-file-voice .case-file-intro-text .glitch-zone-mark {
+  text-shadow: none !important;
+}
+
+html body main .case-file-detail .case-file-voice .case-file-intro-text .story-inline-quote:not(.glitch-zone-mark) {
+  display: inline !important;
+  margin: 0 !important;
+  border-left: none !important;
+  padding-left: 0 !important;
+  color: inherit !important;
+  font-family: inherit !important;
+  font-weight: inherit !important;
+  text-shadow: none !important;
+}
+
+html body main .character-palette-scope.glass-card::before,
+html body main .character-palette-scope.glass-card::after,
+html body main .character-palette-scope.archive-character-card::before {
+  opacity: 0 !important;
+  background: none !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope > :not(.character-palette-backdrop) {
+  position: relative;
+  z-index: 1;
+}
+
+html body main .character-palette-scope .case-file-hero,
+html body main .character-palette-scope .dossier-body {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope .dossier-body {
+  background: #000000 !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope .case-file-hero::before {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.97) 0%,
+    rgba(0, 0, 0, 0.9) 34%,
+    rgba(0, 0, 0, 0.62) 50%,
+    rgba(0, 0, 0, 0.24) 58%,
+    transparent 64%
+  ) !important;
+}
+
+html body main .character-palette-scope .archive-character-card-image .character-palette-backdrop {
+  border-radius: 0;
+}
+
+html body main .character-palette-scope .archive-character-card-image {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope .archive-character-card-body {
+  background: var(--surface-base) !important;
+  background-image: none !important;
+}
+
+html body main .character-palette-scope.archive-character-card,
+html body main .character-palette-scope.archive-character-card:hover {
+  background: #000 !important;
+  background-image: none !important;
+}
+
+/* 이북·스토리 로그 뷰어 — 테마의 dossier-viewer !important 덮어쓰기 */
+html body .ebook-reader.dossier-viewer,
+html body .ebook-reader.dossier-viewer.story-viewer,
+html body .story-log-viewer.dossier-viewer,
+html body .story-log-viewer.dossier-viewer.story-viewer,
+html body main .ebook-reader.dossier-viewer,
+html body main .story-log-viewer.dossier-viewer {
+  border-color: rgba(80, 80, 80, 0.32) !important;
+  background: #000000 !important;
+  background-color: #000000 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+html body .ebook-reader .story-viewer-body,
+html body .ebook-reader .story-viewer-header,
+html body .story-log-viewer .story-viewer-body,
+html body .story-log-viewer .story-viewer-header,
+html body main .ebook-reader .story-viewer-body,
+html body main .story-log-viewer .story-viewer-body {
+  background: #000000 !important;
+  background-color: #000000 !important;
+  background-image: none !important;
+}
+
+html body .ebook-reader .archive-submit-button,
+html body .story-log-viewer .archive-submit-button,
+html body main .ebook-reader .archive-submit-button,
+html body main .story-log-viewer .archive-submit-button {
+  border-color: rgba(120, 120, 120, 0.35) !important;
+  background: #0a0a0a !important;
+  background-image: none !important;
+  color: #e8ecf1 !important;
+  box-shadow: none !important;
+}
+
+html body .ebook-reader .archive-submit-button:hover,
+html body .story-log-viewer .archive-submit-button:hover {
+  border-color: rgba(150, 150, 150, 0.45) !important;
+  background: #121212 !important;
+}
+
+/* 텍스트 붉은 기 제거 — 제목·글리치·본문을 중성 톤으로 고정 */
+html body main .archive-title,
+html body main .case-file-name,
+html body main .board-title,
+html body main .site-logo-title {
+  color: rgba(245, 245, 243, 0.96) !important;
+  text-shadow: none !important;
+}
+
+html body main .text-glitch {
+  color: inherit;
+  animation: none !important;
+  filter: none !important;
+  text-shadow: none !important;
+  transform: none !important;
+}
+
+html body main [class*="text-emerald-50"] {
+  color: rgba(236, 240, 245, var(--tw-text-opacity, 1)) !important;
+}
+
+html body main [class*="text-emerald-100"] {
+  color: rgba(184, 190, 200, var(--tw-text-opacity, 1)) !important;
+}
+
+/* === Neutral text lock: 카드·리스트 텍스트 붉은 기 최종 차단 === */
+html body main .archive-row,
+html body main .archive-row:hover,
+html body main .archive-row *:not(.story-inline-quote):not(.glitch-zone-mark) {
+  color: #e8ecf1 !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+html body main .archive-row::before,
+html body main .archive-row::after {
+  display: none !important;
+  content: none !important;
+}
+
+html body main .glass-card::before,
+html body main .glass-card::after {
+  display: none !important;
+  opacity: 0 !important;
+  background: none !important;
+}
+
+html body main {
+  color: #e8ecf1 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html
+  body
+  main
+  :where(p, span, h1, h2, h3, h4, h5, h6, button, label, li, dt, dd, a):not(
+    .story-inline-quote
+  ):not(.glitch-zone-mark):not(.image-credit-label) {
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+/* Surface tone pass: 사이드 메뉴 버튼(#05060b)과 같은 어두운 슬레이트 톤으로 통일합니다. */
+body {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(111, 143, 215, 0.04), transparent 30%),
+    linear-gradient(180deg, #0a0c12 0%, var(--surface-base) 55%, #070910 100%) !important;
+}
+
+main > .fixed.inset-0 {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(111, 143, 215, 0.04), transparent 30%),
+    linear-gradient(180deg, #0a0c12 0%, var(--surface-base) 55%, #070910 100%) !important;
+}
+
+html body main::after {
+  background: radial-gradient(
+    ellipse at center,
+    transparent 0 54%,
+    rgba(8, 10, 16, 0.18) 82%,
+    rgba(5, 6, 11, 0.28) 100%
+  ) !important;
+  opacity: 0.22 !important;
+}
+
+html body main .glass-card,
+html body main .glass-card:hover,
+html body main .archive-panel,
+html body main .bgm-player,
+html body main .auth-panel,
+html body main .character-index-panel,
+html body main .world-index-panel,
+html body main .world-file-detail,
+html body main .archive-character-card,
+html body main .case-file-detail.dossier-viewer,
+html body main .case-file-detail .dossier-body,
+html body main .world-file-detail .dossier-body,
+html body main .story-record-card-open,
+html body main .story-record-card-open:hover,
+html body main .story-record-card-open:focus-visible,
+html body main .story-record-card-open:active {
+  background: var(--surface-card) !important;
+  background-image: none !important;
+  border: 1px solid var(--archive-line) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.78) !important;
+}
+
+html body main .side-menu,
+html body main .side-menu-content {
+  background: var(--surface-deep) !important;
+  background-image: none !important;
+  border-color: rgba(111, 143, 215, 0.18) !important;
+  box-shadow: none !important;
+}
+
+html body main .side-menu button,
+html body main .side-menu a,
+html body main .archive-row,
+html body main .archive-row:hover {
+  background: var(--surface-deep) !important;
+  background-image: none !important;
+  border-color: rgba(111, 143, 215, 0.16) !important;
+  box-shadow: none !important;
+}
+
+html body main .side-menu-trigger,
+html body main .auth-panel-trigger {
+  background: var(--surface-deep) !important;
+  background-image: none !important;
+}
+
+html body main .archive-character-card:hover,
+html body main .side-menu button:hover,
+html body main .side-menu a:hover,
+html body main .auth-panel-trigger:hover,
+html body main .archive-row:hover,
+html body main .story-record-card-open:hover,
+html body main .story-record-card-open:focus-visible {
+  background: var(--surface-raised) !important;
+  background-image: none !important;
+  border-color: rgba(111, 143, 215, 0.28) !important;
+}
+
+html body main .case-file-detail .case-tab-button {
+  background: rgba(5, 6, 11, 0.88) !important;
+}
+
+html body main .case-file-detail .case-tab-button::before {
+  background: rgba(5, 6, 11, 0.88) !important;
+}
+
+html body main .case-file-detail .case-tab-button.is-active,
+html body main .case-file-detail .case-tab-button.is-active::before {
+  background: var(--surface-card) !important;
+}
+
+html body main .case-file-detail .case-tab-button:hover:not(.is-active) {
+  background: var(--surface-raised) !important;
+}
+
+html body main .case-file-detail .case-tab-panel {
+  background: rgba(8, 10, 16, 0.72) !important;
+}
+
+/* Character card divider: 이미지/본문 경계선은 반투명 border-color 덮어쓰기 없이 단색으로 고정 */
+html body main .archive-character-card .archive-character-card-image {
+  border-top: 0 !important;
+  border-left: 0 !important;
+  border-right: 0 !important;
+  border-bottom-width: 1px !important;
+  border-bottom-style: solid !important;
+  border-bottom-color: var(--character-card-divider) !important;
+  box-shadow: none !important;
+}
+
+html body main .archive-character-card .archive-character-card-body {
+  border-top: 0 !important;
+  box-shadow: none !important;
+}
+
+/* UI line restoration: 패널·칩·헤더 테두리/구분선 최종 복원 */
+html body main .character-index-header,
+html body main .world-index-header {
+  border-bottom: 1px solid rgba(111, 143, 215, 0.34) !important;
+}
+
+html body main .character-index-header > p.character-index-blue-text,
+html body main .character-index-header > span.character-index-blue-text,
+html body main .world-index-header > p.character-index-blue-text,
+html body main .world-index-header > span.character-index-blue-text {
+  border: 1px solid rgba(111, 143, 215, 0.38) !important;
+  background: rgba(0, 0, 0, 0.56) !important;
+  padding: 0.28rem 0.48rem !important;
+  box-shadow: none !important;
+}
+
+html body main .character-index-header > p.character-index-blue-text span,
+html body main .world-index-header > p.character-index-blue-text span {
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+html body main .world-file-card-tab {
+  top: 0 !important;
+  left: 0.72rem !important;
+  width: max-content !important;
+  max-width: calc(100% - 1.5rem) !important;
+  height: auto !important;
+  letter-spacing: 0.1em !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  transform: translateY(-100%) !important;
+  border-radius: 0.28rem 0.28rem 0 0 !important;
+  box-shadow: none !important;
+}
+
+html body main .world-file-doc-body .case-file-intro {
+  margin-top: 0 !important;
+  max-width: none !important;
+  width: 100% !important;
+}
+
+html body main .world-file-doc-body .case-file-intro-label {
+  font-size: 0.72rem !important;
+  letter-spacing: 0.24em !important;
+}
+
+html body main .world-file-doc-body .case-file-intro-text {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 1rem 1.15rem !important;
+  font-size: 1rem !important;
+  line-height: 1.8 !important;
+  color: rgba(214, 222, 238, 0.9) !important;
+}
+
+html body main .world-file-doc-body .case-file-intro-text :where(span:not(.glitch-zone-mark), em, strong, p) {
+  font-size: inherit !important;
+  line-height: inherit !important;
+  color: inherit !important;
+}
+
+html body main .world-file-lock {
+  border-color: rgba(111, 143, 215, 0.28) !important;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(111, 143, 215, 0.045) 0 0.6rem,
+      transparent 0.6rem 1.2rem
+    ),
+    rgba(0, 0, 0, 0.46) !important;
+  box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.72) !important;
+}
+
+html body main .world-file-lock-stamp {
+  border-color: rgba(111, 143, 215, 0.42) !important;
+  color: rgba(170, 192, 232, 0.88) !important;
+  transform: none !important;
+  opacity: 1 !important;
+}
+
+html body main .world-file-lock-message {
+  color: rgba(198, 210, 232, 0.78) !important;
+  font-size: 1rem !important;
+  line-height: 1.8 !important;
+}
+
+html body main .case-file-meta {
+  border-bottom: 1px solid rgba(111, 143, 215, 0.16) !important;
+}
+
+html body main .case-back-button {
+  border: 1px solid rgba(111, 143, 215, 0.32) !important;
+  background: rgba(5, 6, 11, 0.9) !important;
+  color: rgba(200, 208, 220, 0.88) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.72),
+    0 10px 24px rgba(0, 0, 0, 0.38) !important;
+}
+
+html body main .case-back-button:hover {
+  border-color: rgba(111, 143, 215, 0.5) !important;
+  background: var(--surface-raised) !important;
+  color: rgba(236, 240, 245, 0.96) !important;
+}
+
+html body main .case-setting-note .archive-submit-button {
+  display: inline-flex !important;
+  align-items: center !important;
+  margin: 0 !important;
+  border: 1px solid rgba(111, 143, 215, 0.32) !important;
+  background: rgba(5, 6, 11, 0.92) !important;
+  color: rgba(200, 208, 220, 0.9) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72) !important;
+}
+
+html body main .case-setting-note:hover .archive-submit-button {
+  border-color: rgba(111, 143, 215, 0.48) !important;
+  background: var(--surface-raised) !important;
+  color: rgba(236, 240, 245, 0.96) !important;
+}
+
+html body main :is(.archive-row, .gallery-tile, .case-tab-button, .auth-input, .archive-input) {
+  border: 1px solid var(--border-accent) !important;
+}
+
+html body main .case-profile-panel {
+  border: 1px solid rgba(111, 143, 215, 0.2) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+}

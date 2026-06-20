@@ -31,7 +31,12 @@ export function normalizeSettingSections(sections: SettingSection[] | undefined)
         body: (raw.body ?? raw.content ?? raw.text ?? "").trim(),
       };
     })
-    .filter((section) => section.title || section.body);
+    .filter(
+      (section) =>
+        section.title ||
+        section.body ||
+        (section.kind === "story" && Boolean(section.excerpt?.trim())),
+    );
 }
 
 export function moveSettingSection(
