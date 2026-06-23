@@ -91,6 +91,8 @@ export type GlitchZoneStyle = {
   strikethroughColor?: string;
   /** 취소선 굵기 px (0.5~12, 0.5 단위, 기본 2) */
   strikethroughThickness?: number;
+  /** 글씨 크기 (%). 비우면 주변 글자 크기를 따릅니다. */
+  fontSize?: number;
 };
 
 export type GlitchScrambleMode = "referenceOnly" | "referenceWithBuiltin";

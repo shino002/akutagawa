@@ -97,7 +97,9 @@ export function ZoneScrambleSettingsEditor({
         <>
           <label className="grid gap-2 text-xs text-emerald-100/70">
             참조 단어{" "}
-            <span className="text-emerald-100/45">(한 줄에 하나, 비우면 ERR·NULL 등 기본 기호)</span>
+            <span className="text-emerald-100/45">
+              (한 줄에 하나, 비우면 ERR·NULL 등 기본 기호)
+            </span>
             <textarea
               value={draft.wordPool}
               onChange={(event) => {

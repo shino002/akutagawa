@@ -457,6 +457,20 @@ export function reanchorZone(text: string, zone: GlitchZone): GlitchZone | null 
 
   const nextIndex = normalizedText.indexOf(normalizedOriginal);
   if (nextIndex === -1) {
+    // 0번부터 original 길이만큼 덮던 구간은 필드 값만 바뀐 경우로 보고 설정을 유지합니다.
+    if (
+      zone.start === 0 &&
+      zone.end - zone.start === normalizedOriginal.length &&
+      normalizedText.length > 0
+    ) {
+      return {
+        ...zone,
+        start: 0,
+        end: normalizedText.length,
+        original: normalizedText,
+      };
+    }
+
     return null;
   }
 

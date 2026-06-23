@@ -1,6 +1,7 @@
 import type { FieldGlitchConfig, GlitchScrambleMode, GlitchZone } from "@/lib/types";
 import {
   resolveEffectiveScrambleMode,
+  resolveZoneErrorMessageSource,
   resolveZoneScrambleOptions,
   zoneUsesErrorAlternation,
 } from "@/lib/glitch-scramble-options";
@@ -84,6 +85,32 @@ export type { GlitchZone };
 export function extractWords(text: string) {
   const sanitized = sanitizePlainText(text);
   return sanitized.match(/[^\s]+/g) ?? [];
+}
+
+/** 긴 구간 오류 텍스트는 이 크기로 나눠 생성합니다. */
+const ERROR_TEXT_CHUNK_SIZE = 256;
+
+function buildTextInChunks(
+  targetLength: number,
+  seed: string,
+  buildChunk: (chunkLength: number, chunkSeed: string) => string,
+) {
+  if (targetLength <= 0) {
+    return "";
+  }
+
+  if (targetLength <= ERROR_TEXT_CHUNK_SIZE) {
+    return buildChunk(targetLength, seed).slice(0, targetLength);
+  }
+
+  let result = "";
+
+  for (let offset = 0; offset < targetLength; offset += ERROR_TEXT_CHUNK_SIZE) {
+    const chunkLength = Math.min(ERROR_TEXT_CHUNK_SIZE, targetLength - offset);
+    result += buildChunk(chunkLength, `${seed}:${offset}`);
+  }
+
+  return result.slice(0, targetLength);
 }
 
 function hashSeed(input: string) {
@@ -212,7 +239,7 @@ export function fitTextToLength(text: string, targetLength: number, fillerWords:
   const chunks: string[] = [text];
   let totalLength = text.length;
   let poolIndex = 0;
-  const maxIterations = Math.min(targetLength + fillerWords.length, 512);
+  const maxIterations = Math.min(targetLength + fillerWords.length, Math.max(512, targetLength));
 
   while (totalLength < targetLength && poolIndex < maxIterations) {
     const word = fillerWords[poolIndex % fillerWords.length] ?? "";
@@ -240,13 +267,15 @@ export function fitTextToLength(text: string, targetLength: number, fillerWords:
   return result.slice(0, targetLength);
 }
 
-function buildBuiltinErrorText(
-  selectedText: string,
+function buildBuiltinErrorTextAtLength(
+  targetLength: number,
   seed: string,
   tokenPool = DEFAULT_GLITCH_TOKENS,
 ) {
-  const safeLength = Math.min(selectedText.length, 256);
-  const targetLength = safeLength < selectedText.length ? safeLength : selectedText.length;
+  if (targetLength <= 0) {
+    return "";
+  }
+
   const random = createSeededRandom(`${seed}:builtin`);
   const tokens = shuffleItemsSeeded(tokenPool, `${seed}:tokens`);
   const parts: string[] = [];
@@ -272,9 +301,53 @@ function buildBuiltinErrorText(
   return parts.join("").slice(0, targetLength);
 }
 
+function buildBuiltinErrorTextToLength(
+  targetLength: number,
+  seed: string,
+  tokenPool = DEFAULT_GLITCH_TOKENS,
+) {
+  return buildTextInChunks(targetLength, seed, (chunkLength, chunkSeed) =>
+    buildBuiltinErrorTextAtLength(chunkLength, chunkSeed, tokenPool),
+  );
+}
+
+function takeSeededWordSlice(word: string, length: number, random: () => number) {
+  if (length <= 0) {
+    return "";
+  }
+
+  if (word.length <= length) {
+    return word.slice(0, length);
+  }
+
+  const maxStart = word.length - length;
+  const start = Math.floor(random() * (maxStart + 1));
+  return word.slice(start, start + length);
+}
+
+function assembleCharsFromCompactPool(targetLength: number, pool: string, seed: string) {
+  const chars = [...pool.replace(/\s+/g, "")];
+  if (!chars.length || targetLength <= 0) {
+    return "";
+  }
+
+  const random = createSeededRandom(`${seed}:compact-pool`);
+  let result = "";
+
+  for (let index = 0; index < targetLength; index += 1) {
+    result += chars[Math.floor(random() * chars.length)] ?? chars[0];
+  }
+
+  return result;
+}
+
 function assembleTextFromWordPool(targetLength: number, poolWords: string[], seed: string) {
   if (!poolWords.length || targetLength <= 0) {
     return "";
+  }
+
+  if (poolWords.length === 1 && !/\s/.test(poolWords[0])) {
+    return assembleCharsFromCompactPool(targetLength, poolWords[0], seed);
   }
 
   const random = createSeededRandom(`${seed}:assemble`);
@@ -286,7 +359,9 @@ function assembleTextFromWordPool(targetLength: number, poolWords: string[], see
     const piece = result.length > 0 ? ` ${word}` : word;
 
     if (result.length + piece.length > targetLength) {
-      result += piece.slice(0, targetLength - result.length);
+      const remaining = targetLength - result.length;
+      const source = result.length > 0 ? word : piece;
+      result += takeSeededWordSlice(source, remaining, random);
       break;
     }
 
@@ -299,6 +374,16 @@ function assembleTextFromWordPool(targetLength: number, poolWords: string[], see
 
 function assembleReferenceOnlyText(targetLength: number, poolWords: string[], seed: string) {
   return assembleTextFromWordPool(targetLength, poolWords, seed);
+}
+
+function assembleReferenceOnlyTextToLength(
+  targetLength: number,
+  poolWords: string[],
+  seed: string,
+) {
+  return buildTextInChunks(targetLength, seed, (chunkLength, chunkSeed) =>
+    assembleReferenceOnlyText(chunkLength, poolWords, chunkSeed),
+  );
 }
 
 function assembleReferenceWithBuiltinText(
@@ -358,30 +443,36 @@ function assembleReferenceWithBuiltinText(
   return result.slice(0, targetLength);
 }
 
-function scrambleFromReferencePool(
-  selectedText: string,
-  wordPoolText: string,
-  mode: GlitchScrambleMode,
+function assembleReferenceWithBuiltinTextToLength(
+  targetLength: number,
+  poolWords: string[],
+  tokenPool: string[],
   seed: string,
-  builtinTokens?: string[],
 ) {
-  const poolWords = extractWords(wordPoolText);
-  if (poolWords.length === 0) {
-    return selectedText;
-  }
-
-  const targetLength = Math.min(selectedText.length, 256);
-
-  if (mode === "referenceOnly") {
-    return assembleReferenceOnlyText(targetLength, poolWords, seed);
-  }
-
-  return assembleReferenceWithBuiltinText(
-    targetLength,
-    poolWords,
-    resolveBuiltinTokenPool(builtinTokens),
-    seed,
+  return buildTextInChunks(targetLength, seed, (chunkLength, chunkSeed) =>
+    assembleReferenceWithBuiltinText(chunkLength, poolWords, tokenPool, chunkSeed),
   );
+}
+
+function buildScrambleErrorTextToLength(targetLength: number, options: ScrambleErrorOptions) {
+  if (targetLength <= 0) {
+    return "";
+  }
+
+  const pool = sanitizePlainText(options.wordPool?.trim() ?? "");
+  const effectiveMode = resolveEffectiveScrambleMode(pool, options.scrambleMode);
+  const tokenPool = resolveBuiltinTokenPool(options.builtinTokens);
+  const poolWords = extractWords(pool);
+
+  if (effectiveMode === "builtinOnly" || poolWords.length === 0) {
+    return buildBuiltinErrorTextToLength(targetLength, options.seed, tokenPool);
+  }
+
+  if (effectiveMode === "referenceOnly") {
+    return assembleReferenceOnlyTextToLength(targetLength, poolWords, options.seed);
+  }
+
+  return assembleReferenceWithBuiltinTextToLength(targetLength, poolWords, tokenPool, options.seed);
 }
 
 export interface ScrambleErrorOptions {
@@ -397,29 +488,7 @@ export interface GenerateErrorMessageCandidateOptions extends Omit<ScrambleError
 }
 
 export function scrambleErrorText(selectedText: string, options: ScrambleErrorOptions) {
-  const pool = sanitizePlainText(options.wordPool?.trim() ?? "");
-  const effectiveMode = resolveEffectiveScrambleMode(pool, options.scrambleMode);
-  const tokenPool = resolveBuiltinTokenPool(options.builtinTokens);
-
-  let result: string;
-
-  if (effectiveMode === "builtinOnly") {
-    result = buildBuiltinErrorText(selectedText, options.seed, tokenPool);
-  } else if (effectiveMode === "referenceOnly") {
-    const poolWords = extractWords(pool);
-    const targetLength = Math.min(selectedText.length, 256);
-    result = assembleReferenceOnlyText(targetLength, poolWords, options.seed);
-  } else {
-    result = scrambleFromReferencePool(
-      selectedText,
-      pool,
-      "referenceWithBuiltin",
-      options.seed,
-      options.builtinTokens,
-    );
-  }
-
-  return result;
+  return buildScrambleErrorTextToLength(selectedText.length, options);
 }
 
 export function generateErrorMessageCandidates(
@@ -540,26 +609,30 @@ function resolveZoneErrorText(zone: GlitchZone, config: FieldGlitchConfig, error
     return zone.original;
   }
 
-  if (zone.errorMessageSource === "custom" && zone.errorMessage?.trim()) {
-    const custom = zone.errorMessage.trim();
-    const trimmed =
-      custom.length > zone.original.length ? custom.slice(0, zone.original.length) : custom;
-    return sanitizeErrorMessageText(trimmed);
+  const errorMessageSource = resolveZoneErrorMessageSource(zone, config);
+
+  const targetLength = zone.original.length;
+
+  if (errorMessageSource === "custom" && zone.errorMessage?.trim()) {
+    const custom = sanitizeErrorMessageText(zone.errorMessage.trim());
+    if (custom.length >= targetLength) {
+      return custom.slice(0, targetLength);
+    }
+
+    return sanitizeErrorMessageText(fitTextToLength(custom, targetLength, extractWords(custom)));
   }
 
   const scrambleOptions = resolveZoneScrambleOptions(zone, config);
-  const poolWords = extractWords(scrambleOptions.wordPool);
   const seed = `${zone.id}:${errorCycle}:${zone.original}`;
 
-  const errorText = scrambleErrorText(zone.original, {
-    wordPool: scrambleOptions.wordPool,
-    scrambleMode: scrambleOptions.scrambleMode,
-    builtinTokens: scrambleOptions.builtinTokens,
-    seed,
-  });
-
-  const fitted = fitTextToLength(errorText, zone.original.length, poolWords);
-  return sanitizeErrorMessageText(fitted);
+  return sanitizeErrorMessageText(
+    buildScrambleErrorTextToLength(targetLength, {
+      wordPool: scrambleOptions.wordPool,
+      scrambleMode: scrambleOptions.scrambleMode,
+      builtinTokens: scrambleOptions.builtinTokens,
+      seed,
+    }),
+  );
 }
 
 export type BuildZoneDisplayTextOptions = {

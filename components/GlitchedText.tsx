@@ -4,7 +4,8 @@ import { useMemo, useSyncExternalStore } from "react";
 import { GlitchZoneMark } from "@/components/GlitchZoneMark";
 import { TextGlitch } from "@/components/TextGlitch";
 import { glitchConfigSignature, reanchorGlitchConfig } from "@/lib/glitch-fields";
-import { fieldGlitchHasScramble, mergeGlitchZoneStyles } from "@/lib/glitch-style";
+import { mergeGlitchZoneStyles } from "@/lib/glitch-style";
+import { fieldConfigHasScrambleAlternation } from "@/lib/glitch-scramble-options";
 import {
   getGlitchPulseServerSnapshot,
   getGlitchPulseSnapshot,
@@ -64,17 +65,17 @@ function GlitchedTextLive({
   onZoneLinkClick,
   linkContext,
 }: GlitchedTextLiveProps) {
-  const shouldScramble = fieldGlitchHasScramble(glitch);
+  const usesErrorAlternation = fieldConfigHasScrambleAlternation(glitch);
   const pulse = useSyncExternalStore(
-    animate ? subscribeGlitchPulse : noopGlitchPulseSubscribe,
-    animate ? getGlitchPulseSnapshot : staticGlitchPulseSnapshot,
+    animate && usesErrorAlternation ? subscribeGlitchPulse : noopGlitchPulseSubscribe,
+    animate && usesErrorAlternation ? getGlitchPulseSnapshot : staticGlitchPulseSnapshot,
     getGlitchPulseServerSnapshot,
   );
 
   const zones = glitch.zones;
 
   const displayByZone = useMemo(() => {
-    if (!shouldScramble) {
+    if (!usesErrorAlternation) {
       return buildZoneDisplayText(zones, glitch, { fixedPhase: 0 });
     }
 
@@ -83,7 +84,7 @@ function GlitchedTextLive({
     }
 
     return buildZoneDisplayText(zones, glitch, { pulse });
-  }, [animate, glitch, pulse, shouldScramble, zones]);
+  }, [animate, glitch, pulse, usesErrorAlternation, zones]);
 
   const segments = useMemo(
     () => composeTextSegments(text, zones, displayByZone),

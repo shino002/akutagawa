@@ -3,7 +3,11 @@
 import type { GlitchZoneStyle } from "@/lib/types";
 import type { ZoneLinkTarget } from "@/lib/types";
 import { hasCombiningMarks, sanitizeErrorMessageText } from "@/lib/glitch-display";
-import { glitchZoneHasCustomTextColor, resolveGlitchZonePresentation } from "@/lib/glitch-style";
+import {
+  glitchZoneHasCustomTextColor,
+  glitchZoneHasCustomFontSize,
+  resolveGlitchZonePresentation,
+} from "@/lib/glitch-style";
 import { cn } from "@/utils/cn";
 
 interface GlitchZoneMarkProps {
@@ -50,6 +54,7 @@ export function GlitchZoneMark({
     isChaos && "glitch-zone-chaos",
     zoneStyle?.storyQuote && "story-inline-quote",
     glitchZoneHasCustomTextColor(zoneStyle) && "glitch-zone-has-custom-color",
+    glitchZoneHasCustomFontSize(zoneStyle) && "glitch-zone-has-custom-font-size",
     decorationClassName(decoration),
     className,
   );

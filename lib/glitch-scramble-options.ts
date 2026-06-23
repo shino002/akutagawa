@@ -13,7 +13,12 @@ export function resolveZoneScrambleOptions(
   zone: GlitchZone,
   fieldConfig: Pick<
     FieldGlitchConfig,
-    "wordPool" | "scrambleMode" | "builtinScramble" | "builtinTokens" | "errorDisplayMode" | "tickMs"
+    | "wordPool"
+    | "scrambleMode"
+    | "builtinScramble"
+    | "builtinTokens"
+    | "errorDisplayMode"
+    | "tickMs"
   >,
 ) {
   const zonePool = typeof zone.wordPool === "string" ? sanitizePlainText(zone.wordPool.trim()) : "";
@@ -59,20 +64,55 @@ export function resolveEffectiveScrambleMode(
   return scrambleMode ?? "referenceOnly";
 }
 
+/**
+ * 구간에 저장된 errorMessageSource를 우선하고, 레거시 필드/구간 scramble 설정은 auto로 승격합니다.
+ */
+export function resolveZoneErrorMessageSource(
+  zone: GlitchZone,
+  config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">,
+): "none" | "auto" | "custom" {
+  const explicitSource = normalizeErrorMessageSource(zone.errorMessageSource);
+  const customMessage = zone.errorMessage?.trim();
+
+  if (explicitSource === "none") {
+    return "none";
+  }
+
+  if (explicitSource === "custom") {
+    return "custom";
+  }
+
+  if (explicitSource === "auto") {
+    return "auto";
+  }
+
+  if (customMessage) {
+    return "custom";
+  }
+
+  if (zoneHasScrambleSource(zone, config)) {
+    return "auto";
+  }
+
+  return "none";
+}
+
 export function zoneUsesErrorAlternation(
   zone: GlitchZone,
-  _config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">,
+  config: Pick<FieldGlitchConfig, "wordPool" | "builtinScramble">,
 ) {
-  if (zone.errorMessageSource === "none" || zone.errorMessageSource === undefined) {
+  const source = resolveZoneErrorMessageSource(zone, config);
+
+  if (source === "none") {
     return false;
   }
 
-  if (zone.errorMessageSource === "custom") {
+  if (source === "custom") {
     return Boolean(zone.errorMessage?.trim());
   }
 
   // auto: 참조 단어·필드 기본 오류가 없어도 ERR/NULL 등 내장 토큰으로 번갈아 표시
-  return zone.errorMessageSource === "auto";
+  return true;
 }
 
 export function fieldConfigHasScrambleAlternation(

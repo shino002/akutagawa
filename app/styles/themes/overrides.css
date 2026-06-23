@@ -368,11 +368,11 @@ main
     .image-credit-label
   ):not(.case-file-meta-line):not(.case-file-meta-line *):not(.case-evidence-stamp):not(
     .glitch-zone-mark
-  ):not(.glitch-zone-mark *):not(.case-setting-note):not(.case-empty-note):not(.case-side-record):not(
-    .case-evidence-preview
-  ):not(.plain-empty-note):not(.case-profile-chip):not(.story-record-card-badge):not(
-    .case-file-intro-text
-  ):not(.character-index-blue-text) {
+  ):not(.glitch-zone-mark *):not(.case-setting-note):not(.case-empty-note):not(
+    .case-side-record
+  ):not(.case-evidence-preview):not(.plain-empty-note):not(.case-profile-chip):not(
+    .story-record-card-badge
+  ):not(.case-file-intro-text):not(.character-index-blue-text) {
   background: transparent !important;
 }
 
@@ -833,6 +833,11 @@ html body main .story-record-card.static-record-panel {
   --glitch-decoration-color: var(--glitch-text-color, currentColor);
 }
 
+.glitch-zone-mark.glitch-zone-has-custom-font-size,
+.admin-inline-zone.glitch-zone-has-custom-font-size {
+  font-size: var(--glitch-font-size, inherit) !important;
+}
+
 /* 인용(story quote)은 테마 강조색(파랑)으로 통일. 과거에 분홍/붉은색이
    custom color로 저장된 데이터도 파란 톤으로 보이도록 덮어씁니다. */
 html body main .story-inline-quote,
@@ -930,6 +935,16 @@ html body main .dossier-viewer .case-tab-button.is-active {
   transform: none !important;
   filter: none !important;
   --glitch-decoration-color: currentColor;
+}
+
+html body main .glitch-zone-mark.glitch-zone-has-custom-font-size:not(.admin-inline-zone),
+html
+  body
+  main
+  .case-file-detail
+  .case-profile-chip-value
+  .glitch-zone-mark.glitch-zone-has-custom-font-size {
+  font-size: var(--glitch-font-size) !important;
 }
 
 .glitch-zone-mark.glitch-zone-has-bold {
@@ -1181,8 +1196,16 @@ html
   box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.72) !important;
 }
 
-html body main .case-file-detail :is(.case-file-meta-line, .case-evidence-stamp, .case-profile-chip),
-html body main .world-file-detail :is(.case-file-meta-line, .case-evidence-stamp, .case-profile-chip) {
+html
+  body
+  main
+  .case-file-detail
+  :is(.case-file-meta-line, .case-evidence-stamp, .case-profile-chip),
+html
+  body
+  main
+  .world-file-detail
+  :is(.case-file-meta-line, .case-evidence-stamp, .case-profile-chip) {
   border: 1px solid rgba(111, 143, 215, 0.3) !important;
   background: rgba(0, 0, 0, 0.42) !important;
   background-color: rgba(0, 0, 0, 0.42) !important;
@@ -1361,10 +1384,7 @@ html body main .case-file-detail .case-file-voice .case-file-intro-label {
 }
 
 html body main .case-file-detail .case-file-voice .case-file-intro-text {
-  border: 1px solid var(
-    --case-voice-border,
-    var(--case-intro-border, rgba(111, 143, 215, 0.22))
-  ) !important;
+  border: 1px solid var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) !important;
   background: var(--case-voice-bg, var(--case-intro-bg, rgba(0, 0, 0, 0.35))) !important;
   color: var(--case-voice-text, var(--case-intro-text, rgba(236, 240, 245, 0.86))) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
@@ -1378,7 +1398,13 @@ html body main .case-file-detail .case-file-voice .case-file-intro-text .glitch-
   text-shadow: none !important;
 }
 
-html body main .case-file-detail .case-file-voice .case-file-intro-text .story-inline-quote:not(.glitch-zone-mark) {
+html
+  body
+  main
+  .case-file-detail
+  .case-file-voice
+  .case-file-intro-text
+  .story-inline-quote:not(.glitch-zone-mark) {
   display: inline !important;
   margin: 0 !important;
   border-left: none !important;
@@ -1725,7 +1751,12 @@ html body main .world-file-doc-body .case-file-intro-text {
   color: rgba(214, 222, 238, 0.9) !important;
 }
 
-html body main .world-file-doc-body .case-file-intro-text :where(span:not(.glitch-zone-mark), em, strong, p) {
+html
+  body
+  main
+  .world-file-doc-body
+  .case-file-intro-text
+  :where(span:not(.glitch-zone-mark), em, strong, p) {
   font-size: inherit !important;
   line-height: inherit !important;
   color: inherit !important;

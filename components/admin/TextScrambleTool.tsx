@@ -5,12 +5,12 @@ import {
   keepAdminTextSelection,
   preserveAdminGlitchToolPointerDown,
 } from "@/lib/admin-interaction";
-import {
-  GlitchStyleEditor,
-  createDefaultGlitchDraft,
-} from "@/components/admin/GlitchStyleEditor";
+import { GlitchStyleEditor, createDefaultGlitchDraft } from "@/components/admin/GlitchStyleEditor";
 import { GlitchedText } from "@/components/GlitchedText";
-import { ZoneScrambleSettingsEditor, type ZoneScrambleDraft } from "@/components/admin/ZoneScrambleSettingsEditor";
+import {
+  ZoneScrambleSettingsEditor,
+  type ZoneScrambleDraft,
+} from "@/components/admin/ZoneScrambleSettingsEditor";
 import { GlitchZoneRangePicker } from "@/components/admin/GlitchZoneRangePicker";
 import {
   DEFAULT_GLITCH_TICK_MS,
@@ -30,10 +30,7 @@ import {
   mergePendingGlitchZonePreview,
 } from "@/lib/glitch-zone-apply";
 import { type GlitchZone } from "@/lib/text-scramble";
-import {
-  getGlitchFieldLabel,
-  reanchorGlitchConfig,
-} from "@/lib/glitch-fields";
+import { getGlitchFieldLabel, reanchorGlitchConfig } from "@/lib/glitch-fields";
 import {
   findGlitchTextSelection,
   scheduleReadGlitchTextSelection,
@@ -145,7 +142,12 @@ interface TextScrambleToolConfigOptions {
   defaultStyle?: GlitchZoneStyle;
   legacy?: Pick<
     FieldGlitchConfig,
-    "wordPool" | "scrambleMode" | "builtinScramble" | "errorDisplayMode" | "builtinTokens" | "tickMs"
+    | "wordPool"
+    | "scrambleMode"
+    | "builtinScramble"
+    | "errorDisplayMode"
+    | "builtinTokens"
+    | "tickMs"
   >;
 }
 
@@ -569,30 +571,52 @@ export function TextScrambleTool({
       return;
     }
 
+    const syncSelection = (next: GlitchTextSelection) => {
+      if (
+        selection.start === next.start &&
+        selection.end === next.end &&
+        selection.text === next.text
+      ) {
+        return;
+      }
+
+      lastLoadedSelectionKeyRef.current = glitchSelectionKey(next);
+      setPinnedSelection(next);
+      setWorkSelection(next);
+    };
+
+    const clearSelection = () => {
+      if (!pinnedSelection && !workSelection) {
+        return;
+      }
+
+      lastLoadedSelectionKeyRef.current = null;
+      setPinnedSelection(null);
+      setWorkSelection(null);
+    };
+
     const matchedZone = findMatchingGlitchZone(zones, selection, fieldValue);
     if (matchedZone) {
-      const nextSelection = {
-        start: matchedZone.start,
-        end: matchedZone.end,
-        text: matchedZone.original,
-      };
-      lastLoadedSelectionKeyRef.current = glitchSelectionKey(nextSelection);
-      setPinnedSelection(nextSelection);
-      setWorkSelection(nextSelection);
+      const end = Math.min(matchedZone.end, fieldValue.length);
+      const start = Math.min(matchedZone.start, end);
+      const text = fieldValue.slice(start, end);
+
+      if (!text || start >= end) {
+        clearSelection();
+        return;
+      }
+
+      syncSelection({ start, end, text });
       return;
     }
 
     const relocated = findGlitchTextSelection(fieldValue, selection.text);
     if (relocated) {
-      lastLoadedSelectionKeyRef.current = glitchSelectionKey(relocated);
-      setPinnedSelection(relocated);
-      setWorkSelection(relocated);
+      syncSelection(relocated);
       return;
     }
 
-    lastLoadedSelectionKeyRef.current = null;
-    setPinnedSelection(null);
-    setWorkSelection(null);
+    clearSelection();
   }, [fieldValue, pinnedSelection, workSelection, zones]);
 
   const handlePendingStyleChange = (nextStyle: GlitchZoneStyle) => {
@@ -865,7 +889,7 @@ export function TextScrambleTool({
           <div className="mt-2 grid gap-1 border border-emerald-100/10 bg-black/25 px-3 py-2 text-[10px] leading-5 text-emerald-100/55">
             <p>
               <span className="font-medium text-emerald-100/80">고정 서식</span> — 글자는 그대로,
-              색·굵게·밑줄만
+              색·글씨 크기·굵게·밑줄
             </p>
             <p>
               <span className="font-medium text-emerald-100/80">오류 설정</span> — 켜면 참조 단어·

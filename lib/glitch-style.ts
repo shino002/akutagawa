@@ -13,6 +13,10 @@ export const MAX_DECORATION_THICKNESS_PX = 12;
 export const DEFAULT_DECORATION_THICKNESS_PX = 2;
 export const DECORATION_THICKNESS_STEP_PX = 0.5;
 
+export const MIN_GLITCH_FONT_SIZE_PERCENT = 50;
+export const MAX_GLITCH_FONT_SIZE_PERCENT = 200;
+export const GLITCH_FONT_SIZE_STEP_PERCENT = 5;
+
 export const GLITCH_STYLE_PRESETS: Record<string, GlitchZoneStyle> = {
   inherit: {},
   error: {
@@ -56,17 +60,27 @@ export function clampDecorationThicknessPx(value: number | undefined) {
     return undefined;
   }
 
-  const stepped =
-    Math.round(value / DECORATION_THICKNESS_STEP_PX) * DECORATION_THICKNESS_STEP_PX;
+  const stepped = Math.round(value / DECORATION_THICKNESS_STEP_PX) * DECORATION_THICKNESS_STEP_PX;
 
-  return Math.min(
-    MAX_DECORATION_THICKNESS_PX,
-    Math.max(MIN_DECORATION_THICKNESS_PX, stepped),
-  );
+  return Math.min(MAX_DECORATION_THICKNESS_PX, Math.max(MIN_DECORATION_THICKNESS_PX, stepped));
 }
 
 export function formatDecorationThicknessPx(value: number) {
   return Number.isInteger(value) ? `${value}px` : `${value.toFixed(1)}px`;
+}
+
+export function clampGlitchFontSizePercent(value: number | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return undefined;
+  }
+
+  const stepped = Math.round(value / GLITCH_FONT_SIZE_STEP_PERCENT) * GLITCH_FONT_SIZE_STEP_PERCENT;
+
+  return Math.min(MAX_GLITCH_FONT_SIZE_PERCENT, Math.max(MIN_GLITCH_FONT_SIZE_PERCENT, stepped));
+}
+
+export function formatGlitchFontSizePercent(value: number) {
+  return `${value}%`;
 }
 
 function normalizeMarkdown(value: unknown): GlitchMarkdown | undefined {
@@ -99,6 +113,7 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
   const strikethroughColor = normalizeColorInput(raw.strikethroughColor);
   const underlineThickness = clampDecorationThicknessPx(raw.underlineThickness);
   const strikethroughThickness = clampDecorationThicknessPx(raw.strikethroughThickness);
+  const fontSize = clampGlitchFontSizePercent(raw.fontSize);
   const markdown = normalizeMarkdown(raw.markdown);
   const hadLegacyPaint = Boolean(raw.backgroundColor?.trim());
   const isLegacyErrorColor = Boolean(
@@ -125,6 +140,10 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
     next.strikethroughThickness = strikethroughThickness;
   }
 
+  if (fontSize && fontSize !== 100) {
+    next.fontSize = fontSize;
+  }
+
   if (markdown) {
     next.markdown = markdown;
   }
@@ -141,6 +160,10 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
  */
 export function glitchZoneHasCustomTextColor(style?: GlitchZoneStyle): boolean {
   return Boolean(normalizeGlitchZoneStyle(style)?.textColor);
+}
+
+export function glitchZoneHasCustomFontSize(style?: GlitchZoneStyle): boolean {
+  return typeof normalizeGlitchZoneStyle(style)?.fontSize === "number";
 }
 
 export function glitchZoneStyleSignature(style?: GlitchZoneStyle) {
@@ -200,6 +223,11 @@ export function resolveGlitchZonePresentation(
     inlineStyle.color = normalized.textColor;
     inlineStyle["--glitch-text-color"] = normalized.textColor;
     inlineStyle["--glitch-decoration-color"] = normalized.textColor;
+  }
+
+  if (normalized?.fontSize) {
+    const fontSizeValue = formatGlitchFontSizePercent(normalized.fontSize);
+    inlineStyle["--glitch-font-size"] = fontSizeValue;
   }
 
   if (markdown?.bold) {
@@ -266,19 +294,22 @@ export function hasGlitchPresentation(style?: GlitchZoneStyle): boolean {
   const markdown = normalized.markdown;
   return Boolean(
     normalized.textColor ||
-      normalized.storyQuote ||
-      markdown?.bold ||
-      markdown?.italic ||
-      markdown?.underline ||
-      markdown?.strikethrough ||
-      normalized.underlineColor ||
-      normalized.strikethroughColor ||
-      normalized.underlineThickness ||
-      normalized.strikethroughThickness,
+    normalized.storyQuote ||
+    markdown?.bold ||
+    markdown?.italic ||
+    markdown?.underline ||
+    markdown?.strikethrough ||
+    normalized.underlineColor ||
+    normalized.strikethroughColor ||
+    normalized.underlineThickness ||
+    normalized.strikethroughThickness ||
+    normalized.fontSize,
   );
 }
 
-export function fieldGlitchHasPresentation(config?: Pick<FieldGlitchConfig, "zones" | "defaultStyle">) {
+export function fieldGlitchHasPresentation(
+  config?: Pick<FieldGlitchConfig, "zones" | "defaultStyle">,
+) {
   if (!config?.zones?.length) {
     return false;
   }

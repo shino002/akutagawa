@@ -1,6 +1,11 @@
 import { glitchConfigSignature } from "@/lib/glitch-fields";
 import type { GlitchTextSelection } from "@/lib/glitch-selection";
-import { mergeGlitchZoneStyles, resolveGlitchZonePresentation, glitchZoneHasCustomTextColor } from "@/lib/glitch-style";
+import {
+  mergeGlitchZoneStyles,
+  resolveGlitchZonePresentation,
+  glitchZoneHasCustomTextColor,
+  glitchZoneHasCustomFontSize,
+} from "@/lib/glitch-style";
 import { parseStoryMarkup, storyTextHasMarkup } from "@/lib/story-text";
 import type { FieldGlitchConfig, GlitchZone } from "@/lib/types";
 import { zoneUsesErrorAlternation } from "@/lib/glitch-scramble-options";
@@ -47,6 +52,7 @@ function wrapZoneText(text: string, zone: GlitchZone, config?: FieldGlitchConfig
     decoration.strikethrough && "glitch-zone-has-strikethrough",
     mergedStyle.storyQuote && "story-inline-quote",
     glitchZoneHasCustomTextColor(mergedStyle) && "glitch-zone-has-custom-color",
+    glitchZoneHasCustomFontSize(mergedStyle) && "glitch-zone-has-custom-font-size",
     isError && "admin-inline-zone-error",
   );
   const styleAttr = styleToAttribute(inlineStyle as Record<string, string | number | undefined>);
@@ -74,7 +80,9 @@ function renderStorySegmentHtml(segment: ReturnType<typeof parseStoryMarkup>[num
 }
 
 function buildStoryMarkupPreviewHtml(text: string): string {
-  return parseStoryMarkup(text).map((segment) => renderStorySegmentHtml(segment)).join("");
+  return parseStoryMarkup(text)
+    .map((segment) => renderStorySegmentHtml(segment))
+    .join("");
 }
 
 export function buildFormattedEditorHtml(
@@ -159,11 +167,7 @@ function walkTextNodes(root: Node, callback: (node: Text, offsetInRoot: number) 
   }
 }
 
-function locateTextPosition(
-  root: HTMLElement,
-  targetNode: Node,
-  targetOffset: number,
-): number {
+function locateTextPosition(root: HTMLElement, targetNode: Node, targetOffset: number): number {
   if (targetNode === root) {
     return Math.min(targetOffset, readPlainTextFromEditor(root).length);
   }
@@ -258,12 +262,13 @@ export function getZoneForSelection(
     return exact;
   }
 
-  return glitch.zones.find(
-    (zone) => selection.start >= zone.start && selection.end <= zone.end,
-  );
+  return glitch.zones.find((zone) => selection.start >= zone.start && selection.end <= zone.end);
 }
 
-export function getSelectionStyle(glitch: FieldGlitchConfig | undefined, selection: GlitchTextSelection) {
+export function getSelectionStyle(
+  glitch: FieldGlitchConfig | undefined,
+  selection: GlitchTextSelection,
+) {
   const zone = getZoneForSelection(glitch, selection);
   return mergeGlitchZoneStyles(zone?.style, glitch?.defaultStyle);
 }

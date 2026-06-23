@@ -148,6 +148,10 @@
   --glitch-decoration-color: var(--glitch-text-color, currentColor);
 }
 
+.admin-page [data-text-scramble-tool] .glitch-zone-mark.glitch-zone-has-custom-font-size {
+  font-size: var(--glitch-font-size, inherit) !important;
+}
+
 .admin-page .admin-choice-btn-candidate {
   max-width: 100%;
   white-space: normal;

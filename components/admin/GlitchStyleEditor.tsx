@@ -5,11 +5,16 @@ import {
   DEFAULT_DECORATION_THICKNESS_PX,
   DEFAULT_GLITCH_TICK_MS,
   clampGlitchTickMs,
+  clampGlitchFontSizePercent,
   formatDecorationThicknessPx,
+  formatGlitchFontSizePercent,
   GLITCH_STYLE_PRESETS,
+  GLITCH_FONT_SIZE_STEP_PERCENT,
   MAX_DECORATION_THICKNESS_PX,
+  MAX_GLITCH_FONT_SIZE_PERCENT,
   MAX_GLITCH_TICK_MS,
   MIN_DECORATION_THICKNESS_PX,
+  MIN_GLITCH_FONT_SIZE_PERCENT,
   MIN_GLITCH_TICK_MS,
   normalizeColorInput,
   normalizeGlitchZoneStyle,
@@ -107,7 +112,71 @@ function ThicknessField({
   );
 }
 
-export function GlitchStyleEditor({ style, onStyleChange, compact = false }: GlitchStyleEditorProps) {
+interface FontSizeFieldProps {
+  label: string;
+  value?: number;
+  onChange: (value: number | undefined) => void;
+}
+
+const FONT_SIZE_PRESETS = [
+  { label: "작게", value: 75 },
+  { label: "보통", value: 100 },
+  { label: "크게", value: 125 },
+  { label: "아주 크게", value: 150 },
+] as const;
+
+export function FontSizeField({ label, value, onChange }: FontSizeFieldProps) {
+  const resolved = clampGlitchFontSizePercent(value) ?? 100;
+
+  const commitFontSize = (nextValue: number) => {
+    if (nextValue === 100) {
+      onChange(undefined);
+      return;
+    }
+
+    onChange(clampGlitchFontSizePercent(nextValue));
+  };
+
+  return (
+    <div className="grid gap-2 border border-emerald-100/10 bg-black/20 p-3">
+      <label className="grid gap-1 text-[11px] text-emerald-100/70">
+        <div className="flex items-center justify-between gap-2">
+          <span>{label}</span>
+          <span className="font-mono text-emerald-50">
+            {value ? formatGlitchFontSizePercent(resolved) : "상속 (100%)"}
+          </span>
+        </div>
+        <input
+          type="range"
+          min={MIN_GLITCH_FONT_SIZE_PERCENT}
+          max={MAX_GLITCH_FONT_SIZE_PERCENT}
+          step={GLITCH_FONT_SIZE_STEP_PERCENT}
+          value={resolved}
+          onChange={(event) => commitFontSize(Number(event.target.value))}
+          className="w-full accent-emerald-300"
+        />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        {FONT_SIZE_PRESETS.map((preset) => (
+          <AdminChoiceButton
+            key={preset.label}
+            active={preset.value === 100 ? !value : value === preset.value}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => commitFontSize(preset.value)}
+          >
+            {preset.label}
+          </AdminChoiceButton>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function GlitchStyleEditor({
+  style,
+  onStyleChange,
+  compact = false,
+}: GlitchStyleEditorProps) {
   const markdown = style.markdown ?? {};
   const hasUnderline = Boolean(markdown.underline);
   const hasStrikethrough = Boolean(markdown.strikethrough);
@@ -157,19 +226,23 @@ export function GlitchStyleEditor({ style, onStyleChange, compact = false }: Gli
   };
 
   return (
-    <div className={compact ? "space-y-3" : "mt-3 space-y-3 border border-emerald-100/15 bg-black/25 p-3"}>
+    <div
+      className={
+        compact ? "space-y-3" : "mt-3 space-y-3 border border-emerald-100/15 bg-black/25 p-3"
+      }
+    >
       {compact ? (
         <div>
           <p className="text-[11px] font-medium text-emerald-100/85">고정 서식</p>
           <p className="mt-0.5 text-[10px] leading-5 text-emerald-100/45">
-            원문 글자는 그대로 두고, 색·굵게·밑줄·취소선만 바꿉니다.
+            원문 글자는 그대로 두고, 색·글씨 크기·굵게·밑줄·취소선만 바꿉니다.
           </p>
         </div>
       ) : (
         <div>
           <p className="text-xs font-medium text-emerald-100/85">고정 서식</p>
           <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
-            원문 글자는 그대로 두고, 색·굵게·기울임·밑줄·취소선만 바꿉니다.
+            원문 글자는 그대로 두고, 색·글씨 크기·굵게·기울임·밑줄·취소선만 바꿉니다.
           </p>
         </div>
       )}
@@ -189,12 +262,13 @@ export function GlitchStyleEditor({ style, onStyleChange, compact = false }: Gli
           onClick={() =>
             updateStyle({
               textColor: undefined,
+              fontSize: undefined,
               underlineColor: undefined,
               strikethroughColor: undefined,
             })
           }
         >
-          색 초기화
+          색·크기 초기화
         </AdminChoiceButton>
       </div>
 
@@ -203,6 +277,11 @@ export function GlitchStyleEditor({ style, onStyleChange, compact = false }: Gli
           label="글자색"
           value={style.textColor}
           onChange={(textColor) => updateStyle({ textColor })}
+        />
+        <FontSizeField
+          label="글씨 크기 (주변 글자 대비 %)"
+          value={style.fontSize}
+          onChange={(fontSize) => updateStyle({ fontSize })}
         />
       </div>
 
@@ -261,7 +340,11 @@ interface GlitchTickEditorProps {
   onTickMsCommit?: (tickMs: number) => void;
 }
 
-export function GlitchTickEditor({ tickMs, onTickMsChange, onTickMsCommit }: GlitchTickEditorProps) {
+export function GlitchTickEditor({
+  tickMs,
+  onTickMsChange,
+  onTickMsCommit,
+}: GlitchTickEditorProps) {
   const clampedTickMs = clampGlitchTickMs(tickMs);
   const seconds = (clampedTickMs / 1000).toFixed(1);
 
@@ -289,8 +372,8 @@ export function GlitchTickEditor({ tickMs, onTickMsChange, onTickMsCommit }: Gli
         data-admin-interactive
       />
       <p className="text-[11px] leading-5 text-emerald-100/50">
-        원문과 오류 메시지가 번갈아 보입니다. 0.1초~10초 사이에서 각 상태가 유지되는 시간을
-        조절할 수 있습니다.
+        원문과 오류 메시지가 번갈아 보입니다. 0.1초~10초 사이에서 각 상태가 유지되는 시간을 조절할
+        수 있습니다.
       </p>
     </label>
   );

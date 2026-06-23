@@ -1,10 +1,10 @@
 import type { FieldGlitchConfig, GlitchZone } from "@/lib/types";
 import { normalizeZoneLinkTarget } from "@/lib/zone-links";
 import {
-  normalizeErrorMessageSource,
   normalizeErrorDisplayMode,
   normalizeScrambleMode,
   ensureZoneErrorAlternation,
+  resolveZoneErrorMessageSource,
 } from "@/lib/glitch-scramble-options";
 import { normalizeBuiltinTokens } from "@/lib/text-scramble";
 import { sanitizeErrorMessageText, sanitizePlainText } from "@/lib/glitch-display";
@@ -30,17 +30,23 @@ export function stripUndefinedDeep<T>(value: T): T {
   ) as T;
 }
 
-function normalizeZone(zone: GlitchZone, fieldWordPool: string): GlitchZone {
+function normalizeZone(
+  zone: GlitchZone,
+  fieldWordPool: string,
+  fieldBuiltinScramble = false,
+): GlitchZone {
   const style = normalizeGlitchZoneStyle(zone.style);
   const errorMessage =
     typeof zone.errorMessage === "string" ? sanitizeErrorMessageText(zone.errorMessage.trim()) : "";
-  const explicitSource = normalizeErrorMessageSource(zone.errorMessageSource);
   const linkTarget = normalizeZoneLinkTarget(zone.linkTarget);
   const legacyLinkSubPageId =
     typeof zone.linkSubPageId === "string" && zone.linkSubPageId.trim()
       ? zone.linkSubPageId.trim()
       : undefined;
-  const errorMessageSource = explicitSource ?? (errorMessage ? "custom" : "none");
+  const errorMessageSource = resolveZoneErrorMessageSource(zone, {
+    wordPool: fieldWordPool,
+    builtinScramble: fieldBuiltinScramble,
+  });
   const zoneWordPool =
     typeof zone.wordPool === "string" ? sanitizePlainText(zone.wordPool.trim()) : "";
   const scrambleMode = zoneWordPool
@@ -122,7 +128,9 @@ export function normalizeFieldGlitchConfig(config: unknown): FieldGlitchConfig |
     typeof source.wordPool === "string" ? sanitizePlainText(source.wordPool.trim()) : "";
   const zones = Array.isArray(source.zones)
     ? ensureZoneErrorAlternation(
-        source.zones.filter(isGlitchZone).map((zone) => normalizeZone(zone, wordPool)),
+        source.zones
+          .filter(isGlitchZone)
+          .map((zone) => normalizeZone(zone, wordPool, source.builtinScramble === true)),
         { wordPool, builtinScramble: source.builtinScramble === true },
       )
     : [];
