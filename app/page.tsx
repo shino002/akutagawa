@@ -309,7 +309,7 @@ export default function Home() {
         body
           *:not(i):not([class*="icon"]):not(.material-icons):not(.fa):not(.fas):not(.far):not(
             .fab
-          ):not(.auth-input):not(.case-file-hero-mark) {
+          ):not(.auth-input):not(.case-file-hero-mark):not(.glitch-zone-has-custom-font) {
           font-family: "KbizHanmaumMyungjo", "Zen Old Mincho", serif !important;
         }
       `}</style>

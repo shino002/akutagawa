@@ -838,6 +838,11 @@ html body main .story-record-card.static-record-panel {
   font-size: var(--glitch-font-size, inherit) !important;
 }
 
+.glitch-zone-mark.glitch-zone-has-custom-font,
+.admin-inline-zone.glitch-zone-has-custom-font {
+  font-family: var(--glitch-font-family) !important;
+}
+
 /* 인용(story quote)은 테마 강조색(파랑)으로 통일. 과거에 분홍/붉은색이
    custom color로 저장된 데이터도 파란 톤으로 보이도록 덮어씁니다. */
 html body main .story-inline-quote,
@@ -930,7 +935,6 @@ html body main .dossier-viewer .case-tab-button.is-active {
   border: none !important;
   font-size: inherit;
   line-height: inherit;
-  font-family: var(--font-ui-stack), var(--font-emoji-stack);
   animation: none !important;
   transform: none !important;
   filter: none !important;

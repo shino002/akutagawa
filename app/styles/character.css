@@ -454,7 +454,7 @@
     color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 65%, #6f8fd7);
 }
 
-.case-file-intro-text .glitch-zone-mark:not([style*="color"]):not(.glitch-zone-has-custom-color) {
+.case-file-intro-text .glitch-zone-mark:not([style*="color"]):not(.glitch-zone-has-custom-color):not(.glitch-zone-has-custom-font) {
   color: color-mix(in srgb, var(--case-intro-text, rgba(236, 240, 245, 0.86)) 92%, #fff);
   font-family: var(--font-ui-stack), var(--font-emoji-stack);
   text-shadow:

@@ -1,13 +1,15 @@
 "use client";
 
-import type { GlitchZoneStyle } from "@/lib/types";
-import type { ZoneLinkTarget } from "@/lib/types";
+import { useLayoutEffect } from "react";
+import { ensureGlitchFontPresetLoaded } from "@/lib/glitch-font-load";
 import { hasCombiningMarks, sanitizeErrorMessageText } from "@/lib/glitch-display";
 import {
   glitchZoneHasCustomTextColor,
   glitchZoneHasCustomFontSize,
+  glitchZoneHasCustomFontPreset,
   resolveGlitchZonePresentation,
 } from "@/lib/glitch-style";
+import type { GlitchZoneStyle, ZoneLinkTarget } from "@/lib/types";
 import { cn } from "@/utils/cn";
 
 interface GlitchZoneMarkProps {
@@ -43,6 +45,10 @@ export function GlitchZoneMark({
   onLinkClick,
   original,
 }: GlitchZoneMarkProps) {
+  useLayoutEffect(() => {
+    ensureGlitchFontPresetLoaded(zoneStyle?.fontPreset);
+  }, [zoneStyle?.fontPreset]);
+
   const displayText = sanitizeErrorMessageText(text);
   const isChaos = hasCombiningMarks(displayText);
   const isLink = Boolean(linkTarget && onLinkClick);
@@ -55,6 +61,7 @@ export function GlitchZoneMark({
     zoneStyle?.storyQuote && "story-inline-quote",
     glitchZoneHasCustomTextColor(zoneStyle) && "glitch-zone-has-custom-color",
     glitchZoneHasCustomFontSize(zoneStyle) && "glitch-zone-has-custom-font-size",
+    glitchZoneHasCustomFontPreset(zoneStyle) && "glitch-zone-has-custom-font",
     decorationClassName(decoration),
     className,
   );

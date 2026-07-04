@@ -93,6 +93,8 @@ export type GlitchZoneStyle = {
   strikethroughThickness?: number;
   /** 글씨 크기 (%). 비우면 주변 글자 크기를 따릅니다. */
   fontSize?: number;
+  /** 구간별 폰트 프리셋 (constants/glitch-font-presets.ts) */
+  fontPreset?: string;
 };
 
 export type GlitchScrambleMode = "referenceOnly" | "referenceWithBuiltin";

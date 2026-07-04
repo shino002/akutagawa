@@ -5,7 +5,9 @@ import {
   resolveGlitchZonePresentation,
   glitchZoneHasCustomTextColor,
   glitchZoneHasCustomFontSize,
+  glitchZoneHasCustomFontPreset,
 } from "@/lib/glitch-style";
+import { ensureGlitchFontPresetLoaded } from "@/lib/glitch-font-load";
 import { parseStoryMarkup, storyTextHasMarkup } from "@/lib/story-text";
 import type { FieldGlitchConfig, GlitchZone } from "@/lib/types";
 import { zoneUsesErrorAlternation } from "@/lib/glitch-scramble-options";
@@ -53,8 +55,10 @@ function wrapZoneText(text: string, zone: GlitchZone, config?: FieldGlitchConfig
     mergedStyle.storyQuote && "story-inline-quote",
     glitchZoneHasCustomTextColor(mergedStyle) && "glitch-zone-has-custom-color",
     glitchZoneHasCustomFontSize(mergedStyle) && "glitch-zone-has-custom-font-size",
+    glitchZoneHasCustomFontPreset(mergedStyle) && "glitch-zone-has-custom-font",
     isError && "admin-inline-zone-error",
   );
+  ensureGlitchFontPresetLoaded(mergedStyle.fontPreset);
   const styleAttr = styleToAttribute(inlineStyle as Record<string, string | number | undefined>);
 
   return `<span class="${className}"${styleAttr ? ` style="${styleAttr}"` : ""} data-zone-id="${zone.id}">${escapeHtml(text).replace(/\n/g, "<br>")}</span>`;

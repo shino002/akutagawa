@@ -5,6 +5,7 @@ import {
   normalizeGlitchZoneStyle,
   clampGlitchTickMs,
 } from "@/lib/glitch-style";
+import { normalizeGlitchFontPreset } from "@/constants/glitch-font-presets";
 import type { GlitchTextSelection } from "@/lib/glitch-selection";
 import { zonesOverlap, type GlitchZone } from "@/lib/text-scramble";
 import type {
@@ -539,6 +540,21 @@ export function buildQuickTextColorStyle(
   }
 
   next.textColor = color.trim();
+  return normalizeGlitchZoneStyle(next) ?? {};
+}
+
+export function buildQuickFontPresetStyle(
+  current: GlitchZoneStyle | undefined,
+  preset: string | null | undefined,
+): GlitchZoneStyle {
+  const next: GlitchZoneStyle = { ...(current ?? {}) };
+
+  if (!preset?.trim()) {
+    delete next.fontPreset;
+    return normalizeGlitchZoneStyle(next) ?? {};
+  }
+
+  next.fontPreset = normalizeGlitchFontPreset(preset.trim());
   return normalizeGlitchZoneStyle(next) ?? {};
 }
 

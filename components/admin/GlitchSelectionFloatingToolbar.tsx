@@ -12,10 +12,12 @@ import {
 } from "@/lib/story-text";
 import {
   applyGlitchZone,
+  buildQuickFontPresetStyle,
   buildQuickMarkdownStyle,
   buildQuickTextColorStyle,
   resolveAnchoredSelection,
 } from "@/lib/glitch-zone-apply";
+import { FontPresetSelect } from "@/components/admin/FontPresetSelect";
 import {
   clampFloatingToolbarPosition,
   getTextareaSelectionRect,
@@ -148,6 +150,7 @@ export function GlitchSelectionFloatingToolbar({
   }, [glitchConfig, resolvedSelection]);
 
   const activeTextColor = selectionStyle?.textColor ?? "";
+  const activeFontPreset = selectionStyle?.fontPreset ?? "";
 
   const fallbackPosition = useMemo(
     () => (anchorElement ? getFallbackToolbarPosition(anchorElement) : null),
@@ -268,6 +271,14 @@ export function GlitchSelectionFloatingToolbar({
     commit({ style: nextStyle });
   };
 
+  const applyFontPreset = (preset: string | null) => {
+    const normalized = preset?.trim() ?? "";
+    const current = activeFontPreset.trim();
+    const nextPreset = normalized && normalized === current ? null : preset;
+    const nextStyle = buildQuickFontPresetStyle(selectionStyle, nextPreset);
+    commit({ style: nextStyle });
+  };
+
   const handleToolbarMouseDown = (event: MouseEvent<HTMLElement>) => {
     if (event.target instanceof HTMLInputElement && event.target.type === "color") {
       selectionSnapshotRef.current = resolvedSelection;
@@ -367,6 +378,15 @@ export function GlitchSelectionFloatingToolbar({
             </ToolbarButton>
           ) : null}
         </div>
+      </div>
+
+      <div className="glitch-float-toolbar-fonts">
+        <FontPresetSelect
+          value={activeFontPreset || undefined}
+          onChange={(preset) => applyFontPreset(preset ?? null)}
+          compact
+          className="glitch-float-toolbar-font-select"
+        />
       </div>
 
       <p className="glitch-float-toolbar-meta">

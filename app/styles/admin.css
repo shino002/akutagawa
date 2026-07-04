@@ -152,6 +152,10 @@
   font-size: var(--glitch-font-size, inherit) !important;
 }
 
+.admin-page [data-text-scramble-tool] .glitch-zone-mark.glitch-zone-has-custom-font {
+  font-family: var(--glitch-font-family) !important;
+}
+
 .admin-page .admin-choice-btn-candidate {
   max-width: 100%;
   white-space: normal;
@@ -280,6 +284,23 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.2rem;
+}
+
+.glitch-float-toolbar-fonts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+  padding-inline: 0.1rem;
+}
+
+.glitch-float-toolbar-font-select {
+  min-width: 8.5rem;
+  max-width: 12rem;
+  min-height: 1.75rem !important;
+  padding: 0.2rem 0.35rem !important;
+  font-size: 0.68rem !important;
+  line-height: 1.2 !important;
 }
 
 .glitch-float-toolbar-color-swatch {

@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { normalizeGlitchFontPreset, resolveGlitchFontFamily } from "@/constants/glitch-font-presets";
 import type { FieldGlitchConfig, GlitchMarkdown, GlitchZoneStyle } from "@/lib/types";
 import { fieldConfigHasScrambleAlternation } from "@/lib/glitch-scramble-options";
 import { fieldGlitchHasLinks } from "@/lib/zone-links";
@@ -114,6 +115,7 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
   const underlineThickness = clampDecorationThicknessPx(raw.underlineThickness);
   const strikethroughThickness = clampDecorationThicknessPx(raw.strikethroughThickness);
   const fontSize = clampGlitchFontSizePercent(raw.fontSize);
+  const fontPreset = normalizeGlitchFontPreset(raw.fontPreset);
   const markdown = normalizeMarkdown(raw.markdown);
   const hadLegacyPaint = Boolean(raw.backgroundColor?.trim());
   const isLegacyErrorColor = Boolean(
@@ -144,6 +146,10 @@ export function normalizeGlitchZoneStyle(value: unknown): GlitchZoneStyle | unde
     next.fontSize = fontSize;
   }
 
+  if (fontPreset) {
+    next.fontPreset = fontPreset;
+  }
+
   if (markdown) {
     next.markdown = markdown;
   }
@@ -164,6 +170,10 @@ export function glitchZoneHasCustomTextColor(style?: GlitchZoneStyle): boolean {
 
 export function glitchZoneHasCustomFontSize(style?: GlitchZoneStyle): boolean {
   return typeof normalizeGlitchZoneStyle(style)?.fontSize === "number";
+}
+
+export function glitchZoneHasCustomFontPreset(style?: GlitchZoneStyle): boolean {
+  return Boolean(normalizeGlitchZoneStyle(style)?.fontPreset);
 }
 
 export function glitchZoneStyleSignature(style?: GlitchZoneStyle) {
@@ -228,6 +238,12 @@ export function resolveGlitchZonePresentation(
   if (normalized?.fontSize) {
     const fontSizeValue = formatGlitchFontSizePercent(normalized.fontSize);
     inlineStyle["--glitch-font-size"] = fontSizeValue;
+  }
+
+  const fontFamily = resolveGlitchFontFamily(normalized?.fontPreset);
+  if (fontFamily) {
+    inlineStyle.fontFamily = fontFamily;
+    inlineStyle["--glitch-font-family"] = fontFamily;
   }
 
   if (markdown?.bold) {
@@ -303,7 +319,8 @@ export function hasGlitchPresentation(style?: GlitchZoneStyle): boolean {
     normalized.strikethroughColor ||
     normalized.underlineThickness ||
     normalized.strikethroughThickness ||
-    normalized.fontSize,
+    normalized.fontSize ||
+    normalized.fontPreset,
   );
 }
 

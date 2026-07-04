@@ -21,6 +21,8 @@ import {
   glitchZoneStylesEqual,
 } from "@/lib/glitch-style";
 import { AdminChoiceButton } from "@/components/admin/AdminChoiceButton";
+import { FontPresetSelect } from "@/components/admin/FontPresetSelect";
+import { GLITCH_FONT_PRESETS } from "@/constants/glitch-font-presets";
 import type { GlitchMarkdown, GlitchZoneStyle } from "@/lib/types";
 
 interface GlitchStyleEditorProps {
@@ -172,6 +174,31 @@ export function FontSizeField({ label, value, onChange }: FontSizeFieldProps) {
   );
 }
 
+interface FontPresetFieldProps {
+  value?: string;
+  onChange: (value: string | undefined) => void;
+}
+
+export function FontPresetField({ value, onChange }: FontPresetFieldProps) {
+  const active = GLITCH_FONT_PRESETS.find((preset) => preset.id === value);
+
+  return (
+    <div className="grid gap-2 border border-emerald-100/10 bg-black/20 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-medium text-emerald-100/80">폰트</p>
+        <span className="text-[10px] text-emerald-100/45">
+          {active ? active.family : "상속 (주변 폰트)"}
+        </span>
+      </div>
+      <FontPresetSelect
+        value={value}
+        onChange={onChange}
+        className="auth-input auth-input-compact min-h-8 w-full px-2 py-1 text-[11px]"
+      />
+    </div>
+  );
+}
+
 export function GlitchStyleEditor({
   style,
   onStyleChange,
@@ -235,14 +262,14 @@ export function GlitchStyleEditor({
         <div>
           <p className="text-[11px] font-medium text-emerald-100/85">고정 서식</p>
           <p className="mt-0.5 text-[10px] leading-5 text-emerald-100/45">
-            원문 글자는 그대로 두고, 색·글씨 크기·굵게·밑줄·취소선만 바꿉니다.
+            원문 글자는 그대로 두고, 색·폰트·글씨 크기·굵게·밑줄·취소선만 바꿉니다.
           </p>
         </div>
       ) : (
         <div>
           <p className="text-xs font-medium text-emerald-100/85">고정 서식</p>
           <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
-            원문 글자는 그대로 두고, 색·글씨 크기·굵게·기울임·밑줄·취소선만 바꿉니다.
+            원문 글자는 그대로 두고, 색·폰트·글씨 크기·굵게·기울임·밑줄·취소선만 바꿉니다.
           </p>
         </div>
       )}
@@ -263,12 +290,13 @@ export function GlitchStyleEditor({
             updateStyle({
               textColor: undefined,
               fontSize: undefined,
+              fontPreset: undefined,
               underlineColor: undefined,
               strikethroughColor: undefined,
             })
           }
         >
-          색·크기 초기화
+          서식 초기화
         </AdminChoiceButton>
       </div>
 
@@ -282,6 +310,10 @@ export function GlitchStyleEditor({
           label="글씨 크기 (주변 글자 대비 %)"
           value={style.fontSize}
           onChange={(fontSize) => updateStyle({ fontSize })}
+        />
+        <FontPresetField
+          value={style.fontPreset}
+          onChange={(fontPreset) => updateStyle({ fontPreset })}
         />
       </div>
 
