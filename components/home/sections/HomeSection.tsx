@@ -7,35 +7,53 @@ import type { HomeContent } from "@/lib/types";
 
 interface HomeSectionProps {
   homeContent: HomeContent;
-  onEnterArchive: () => void;
   className?: string;
 }
 
 /**
- * 홈 — 보관소 입구. 보드/목록 없이 브랜드와 짧은 안내만 둔다.
+ * 홈 — 브랜드·소개·공지. 사이트 흑백 톤의 에디토리얼 레이아웃.
  */
-export function HomeSection({ homeContent, onEnterArchive, className }: HomeSectionProps) {
+export function HomeSection({ homeContent, className }: HomeSectionProps) {
+  const notice = homeContent.notice.trim();
+
   return (
-    <section className={cn("home-entrance", className)}>
-      <ArchiveMotion variant="enter" motionKey="home-brand" className="home-entrance-brand">
-        <p className="home-entrance-kicker">
-          <TextGlitch text={homeContent.eyebrow} />
-        </p>
-        <h1 className="home-entrance-mark">
-          <TextGlitch text={homeContent.title} />
-        </h1>
+    <section className={cn("home-stage", className)}>
+      <ArchiveMotion variant="enter" motionKey="home-index" className="home-stage-index">
+        <span>HOME</span>
+        <span className="home-stage-index-dot" aria-hidden="true" />
+        <span>INDEX</span>
+        <span className="home-stage-index-num">01</span>
       </ArchiveMotion>
 
-      <ArchiveMotion as="p" variant="scan" motionKey="home-body" className="home-entrance-body">
-        {homeContent.body}
-      </ArchiveMotion>
+      <div className="home-stage-main">
+        <ArchiveMotion variant="enter" motionKey="home-brand" className="home-stage-brand">
+          <p className="home-stage-kicker">
+            <TextGlitch text={homeContent.eyebrow} />
+          </p>
+          <h1 className="home-stage-mark">
+            <TextGlitch text={homeContent.title} />
+          </h1>
+        </ArchiveMotion>
 
-      <ArchiveMotion variant="enter" motionKey="home-cta" className="home-entrance-foot">
-        <button type="button" onClick={onEnterArchive} className="home-entrance-cta">
-          ARCHIVE
-        </button>
-        <p className="home-entrance-meta">FILE · 00</p>
-      </ArchiveMotion>
+        <div className="home-stage-aside">
+          <ArchiveMotion as="p" variant="scan" motionKey="home-body" className="home-stage-body">
+            {homeContent.body}
+          </ArchiveMotion>
+
+          {notice ? (
+            <ArchiveMotion
+              as="aside"
+              variant="scan"
+              motionKey={`home-notice-${notice}`}
+              className="home-stage-notice"
+              aria-label="공지"
+            >
+              <p className="home-stage-notice-label">NOTICE</p>
+              <p className="home-stage-notice-body">{notice}</p>
+            </ArchiveMotion>
+          ) : null}
+        </div>
+      </div>
     </section>
   );
 }

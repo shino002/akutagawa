@@ -235,6 +235,10 @@ export type HomeContent = {
   eyebrow: string;
   title: string;
   body: string;
+  /**
+   * 홈 공지/메모. 비어 있으면 화면에 표시하지 않음.
+   */
+  notice: string;
 };
 
 /** 갠홈(extract) 섹션에 표시할 클릭 가능한 배너 */

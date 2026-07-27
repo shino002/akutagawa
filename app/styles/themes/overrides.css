@@ -1980,44 +1980,54 @@ html body main .case-profile-panel {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
 }
 
-/* Home entrance — 사이트 glass-card / archive 톤에 맞춤 */
-html body main .home-entrance {
-  background: #0c0c0c !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+/* Home stage — 사이트 흑백 archive 톤 */
+html body main .home-stage {
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 28%),
+    linear-gradient(180deg, #101010 0%, #080808 55%, #050505 100%) !important;
   box-shadow: none !important;
 }
 
-html body main .home-entrance-kicker,
-html body main .home-entrance-kicker * {
+html body main .home-stage-index,
+html body main .home-stage-index * {
+  color: rgba(180, 180, 180, 0.7) !important;
+}
+
+html body main .home-stage-index-dot {
+  background: rgba(238, 238, 238, 0.55) !important;
+}
+
+html body main .home-stage-index-num {
+  color: rgba(245, 245, 245, 0.88) !important;
+}
+
+html body main .home-stage-kicker,
+html body main .home-stage-kicker * {
   color: rgba(180, 180, 180, 0.78) !important;
 }
 
-html body main .home-entrance-mark,
-html body main .home-entrance-mark * {
-  color: rgba(245, 245, 243, 0.96) !important;
+html body main .home-stage-mark,
+html body main .home-stage-mark * {
+  color: rgba(245, 245, 245, 0.96) !important;
   text-shadow: none !important;
 }
 
-html body main .home-entrance-body,
-html body main .home-entrance-body * {
-  color: rgba(238, 238, 238, 0.72) !important;
-  border-left-color: rgba(255, 255, 255, 0.18) !important;
+html body main .home-stage-body,
+html body main .home-stage-body * {
+  color: rgba(210, 210, 210, 0.72) !important;
 }
 
-html body main .home-entrance-cta {
-  border: 1px solid rgba(255, 255, 255, 0.32) !important;
-  background: rgba(8, 8, 8, 0.94) !important;
-  color: rgba(210, 210, 210, 0.92) !important;
-  box-shadow: none !important;
+html body main .home-stage-notice {
+  border-top-color: rgba(255, 255, 255, 0.18) !important;
 }
 
-html body main .home-entrance-cta:hover,
-html body main .home-entrance-cta:focus-visible {
-  border-color: rgba(255, 255, 255, 0.52) !important;
-  background: var(--surface-raised) !important;
-  color: rgba(245, 245, 245, 0.98) !important;
+html body main .home-stage-notice-label,
+html body main .home-stage-notice-label * {
+  color: rgba(180, 180, 180, 0.78) !important;
 }
 
-html body main .home-entrance-meta {
-  color: rgba(160, 160, 160, 0.55) !important;
+html body main .home-stage-notice-body,
+html body main .home-stage-notice-body * {
+  color: rgba(232, 232, 232, 0.82) !important;
 }

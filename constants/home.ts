@@ -8,6 +8,7 @@ export const defaultHomeContent: HomeContent = {
   eyebrow: "ARCHIVE",
   title: "芥川",
   body: "사진, 설정, 연성, 기록의 파편들.",
+  notice: "",
 };
 
 /**
@@ -17,6 +18,7 @@ export const defaultArchiveContent: HomeContent = {
   eyebrow: "",
   title: "",
   body: "",
+  notice: "",
 };
 
 /**

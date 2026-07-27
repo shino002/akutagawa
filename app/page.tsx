@@ -408,12 +408,7 @@ export default function Home() {
 
       <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-5 pt-5 pb-12 md:px-8 md:pl-64 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
-          {activeSection === "home" && (
-            <HomeSection
-              homeContent={homeContent}
-              onEnterArchive={() => handleSelectArchiveSub("characters")}
-            />
-          )}
+          {activeSection === "home" && <HomeSection homeContent={homeContent} />}
 
           {activeSection === "archive" &&
             activeArchiveSub === "characters" &&
