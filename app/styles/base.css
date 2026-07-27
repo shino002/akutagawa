@@ -30,6 +30,11 @@
     "Noto Sans KR", "Noto Sans Symbols 2", "Segoe UI Symbol", "Apple Symbols", "Malgun Gothic",
     "Apple SD Gothic Neo", ui-sans-serif, system-ui, sans-serif;
   --font-emoji-stack: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  /* 모서리: 한 곳만 바꾸면 전역이 따라옵니다 */
+  --radius-sm: 2px; /* 입력창, 작은 버튼, 태그 */
+  --radius-md: 4px; /* 카드, 패널, 기본값 */
+  --radius-lg: 8px; /* 큰 오버레이, 모달 */
+  --radius-pill: 9999px;
 }
 
 @theme inline {
@@ -37,6 +42,10 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-pill: var(--radius-pill);
 }
 
 body {

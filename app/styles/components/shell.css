@@ -3,7 +3,7 @@
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.38);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 22%),
     linear-gradient(180deg, #101010 0%, #080808 55%, #050505 100%);
@@ -46,12 +46,8 @@
   pointer-events: none;
 }
 
-main :where([class*="rounded-"]) {
-  border-radius: 0 !important;
-}
-
 main :where(button, a, input, textarea, select) {
-  border-radius: 0 !important;
+  border-radius: var(--radius-sm) !important;
 }
 
 main :where(button, a) {
@@ -285,7 +281,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   max-height: calc(100vh - 2.5rem);
   padding: 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: linear-gradient(180deg, #0e0e0e 0%, #070707 100%);
   box-shadow:
     0 18px 48px rgba(0, 0, 0, 0.7),
