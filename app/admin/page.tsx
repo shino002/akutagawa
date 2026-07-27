@@ -28,6 +28,7 @@ import { useBgmTrackAdmin } from "@/hooks/useBgmTrackAdmin";
 import { useDiaryAdmin } from "@/hooks/useDiaryAdmin";
 import { useExtractBannerAdmin } from "@/hooks/useExtractBannerAdmin";
 import { useGlitchFieldEditing } from "@/hooks/useGlitchFieldEditing";
+import { useWorldAdmin } from "@/hooks/useWorldAdmin";
 import {
   bgmTrackDraftFromTrack,
   normalizeBgmTracks,
@@ -79,7 +80,6 @@ import type {
   SettingSection,
   UploadedImage,
   Work,
-  World,
 } from "@/lib/types";
 import {
   characterToDraft,
@@ -147,16 +147,11 @@ import { listNavigableSubPages, normalizeSubPages } from "@/lib/sub-pages";
 import { formatPairDisplayName, normalizePairMemberIds } from "@/lib/pair-members";
 import {
   buildWorldGlitchFieldOptions,
-  compactWorldDraftTextGlitch,
   countWorldDraftGlitchFields,
-  createBlankWorldDraft,
   getWorldDraftFieldValue,
   getWorldGlitchFieldLabel,
-  pruneWorldDraftTextGlitch,
   updateWorldDraftFieldValue,
   updateWorldDraftGlitchPath,
-  worldToDraft,
-  type WorldDraft,
 } from "@/lib/world-glitch-fields";
 import {
   normalizeSettingSections,
@@ -184,12 +179,9 @@ export default function AdminPage() {
   const { loginDraft, setLoginDraft, authNotice, isAuthLoading, signIn, signOut, isAdmin } =
     useAdminAuth();
   const [characters, setCharacters] = useState<Character[]>([]);
-  const [worlds, setWorlds] = useState<World[]>([]);
   const [activeCharacterId, setActiveCharacterId] = useState("");
-  const [activeWorldId, setActiveWorldId] = useState("");
   const [activeCharacterWorldId, setActiveCharacterWorldId] = useState("");
   const [draft, setDraft] = useState<CharacterDraft>(() => createBlankDraft());
-  const [worldDraft, setWorldDraft] = useState<WorldDraft>(() => createBlankWorldDraft());
   const [worldSettingsText, setWorldSettingsText] = useState("");
   const [worldWorkDraft, setWorldWorkDraft] = useState({
     title: "",
@@ -283,6 +275,26 @@ export default function AdminPage() {
     onNotice: setNotice,
     setIsSaving,
   });
+  const {
+    worlds,
+    worldsRef,
+    activeWorldId,
+    setActiveWorldId,
+    worldDraft,
+    setWorldDraft,
+    startNewWorld,
+    selectWorld,
+    saveWorld,
+    deleteWorld,
+  } = useWorldAdmin({
+    isAdmin,
+    onNotice: setNotice,
+    setIsSaving,
+  });
+  // 캐릭터 편집의 "참가 세계관" 기본값 — 세계관 목록이 생기면 비어 있을 때만 채웁니다.
+  useEffect(() => {
+    setActiveCharacterWorldId((current) => current || worlds[0]?.id || "");
+  }, [worlds]);
   const [homeContent, setHomeContent] = useState<HomeContent>(emptyHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
   const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>([]);
@@ -321,8 +333,6 @@ export default function AdminPage() {
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
   const charactersRef = useRef(characters);
   charactersRef.current = characters;
-  const worldsRef = useRef(worlds);
-  worldsRef.current = worlds;
 
   const activeCharacter = useMemo(
     () =>
@@ -450,7 +460,7 @@ export default function AdminPage() {
       if (snapshot.worldId) {
         const world = worldsRef.current.find((item) => item.id === snapshot.worldId);
         if (world) {
-          setWorldDraft(worldToDraft(world));
+          selectWorld(world);
         }
       }
 
@@ -471,7 +481,7 @@ export default function AdminPage() {
         }
       }
     },
-    [resetCharacterGlitch, resetWorldGlitch],
+    [resetCharacterGlitch, resetWorldGlitch, selectWorld],
   );
 
   const adminHistoryState = useMemo(
@@ -820,38 +830,6 @@ export default function AdminPage() {
         setCharacters(nextCharacters);
       },
       (error) => setNotice(`Firestore 불러오기 실패: ${error.message}`),
-    );
-  }, []);
-
-  useEffect(() => {
-    const db = getFirebaseDb();
-    return onSnapshot(
-      collection(db, "worlds"),
-      (snapshot) => {
-        const nextWorlds = snapshot.docs
-          .map((worldDoc) => {
-            const data = worldDoc.data() as Partial<World>;
-            return {
-              id: data.id || worldDoc.id,
-              title: data.title || "",
-              subtitle: data.subtitle || "",
-              description: data.description || "",
-              password: data.password || "",
-              textGlitch: normalizeTextGlitch(data.textGlitch),
-            };
-          })
-          .sort((a, b) => a.title.localeCompare(b.title));
-
-        setWorlds(nextWorlds);
-        setActiveWorldId((current) => current || nextWorlds[0]?.id || "");
-        setActiveCharacterWorldId((current) => current || nextWorlds[0]?.id || "");
-        setWorldDraft((current) => {
-          if (current.id) return current;
-          const firstWorld = nextWorlds[0];
-          return firstWorld ? worldToDraft(firstWorld) : current;
-        });
-      },
-      (error) => setNotice(`세계관 불러오기 실패: ${error.message}`),
     );
   }, []);
 
@@ -1465,85 +1443,6 @@ export default function AdminPage() {
     }
   }
 
-  function startNewWorld() {
-    setActiveWorldId("");
-    setWorldDraft(createBlankWorldDraft());
-    setNotice("새 World 정보를 입력해주세요.");
-  }
-
-  async function saveWorld(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!isAdmin) {
-      setNotice("관리자만 세계관을 저장할 수 있어요.");
-      return;
-    }
-
-    const title = worldDraft.title.trim();
-    const id = slugifyId(worldDraft.id || title);
-
-    if (!id || !title) {
-      setNotice("세계관 이름은 꼭 입력해주세요.");
-      return;
-    }
-
-    const existingWorld = worlds.find((world) => world.id === id);
-    const prunedDraft: WorldDraft = {
-      ...worldDraft,
-      textGlitch: pruneWorldDraftTextGlitch(worldDraft.textGlitch, worldDraft),
-    };
-    const textGlitch = compactWorldDraftTextGlitch(prunedDraft);
-    const textGlitchPatch = buildTextGlitchFirestorePatch(textGlitch, existingWorld?.textGlitch);
-
-    try {
-      setIsSaving(true);
-      await setDoc(
-        doc(getFirebaseDb(), "worlds", id),
-        omitUndefined({
-          id,
-          title,
-          subtitle: prunedDraft.subtitle.trim(),
-          description: prunedDraft.description.trim(),
-          password: prunedDraft.password.trim(),
-          ...textGlitchPatch,
-          updatedAt: serverTimestamp(),
-        }),
-        { merge: true },
-      );
-      setActiveWorldId(id);
-      setWorldDraft({
-        ...prunedDraft,
-        id,
-        title,
-        password: prunedDraft.password.trim(),
-        textGlitch: textGlitch ?? prunedDraft.textGlitch,
-      });
-      setNotice(
-        textGlitch ? "세계관을 저장했어요. 오류 구간도 함께 저장됐습니다." : "세계관을 저장했어요.",
-      );
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "세계관 저장에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function deleteWorld(worldId: string) {
-    if (!isAdmin || !worldId) return;
-
-    try {
-      setIsSaving(true);
-      await deleteDoc(doc(getFirebaseDb(), "worlds", worldId));
-      setActiveWorldId("");
-      setWorldDraft(createBlankWorldDraft());
-      setNotice("세계관 목록에서 삭제했어요. 자캐 안의 참가 기록은 보존됩니다.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "세계관 삭제에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   async function deleteCharacter(character: Character) {
     if (!isAdmin) {
       setNotice("관리자만 삭제할 수 있어요.");
@@ -2140,8 +2039,7 @@ export default function AdminPage() {
                             key={world.id}
                             type="button"
                             onClick={() => {
-                              setActiveWorldId(world.id);
-                              setWorldDraft(worldToDraft(world));
+                              selectWorld(world);
                             }}
                             className={`border p-3 text-left text-sm ${
                               activeWorldId === world.id
