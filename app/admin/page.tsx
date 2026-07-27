@@ -53,7 +53,9 @@ import { DocumentTextImport } from "@/components/admin/DocumentTextImport";
 import { useAdminHistoryNavigation } from "@/hooks/useAdminHistoryNavigation";
 import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import { createAdminHistoryState } from "@/lib/admin-history";
-import type { AdminHistoryState } from "@/types/admin.types";
+import type { AdminCategory, AdminHistoryState, AdminPanel } from "@/types/admin.types";
+import { defaultArchiveContent } from "@/constants/home";
+import { normalizeWorks, normalizeWorldEntries } from "@/utils/normalizers";
 import {
   createDefaultProfileFields,
   normalizeProfileFields,
@@ -201,16 +203,14 @@ type ThumbnailDragState = {
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
 const MAX_AUDIO_UPLOAD_SIZE = 15 * 1024 * 1024;
 
-const defaultHomeContent: HomeContent = {
+/**
+ * 관리자 폼 초기값 — 공개 페이지용 `defaultHomeContent`(constants/home)와 달리 전부 빈 문자열입니다.
+ */
+const emptyHomeContent: HomeContent = {
   eyebrow: "",
   title: "",
   body: "",
-};
-
-const defaultArchiveContent: HomeContent = {
-  eyebrow: "",
-  title: "",
-  body: "",
+  notice: "",
 };
 
 function formatBytes(bytes: number) {
@@ -510,26 +510,6 @@ function createBlankWorldEntry(worldId: string): CharacterWorldEntry {
   };
 }
 
-function normalizeWorks(works: Work[] | undefined): Work[] {
-  return Array.isArray(works)
-    ? works.map((work) => ({
-        ...work,
-        images: Array.isArray(work.images) ? work.images : [],
-      }))
-    : [];
-}
-
-function normalizeWorldEntries(entries: CharacterWorldEntry[] | undefined): CharacterWorldEntry[] {
-  return Array.isArray(entries)
-    ? entries.map((entry) => ({
-        worldId: entry.worldId,
-        settings: Array.isArray(entry.settings) ? entry.settings : [],
-        images: Array.isArray(entry.images) ? entry.images : [],
-        works: normalizeWorks(entry.works),
-      }))
-    : [];
-}
-
 function upsertWorldEntry(
   entries: CharacterWorldEntry[] | undefined,
   nextEntry: CharacterWorldEntry,
@@ -596,7 +576,7 @@ export default function AdminPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
   const [thumbnailDrag, setThumbnailDrag] = useState<ThumbnailDragState | null>(null);
-  const [homeContent, setHomeContent] = useState<HomeContent>(defaultHomeContent);
+  const [homeContent, setHomeContent] = useState<HomeContent>(emptyHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>([]);
@@ -615,7 +595,7 @@ export default function AdminPage() {
     createBlankBgmTrackDraft(),
   );
   const [bgmAudioFile, setBgmAudioFile] = useState<File | null>(null);
-  const [adminPanel, setAdminPanel] = useState<"categories" | "characters">("categories");
+  const [adminPanel, setAdminPanel] = useState<AdminPanel>("categories");
   const [characterEditSection, setCharacterEditSection] = useState<CharacterEditSection>("basics");
   const [activeCharacterKind, setActiveCharacterKind] = useState<CharacterKind>("oc");
   const [activeSubPageId, setActiveSubPageId] = useState("");
@@ -639,9 +619,7 @@ export default function AdminPage() {
     HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
   >(null);
   const adminGlitchInteractionMountedRef = useRef(false);
-  const [activeCategory, setActiveCategory] = useState<
-    "home" | "archive" | "diary" | "guestbook" | "worlds" | "extract" | "bgm"
-  >("home");
+  const [activeCategory, setActiveCategory] = useState<AdminCategory>("home");
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
   const charactersRef = useRef(characters);
   charactersRef.current = characters;
@@ -1233,9 +1211,10 @@ export default function AdminPage() {
       (snapshot) => {
         const data = snapshot.data() as Partial<HomeContent> | undefined;
         setHomeContent({
-          eyebrow: data?.eyebrow || defaultHomeContent.eyebrow,
-          title: data?.title || defaultHomeContent.title,
-          body: data?.body || defaultHomeContent.body,
+          eyebrow: data?.eyebrow || emptyHomeContent.eyebrow,
+          title: data?.title || emptyHomeContent.title,
+          body: data?.body || emptyHomeContent.body,
+          notice: typeof data?.notice === "string" ? data.notice : emptyHomeContent.notice,
         });
       },
       (error) => setNotice(`홈 문구 불러오기 실패: ${error.message}`),
@@ -1252,6 +1231,7 @@ export default function AdminPage() {
           eyebrow: data?.eyebrow || defaultArchiveContent.eyebrow,
           title: data?.title || defaultArchiveContent.title,
           body: data?.body || defaultArchiveContent.body,
+          notice: typeof data?.notice === "string" ? data.notice : defaultArchiveContent.notice,
         });
       },
       (error) => setNotice(`보관소 문구 불러오기 실패: ${error.message}`),
@@ -1860,12 +1840,14 @@ export default function AdminPage() {
 
     try {
       setIsSaving(true);
+      const notice = homeContent.notice.trim().slice(0, 1000);
       await setDoc(
         doc(getFirebaseDb(), "site", "home"),
         {
-          eyebrow: homeContent.eyebrow.trim() || defaultHomeContent.eyebrow,
-          title: homeContent.title.trim() || defaultHomeContent.title,
-          body: homeContent.body.trim() || defaultHomeContent.body,
+          eyebrow: homeContent.eyebrow.trim() || emptyHomeContent.eyebrow,
+          title: homeContent.title.trim() || emptyHomeContent.title,
+          body: homeContent.body.trim() || emptyHomeContent.body,
+          notice,
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -3303,6 +3285,21 @@ export default function AdminPage() {
                           }
                           placeholder="홈에 보일 소개 문구"
                           className="auth-input min-h-36"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        공지 / 메모
+                        <textarea
+                          value={homeContent.notice}
+                          onChange={(event) =>
+                            setHomeContent((current) => ({
+                              ...current,
+                              notice: event.target.value.slice(0, 1000),
+                            }))
+                          }
+                          maxLength={1000}
+                          placeholder="비우면 홈에 표시되지 않아요"
+                          className="auth-input min-h-28"
                         />
                       </label>
                     </section>
