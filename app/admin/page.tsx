@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminUploads } from "@/hooks/useAdminUploads";
+import { useGlitchFieldEditing } from "@/hooks/useGlitchFieldEditing";
 import {
   bgmTrackDraftFromTrack,
   createBlankBgmTrackDraft,
@@ -258,26 +259,32 @@ export default function AdminPage() {
   const [characterEditSection, setCharacterEditSection] = useState<CharacterEditSection>("basics");
   const [activeCharacterKind, setActiveCharacterKind] = useState<CharacterKind>("oc");
   const [activeSubPageId, setActiveSubPageId] = useState("");
-  const [activeGlitchFieldPath, setActiveGlitchFieldPath] = useState<string | null>(null);
-  const [glitchFieldSelection, setGlitchFieldSelection] = useState<GlitchTextSelection | null>(
-    null,
-  );
-  const [glitchFieldAnchorElement, setGlitchFieldAnchorElement] = useState<
-    HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
-  >(null);
-  const [activeWorldGlitchFieldPath, setActiveWorldGlitchFieldPath] = useState<string | null>(null);
-  const [worldGlitchFieldSelection, setWorldGlitchFieldSelection] =
-    useState<GlitchTextSelection | null>(null);
-  const [worldGlitchFieldAnchorElement, setWorldGlitchFieldAnchorElement] = useState<
-    HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
-  >(null);
-  const glitchFieldAnchorRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(
-    null,
-  );
-  const worldGlitchFieldAnchorRef = useRef<
-    HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
-  >(null);
-  const adminGlitchInteractionMountedRef = useRef(false);
+  const characterGlitch = useGlitchFieldEditing();
+  const worldGlitch = useGlitchFieldEditing();
+  const {
+    activePath: activeGlitchFieldPath,
+    setActivePath: setActiveGlitchFieldPath,
+    selection: glitchFieldSelection,
+    setSelection: setGlitchFieldSelection,
+    anchorElement: glitchFieldAnchorElement,
+    setAnchorElement: setGlitchFieldAnchorElement,
+    reset: resetCharacterGlitch,
+    selectPath: selectGlitchField,
+    anchorRef: glitchFieldAnchorRef,
+    mountedRef: characterGlitchMountedRef,
+  } = characterGlitch;
+  const {
+    activePath: activeWorldGlitchFieldPath,
+    setActivePath: setActiveWorldGlitchFieldPath,
+    selection: worldGlitchFieldSelection,
+    setSelection: setWorldGlitchFieldSelection,
+    anchorElement: worldGlitchFieldAnchorElement,
+    setAnchorElement: setWorldGlitchFieldAnchorElement,
+    reset: resetWorldGlitch,
+    selectPath: selectWorldGlitchField,
+    anchorRef: worldGlitchFieldAnchorRef,
+    mountedRef: worldGlitchMountedRef,
+  } = worldGlitch;
   const [activeCategory, setActiveCategory] = useState<AdminCategory>("home");
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
   const charactersRef = useRef(characters);
@@ -368,10 +375,8 @@ export default function AdminPage() {
     setActiveExtractBannerId(snapshot.extractBannerId);
     setActiveBgmTrackId(snapshot.bgmTrackId);
     setActiveWorldId(snapshot.worldId);
-    setActiveGlitchFieldPath(null);
-    setGlitchFieldSelection(null);
-    setActiveWorldGlitchFieldPath(null);
-    setWorldGlitchFieldSelection(null);
+    resetCharacterGlitch();
+    resetWorldGlitch();
 
     if (snapshot.characterId) {
       const character = charactersRef.current.find((entry) => entry.id === snapshot.characterId);
@@ -436,9 +441,7 @@ export default function AdminPage() {
         setWorldSettingsText("");
       }
     }
-  }, []);
-
-  const adminHistoryState = useMemo(
+  }, [resetCharacterGlitch, resetWorldGlitch]);
     () =>
       createAdminHistoryState({
         panel: adminPanel,
@@ -474,34 +477,7 @@ export default function AdminPage() {
     applyState: applyAdminHistoryState,
   });
 
-  // 썸네일 드래그, Firestore 컬렉션 구독을 담당하는 효과들입니다.
-  useEffect(() => {
-    glitchFieldAnchorRef.current = glitchFieldAnchorElement;
-  }, [glitchFieldAnchorElement]);
-
-  useEffect(() => {
-    worldGlitchFieldAnchorRef.current = worldGlitchFieldAnchorElement;
-  }, [worldGlitchFieldAnchorElement]);
-
-  useEffect(() => {
-    adminGlitchInteractionMountedRef.current = true;
-    return () => {
-      adminGlitchInteractionMountedRef.current = false;
-    };
-  }, []);
-
-  const selectGlitchField = useCallback((path: string) => {
-    setActiveGlitchFieldPath(path);
-    setGlitchFieldSelection(null);
-    setGlitchFieldAnchorElement(null);
-  }, []);
-
-  const selectWorldGlitchField = useCallback((path: string) => {
-    setActiveWorldGlitchFieldPath(path);
-    setWorldGlitchFieldSelection(null);
-    setWorldGlitchFieldAnchorElement(null);
-  }, []);
-
+  // Firestore 컬렉션 구독과 글리치 필드 포커스/선택 상호작용입니다.
   useEffect(() => {
     const handleFocusIn = (event: FocusEvent) => {
       const target = event.target;
@@ -534,7 +510,7 @@ export default function AdminPage() {
       }
 
       const applySelection = (selection: GlitchTextSelection | null) => {
-        if (!adminGlitchInteractionMountedRef.current) {
+        if (!(characterGlitchMountedRef.current || worldGlitchMountedRef.current)) {
           return;
         }
 
@@ -568,7 +544,7 @@ export default function AdminPage() {
       }
 
       const applySelection = (selection: GlitchTextSelection | null) => {
-        if (!adminGlitchInteractionMountedRef.current) {
+        if (!(characterGlitchMountedRef.current || worldGlitchMountedRef.current)) {
           return;
         }
 
@@ -596,7 +572,7 @@ export default function AdminPage() {
     }
 
     const syncAnchoredSelection = () => {
-      if (!adminGlitchInteractionMountedRef.current) {
+      if (!(characterGlitchMountedRef.current || worldGlitchMountedRef.current)) {
         return;
       }
 
@@ -662,7 +638,7 @@ export default function AdminPage() {
     };
 
     const clearFloatingSelections = () => {
-      if (!adminGlitchInteractionMountedRef.current) {
+      if (!(characterGlitchMountedRef.current || worldGlitchMountedRef.current)) {
         return;
       }
 
