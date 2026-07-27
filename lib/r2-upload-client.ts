@@ -1,11 +1,13 @@
+import { MAX_UPLOAD_SIZE } from "@/constants/upload";
 import type { UploadedImage } from "@/lib/types";
 
-export const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+export { MAX_UPLOAD_SIZE };
 
 export function subPageUploadCharacterId(parentCharacterId: string, subPageId: string) {
   return `subpage-${parentCharacterId}-${subPageId}`;
 }
 
+// 이미지 기록을 삭제할 때 Firestore뿐 아니라 Cloudflare R2 객체도 함께 지웁니다.
 export async function deleteR2Images(images: UploadedImage[]) {
   if (images.length === 0) return;
 

@@ -1,5 +1,36 @@
 import type { PersonalHomeBanner, UploadedImage } from "@/lib/types";
 
+export type ExtractBannerDraft = {
+  id: string;
+  label: string;
+  linkUrl: string;
+  image: UploadedImage | null;
+};
+
+/**
+ * 빈 추출 배너 편집 draft를 만듭니다.
+ */
+export const createBlankExtractBannerDraft = (): ExtractBannerDraft => {
+  return {
+    id: "",
+    label: "",
+    linkUrl: "",
+    image: null,
+  };
+};
+
+/**
+ * 저장된 PersonalHomeBanner를 편집 draft로 복사합니다.
+ */
+export const extractBannerDraftFromBanner = (banner: PersonalHomeBanner): ExtractBannerDraft => {
+  return {
+    id: banner.id,
+    label: banner.label,
+    linkUrl: banner.linkUrl,
+    image: banner.image,
+  };
+};
+
 function normalizeUploadedImage(raw: unknown): UploadedImage | null {
   if (!raw || typeof raw !== "object") {
     return null;

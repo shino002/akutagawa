@@ -1,8 +1,8 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import { MAX_AUDIO_UPLOAD_SIZE } from "@/constants/upload";
 
-const MAX_AUDIO_UPLOAD_SIZE = 15 * 1024 * 1024;
 const ALLOWED_AUDIO_TYPES = new Set([
   "audio/mpeg",
   "audio/mp3",
@@ -87,11 +87,17 @@ export async function POST(request: Request) {
   }
 
   if (!isAllowedAudioFile(file)) {
-    return NextResponse.json({ error: "mp3, ogg, wav, m4a, aac 오디오만 업로드할 수 있어요." }, { status: 400 });
+    return NextResponse.json(
+      { error: "mp3, ogg, wav, m4a, aac 오디오만 업로드할 수 있어요." },
+      { status: 400 },
+    );
   }
 
   if (file.size > MAX_AUDIO_UPLOAD_SIZE) {
-    return NextResponse.json({ error: "오디오 파일은 최대 15MB까지 업로드할 수 있어요." }, { status: 400 });
+    return NextResponse.json(
+      { error: "오디오 파일은 최대 15MB까지 업로드할 수 있어요." },
+      { status: 400 },
+    );
   }
 
   const key = `audio/site-bgm/${createUniqueObjectName(file.name, displayName)}`;

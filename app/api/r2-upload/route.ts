@@ -1,8 +1,7 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-
-const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
+import { MAX_UPLOAD_SIZE } from "@/constants/upload";
 
 function getR2Client() {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
@@ -76,12 +75,17 @@ export async function POST(request: Request) {
   }
 
   if (file.size > MAX_UPLOAD_SIZE) {
-    return NextResponse.json({ error: "파일 1개는 최대 10MB까지 업로드할 수 있어요." }, { status: 400 });
+    return NextResponse.json(
+      { error: "파일 1개는 최대 10MB까지 업로드할 수 있어요." },
+      { status: 400 },
+    );
   }
 
   const safeCharacterId = characterId.replace(/[^a-zA-Z0-9_-]/g, "-") || "uncategorized";
   const safeWorldId = worldId.replace(/[^a-zA-Z0-9_-]/g, "-");
-  const keyPrefix = safeWorldId ? `characters/${safeCharacterId}/worlds/${safeWorldId}` : `characters/${safeCharacterId}`;
+  const keyPrefix = safeWorldId
+    ? `characters/${safeCharacterId}/worlds/${safeWorldId}`
+    : `characters/${safeCharacterId}`;
   const key = `${keyPrefix}/${createUniqueObjectName(file.name, displayName)}`;
   const body = Buffer.from(await file.arrayBuffer());
 

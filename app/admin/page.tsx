@@ -31,7 +31,14 @@ import {
   resolveLoginEmail,
   validateLoginId,
 } from "@/lib/auth-helpers";
-import { normalizeBgmTracks, resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
+import {
+  bgmTrackDraftFromTrack,
+  createBlankBgmTrackDraft,
+  normalizeBgmTracks,
+  resolveCharacterBgmUrl,
+  type BgmTrackDraft,
+} from "@/lib/bgm-catalog";
+import { createBlankDiaryEntry } from "@/lib/diary-draft";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { extractCharacterPaletteFromImage } from "@/lib/character-palette";
 import { PaletteEditor } from "@/components/admin/PaletteEditor";
@@ -51,6 +58,7 @@ import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import { createAdminHistoryState } from "@/lib/admin-history";
 import type { AdminCategory, AdminHistoryState, AdminPanel } from "@/types/admin.types";
 import { defaultArchiveContent } from "@/constants/home";
+import { MAX_AUDIO_UPLOAD_SIZE, MAX_UPLOAD_SIZE } from "@/constants/upload";
 import { formatBytes } from "@/utils/formatBytes";
 import { glitchFieldClass } from "@/utils/glitchFieldClass";
 import { linesToList } from "@/utils/linesToList";
@@ -63,7 +71,15 @@ import {
   relationshipEntryLabelGlitchPath,
   relationshipEntryNameGlitchPath,
 } from "@/lib/relationship-entries";
-import { isAllowedBannerLinkUrl, normalizePersonalHomeBanners } from "@/lib/personal-home-banners";
+import {
+  createBlankExtractBannerDraft,
+  extractBannerDraftFromBanner,
+  isAllowedBannerLinkUrl,
+  normalizePersonalHomeBanners,
+  type ExtractBannerDraft,
+} from "@/lib/personal-home-banners";
+import { deleteR2Images } from "@/lib/r2-upload-client";
+import { createBlankWorldEntry, upsertWorldEntry } from "@/lib/world-entries";
 import type {
   Character,
   CharacterKind,
@@ -186,8 +202,6 @@ type ThumbnailDragState = {
 };
 
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
-const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
-const MAX_AUDIO_UPLOAD_SIZE = 15 * 1024 * 1024;
 
 /**
  * 관리자 폼 초기값 — 공개 페이지용 `defaultHomeContent`(constants/home)와 달리 전부 빈 문자열입니다.
@@ -198,108 +212,6 @@ const emptyHomeContent: HomeContent = {
   body: "",
   notice: "",
 };
-
-function createBlankDiaryEntry(): DiaryEntry {
-  return {
-    id: "",
-    title: "",
-    date: new Date().toISOString().slice(0, 10),
-    body: "",
-  };
-}
-
-type ExtractBannerDraft = {
-  id: string;
-  label: string;
-  linkUrl: string;
-  image: UploadedImage | null;
-};
-
-function createBlankExtractBannerDraft(): ExtractBannerDraft {
-  return {
-    id: "",
-    label: "",
-    linkUrl: "",
-    image: null,
-  };
-}
-
-function extractBannerDraftFromBanner(banner: PersonalHomeBanner): ExtractBannerDraft {
-  return {
-    id: banner.id,
-    label: banner.label,
-    linkUrl: banner.linkUrl,
-    image: banner.image,
-  };
-}
-
-type BgmTrackDraft = {
-  id: string;
-  label: string;
-  url: string;
-  scope: BgmTrackScope;
-};
-
-function createBlankBgmTrackDraft(): BgmTrackDraft {
-  return {
-    id: "",
-    label: "",
-    url: "",
-    scope: "site",
-  };
-}
-
-function bgmTrackDraftFromTrack(track: BgmTrack): BgmTrackDraft {
-  return {
-    id: track.id,
-    label: track.label,
-    url: track.url,
-    scope: track.scope,
-  };
-}
-
-function createBlankWorldEntry(worldId: string): CharacterWorldEntry {
-  return {
-    worldId,
-    settings: [],
-    images: [],
-    works: [],
-  };
-}
-
-function upsertWorldEntry(
-  entries: CharacterWorldEntry[] | undefined,
-  nextEntry: CharacterWorldEntry,
-) {
-  const normalizedEntries = normalizeWorldEntries(entries);
-  const existingIndex = normalizedEntries.findIndex((entry) => entry.worldId === nextEntry.worldId);
-
-  if (existingIndex === -1) {
-    return [...normalizedEntries, nextEntry];
-  }
-
-  return normalizedEntries.map((entry, index) => (index === existingIndex ? nextEntry : entry));
-}
-
-// 이미지 기록을 삭제할 때 Firestore뿐 아니라 Cloudflare R2 객체도 함께 지웁니다.
-async function deleteR2Images(images: UploadedImage[]) {
-  if (images.length === 0) return;
-
-  const response = await fetch("/api/r2-delete", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ images }),
-  });
-  const result = (await response.json()) as {
-    error?: string;
-  };
-
-  if (!response.ok) {
-    throw new Error(result.error ?? "Cloudflare R2 삭제에 실패했어요.");
-  }
-}
 
 export default function AdminPage() {
   // 로그인, 관리자 패널, 선택된 자캐/세계관, 업로드 대기 목록 등 편집 화면 상태입니다.

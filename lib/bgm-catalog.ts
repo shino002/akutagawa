@@ -7,6 +7,37 @@ import {
 } from "@/lib/bgm-playlist";
 import type { BgmTrack, BgmTrackScope } from "@/lib/types";
 
+export type BgmTrackDraft = {
+  id: string;
+  label: string;
+  url: string;
+  scope: BgmTrackScope;
+};
+
+/**
+ * 빈 BGM 트랙 편집 draft를 만듭니다. scope 기본값은 site입니다.
+ */
+export const createBlankBgmTrackDraft = (): BgmTrackDraft => {
+  return {
+    id: "",
+    label: "",
+    url: "",
+    scope: "site",
+  };
+};
+
+/**
+ * 저장된 BgmTrack을 편집 draft로 복사합니다.
+ */
+export const bgmTrackDraftFromTrack = (track: BgmTrack): BgmTrackDraft => {
+  return {
+    id: track.id,
+    label: track.label,
+    url: track.url,
+    scope: track.scope,
+  };
+};
+
 export type BgmOption = {
   label: string;
   url: string;
