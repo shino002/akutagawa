@@ -15,6 +15,9 @@ interface StoryRecordCardProps {
   titleGlitch?: FieldGlitchConfig;
 }
 
+/**
+ * Record 목록의 스토리 파일 행. 클릭하면 로그 모달을 엽니다.
+ */
 export function StoryRecordCard({
   section,
   index,
@@ -25,39 +28,36 @@ export function StoryRecordCard({
 }: StoryRecordCardProps) {
   const customExcerpt = section.excerpt?.trim();
   const excerpt = customExcerpt || resolveStoryExcerpt(section);
+  const title = section.title?.trim() || `STORY ${String(index + 1).padStart(2, "0")}`;
 
   return (
-    <article className={cn("story-record-card static-record-panel", className)}>
-      <div className="story-record-card-head">
-        <span className="story-record-card-kicker whitespace-pre-line">
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn("record-row record-row--file", className)}
+      aria-label={`${title} 기록 열람`}
+    >
+      <span className="record-row-index">{String(index + 1).padStart(2, "0")}</span>
+      <span className="record-row-main">
+        <span className="record-row-title whitespace-pre-line">
           {section.title ? (
             <GlitchedText text={section.title} glitch={titleGlitch} preserveWhitespace />
           ) : (
-            `STORY ${String(index + 1).padStart(2, "0")}`
+            title
           )}
         </span>
-        <span className="story-record-card-badge">STORY LOG</span>
-      </div>
-
-      <p
-        className={cn(
-          "story-record-card-excerpt",
-          customExcerpt && "story-record-card-excerpt-custom",
-        )}
-      >
         {excerpt ? (
-          <StoryFormattedText text={customExcerpt || excerpt} glitch={customExcerpt ? excerptGlitch : undefined} />
-        ) : (
-          "기록된 서사가 있습니다."
-        )}
-      </p>
-
-      <button type="button" onClick={onOpen} className="story-record-card-open">
-        <span className="story-record-card-open-label">기록 열람</span>
-        <span className="story-record-card-open-icon" aria-hidden="true">
-          ↗
-        </span>
-      </button>
-    </article>
+          <span className={cn("record-row-hint", customExcerpt && "record-row-hint--rich")}>
+            <StoryFormattedText
+              text={customExcerpt || excerpt}
+              glitch={customExcerpt ? excerptGlitch : undefined}
+            />
+          </span>
+        ) : null}
+      </span>
+      <span className="record-row-action" aria-hidden="true">
+        →
+      </span>
+    </button>
   );
 }

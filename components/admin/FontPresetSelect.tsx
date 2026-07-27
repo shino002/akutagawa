@@ -20,6 +20,7 @@ export function FontPresetSelect({
       value={value ?? ""}
       onChange={(event) => onChange(event.target.value || undefined)}
       onMouseDown={(event) => event.stopPropagation()}
+      onMouseDownCapture={(event) => event.stopPropagation()}
       className={className}
       data-text-corruptor-ignore
       data-admin-interactive

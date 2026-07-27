@@ -155,7 +155,10 @@ export function FontSizeField({ label, value, onChange }: FontSizeFieldProps) {
           step={GLITCH_FONT_SIZE_STEP_PERCENT}
           value={resolved}
           onChange={(event) => commitFontSize(Number(event.target.value))}
+          onMouseDown={(event) => event.stopPropagation()}
           className="w-full accent-emerald-300"
+          data-admin-interactive
+          data-text-corruptor-ignore
         />
       </label>
       <div className="flex flex-wrap gap-2">
@@ -216,11 +219,18 @@ export function GlitchStyleEditor({
       ...patch,
     };
 
+    // undefined 패치는 해당 키를 지운다는 뜻 (스프레드만으로는 키가 남음)
+    for (const key of Object.keys(patch) as Array<keyof GlitchZoneStyle>) {
+      if (patch[key] === undefined) {
+        delete merged[key];
+      }
+    }
+
     if ("markdown" in patch) {
       merged.markdown = patch.markdown;
     }
 
-    const normalized = normalizeGlitchZoneStyle(merged) ?? merged;
+    const normalized = normalizeGlitchZoneStyle(merged) ?? {};
     if (glitchZoneStylesEqual(normalized, style)) {
       return;
     }

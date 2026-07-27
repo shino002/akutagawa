@@ -1,6 +1,14 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { preserveGlitchToolbarSourceSelection } from "@/lib/admin-interaction";
 import { getSelectionStyle, readPlainTextFromEditor } from "@/lib/contenteditable-glitch";
@@ -13,6 +21,7 @@ import {
 import {
   applyGlitchZone,
   buildQuickFontPresetStyle,
+  buildQuickFontSizeStyle,
   buildQuickMarkdownStyle,
   buildQuickTextColorStyle,
   resolveAnchoredSelection,
@@ -50,6 +59,15 @@ const TEXT_COLOR_PRESETS = [
   { label: "호박", value: "#fde68a" },
   { label: "보라", value: "#c4b5fd" },
   { label: "백색", value: "#f8fafc" },
+] as const;
+
+const FONT_SIZE_PRESETS = [
+  { label: "크기: 기본", value: "" },
+  { label: "작게 75%", value: "75" },
+  { label: "약간 크게 110%", value: "110" },
+  { label: "크게 125%", value: "125" },
+  { label: "아주 크게 150%", value: "150" },
+  { label: "최대 200%", value: "200" },
 ] as const;
 
 function ToolbarButton({
@@ -151,6 +169,19 @@ export function GlitchSelectionFloatingToolbar({
 
   const activeTextColor = selectionStyle?.textColor ?? "";
   const activeFontPreset = selectionStyle?.fontPreset ?? "";
+  const activeFontSize =
+    typeof selectionStyle?.fontSize === "number" ? String(selectionStyle.fontSize) : "";
+  const fontSizeOptions = useMemo(() => {
+    if (!activeFontSize || FONT_SIZE_PRESETS.some((preset) => preset.value === activeFontSize)) {
+      return FONT_SIZE_PRESETS.map((preset) => ({ ...preset }));
+    }
+
+    return [
+      FONT_SIZE_PRESETS[0],
+      { label: `현재 ${activeFontSize}%`, value: activeFontSize },
+      ...FONT_SIZE_PRESETS.slice(1),
+    ];
+  }, [activeFontSize]);
 
   const fallbackPosition = useMemo(
     () => (anchorElement ? getFallbackToolbarPosition(anchorElement) : null),
@@ -279,8 +310,20 @@ export function GlitchSelectionFloatingToolbar({
     commit({ style: nextStyle });
   };
 
+  const applyFontSize = (sizeValue: string) => {
+    const parsed = sizeValue ? Number(sizeValue) : undefined;
+    const current = activeFontSize;
+    const nextSize =
+      sizeValue && sizeValue === current ? undefined : Number.isFinite(parsed) ? parsed : undefined;
+    const nextStyle = buildQuickFontSizeStyle(selectionStyle, nextSize);
+    commit({ style: nextStyle });
+  };
+
   const handleToolbarMouseDown = (event: MouseEvent<HTMLElement>) => {
-    if (event.target instanceof HTMLInputElement && event.target.type === "color") {
+    if (
+      (event.target instanceof HTMLInputElement && event.target.type === "color") ||
+      event.target instanceof HTMLSelectElement
+    ) {
       selectionSnapshotRef.current = resolvedSelection;
       return;
     }
@@ -289,7 +332,10 @@ export function GlitchSelectionFloatingToolbar({
   };
 
   const handleToolbarMouseDownCapture = (event: MouseEvent<HTMLElement>) => {
-    if (event.target instanceof HTMLInputElement && event.target.type === "color") {
+    if (
+      (event.target instanceof HTMLInputElement && event.target.type === "color") ||
+      event.target instanceof HTMLSelectElement
+    ) {
       selectionSnapshotRef.current = resolvedSelection;
       return;
     }
@@ -373,7 +419,11 @@ export function GlitchSelectionFloatingToolbar({
           </label>
 
           {activeTextColor ? (
-            <ToolbarButton title="글자색 해제" onClick={() => applyTextColor(null)} className="px-1.5 text-[10px]">
+            <ToolbarButton
+              title="글자색 해제"
+              onClick={() => applyTextColor(null)}
+              className="px-1.5 text-[10px]"
+            >
               ×
             </ToolbarButton>
           ) : null}
@@ -387,12 +437,30 @@ export function GlitchSelectionFloatingToolbar({
           compact
           className="glitch-float-toolbar-font-select"
         />
+        <select
+          value={activeFontSize}
+          onChange={(event) => applyFontSize(event.target.value)}
+          onMouseDown={(event) => {
+            selectionSnapshotRef.current = resolvedSelection;
+            event.stopPropagation();
+          }}
+          className="glitch-float-toolbar-font-select glitch-float-toolbar-font-size-select"
+          data-text-corruptor-ignore
+          data-admin-interactive
+          aria-label="구간 글씨 크기"
+        >
+          {fontSizeOptions.map((preset) => (
+            <option key={`${preset.label}-${preset.value}`} value={preset.value}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <p className="glitch-float-toolbar-meta">
         {fieldLabel ? `${fieldLabel} · ` : ""}
-        {resolvedSelection.start + 1}~{resolvedSelection.end}번째 · {resolvedSelection.text.length}자
-        {justApplied ? " · 적용됨" : ""}
+        {resolvedSelection.start + 1}~{resolvedSelection.end}번째 · {resolvedSelection.text.length}
+        자{justApplied ? " · 적용됨" : ""}
       </p>
     </div>,
     document.body,

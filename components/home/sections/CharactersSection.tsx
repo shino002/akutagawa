@@ -11,7 +11,6 @@ import { TextGlitch } from "@/components/TextGlitch";
 import { GlitchedText } from "@/components/GlitchedText";
 import { StoryFormattedText } from "@/components/StoryFormattedText";
 import {
-  glitchConfigSignature,
   settingSectionExcerptGlitchPath,
   settingSectionGlitchPath,
   settingSectionTitleGlitchPath,
@@ -25,16 +24,12 @@ import {
 } from "@/lib/relationship-entries";
 import { normalizeSettingSections } from "@/lib/setting-sections";
 import { ArchiveMotion } from "@/components/home/ArchiveMotion";
+import { RecordBoxEntry } from "@/components/home/RecordBoxEntry";
 import { StoryRecordCard } from "@/components/home/StoryRecordCard";
 import { normalizeWorldEntries } from "@/utils/normalizers";
 import type { Character, UploadedImage, World, ZoneLinkTarget } from "@/lib/types";
 import type { CharacterDetailSection } from "@/lib/zone-links";
-import {
-  findSubPage,
-  listNavigableSubPages,
-  resolveSubPage,
-  subPageToDisplayCharacter,
-} from "@/lib/sub-pages";
+import { listNavigableSubPages, resolveSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
 import {
   getSubPageEntryCopy,
   getSubPageEntryKicker,
@@ -56,10 +51,10 @@ import type {
 } from "@/types/home.types";
 
 const TAB_LABELS: Record<CharacterDetailTab, string> = {
-  settings: "Record",
-  images: "Visual",
-  works: "Works",
-  worlds: "World",
+  settings: "기록",
+  images: "비주얼",
+  works: "로그",
+  worlds: "세계",
 };
 
 const TAB_ORDER: CharacterDetailTab[] = ["settings", "images", "works", "worlds"];
@@ -118,7 +113,7 @@ interface CharactersSectionProps {
 export function CharactersSection({
   characters,
   allCharacters = characters,
-  sectionIndexTitle = "OC Files",
+  sectionIndexTitle = "OC 파일",
   emptyListMessage = "아직 등록된 항목이 없어요.",
   activeCharacterId,
   setActiveCharacterId,
@@ -300,6 +295,19 @@ export function CharactersSection({
   );
   const activeSettingSections = normalizeSettingSections(activeCharacter.settingSections);
   const activeMetaFields = useMemo(() => resolveMetaFields(activeCharacter), [activeCharacter]);
+  const filledMetaFields = useMemo(
+    () => activeMetaFields.filter((field) => field.body.trim()),
+    [activeMetaFields],
+  );
+  const quoteText = activeCharacter.quote.trim();
+  const profileFieldCount = activeCharacter.profileFields.length;
+  const quoteLabel = isSubPageView && activeSubPageCopy ? activeSubPageCopy.quoteLabel : "한마디";
+  const recordEntryCount =
+    activeSettingSections.length +
+    (activeSettingSections.length === 0 ? activeCharacter.settings.length : 0) +
+    (profileFieldCount > 0 ? 1 : 0);
+  const settingsEntryOffset = profileFieldCount > 0 ? 1 : 0;
+
   const activeRelationshipEntries = useMemo(
     () =>
       normalizeRelationshipEntries(
@@ -326,25 +334,29 @@ export function CharactersSection({
   return (
     <section className={cn("space-y-6", className)}>
       {!activeCharacterId && (
-        <section className="glass-card character-index-panel p-6 md:p-8">
+        <ArchiveMotion
+          as="section"
+          motionKey={`character-index-panel-${detailSection}`}
+          className="glass-card character-index-panel p-6 md:p-8"
+        >
           <div className="character-index-header">
             <p className="character-index-blue-text text-xs tracking-[0.45em] uppercase">
               <TextGlitch className="character-index-blue-text" text={sectionIndexTitle} />
             </p>
             <TextGlitch
               className="character-index-blue-text"
-              text={`${String(characters.length).padStart(2, "0")} Records`}
+              text={`${String(characters.length).padStart(2, "0")}개`}
             />
           </div>
 
           {characters.length === 0 ? (
-            <div className="archive-panel mt-6 p-5 text-sm leading-7 text-emerald-100/65">
+            <div className="archive-panel mt-6 p-5 text-sm leading-7 text-white/65">
               {emptyListMessage}
             </div>
           ) : (
             <ArchiveMotion
               variant="stagger"
-              motionKey="character-index"
+              motionKey={`character-index-grid-${detailSection}-${characters.length}`}
               className="character-index-grid"
             >
               {characters.map((character) => {
@@ -406,13 +418,13 @@ export function CharactersSection({
               })}
             </ArchiveMotion>
           )}
-        </section>
+        </ArchiveMotion>
       )}
 
       {activeCharacterId && (
         <ArchiveMotion
           as="section"
-          motionKey={`${activeCharacterId}-${activeSubPageId || "main"}`}
+          motionKey={`character-detail-${activeCharacterId}-${activeSubPageId || "main"}`}
           className="glass-card case-file-detail dossier-viewer overflow-hidden"
           style={detailThemeStyle}
         >
@@ -433,7 +445,7 @@ export function CharactersSection({
                   text={
                     isSubPageView
                       ? getSubPageEntryKicker(activeSubPageEntryLabel)
-                      : "Private Archive / Case File"
+                      : "비공개 아카이브 / 케이스 파일"
                   }
                 />
                 {isPairView && !isSubPageView && (
@@ -516,34 +528,34 @@ export function CharactersSection({
               </div>
             )}
 
-            <div className="case-file-meta">
-              <span className="case-file-meta-line">
+            <div className="dossier-meta-strip" aria-label="식별 정보">
+              <span className="dossier-meta-item dossier-meta-item--id">
                 NO. {activeCharacter.id || "UNREGISTERED"}
               </span>
-              {isSubPageView && activeSubPageEntryLabel && (
-                <span className="case-file-meta-line">유형: {activeSubPageEntryLabel}</span>
-              )}
-              {activeMetaFields.map((field) =>
-                field.body.trim() ? (
-                  <span key={field.id} className="case-file-meta-line">
-                    {field.label.trim() || "기록"}:{" "}
-                    <GlitchedText
-                      text={field.body}
-                      glitch={activeCharacter.textGlitch?.[metaFieldGlitchPath(field.id)]}
-                      preserveWhitespace={field.body.includes("\n")}
-                      {...zoneLinkProps}
-                    />
-                  </span>
-                ) : null,
-              )}
+              {isSubPageView && activeSubPageEntryLabel ? (
+                <span className="dossier-meta-item">
+                  <span className="dossier-meta-quiet">유형</span> {activeSubPageEntryLabel}
+                </span>
+              ) : null}
+              {filledMetaFields.map((field) => (
+                <span key={field.id} className="dossier-meta-item">
+                  {field.label.trim() ? (
+                    <span className="dossier-meta-quiet">{field.label.trim()}</span>
+                  ) : null}{" "}
+                  <GlitchedText
+                    text={field.body}
+                    glitch={activeCharacter.textGlitch?.[metaFieldGlitchPath(field.id)]}
+                    preserveWhitespace={field.body.includes("\n")}
+                    {...zoneLinkProps}
+                  />
+                </span>
+              ))}
             </div>
 
-            {activeCharacter.quote.trim() ? (
-              <div className="case-file-intro case-file-voice">
-                <p className="case-file-intro-label">
-                  {isSubPageView && activeSubPageCopy ? activeSubPageCopy.quoteLabel : "한마디"}
-                </p>
-                <blockquote className="case-file-intro-text" data-text-corruptor-ignore>
+            {quoteText ? (
+              <div className="dossier-voice">
+                <p className="dossier-voice-label">{quoteLabel}</p>
+                <blockquote className="dossier-voice-text" data-text-corruptor-ignore>
                   <StoryFormattedText
                     text={activeCharacter.quote}
                     glitch={activeCharacter.textGlitch?.quote}
@@ -554,38 +566,13 @@ export function CharactersSection({
               </div>
             ) : null}
 
-            <section className="case-profile-panel" aria-label="프로필">
-              <p className="case-profile-kicker">Profile Data</p>
-              <div className="case-profile-grid">
-                {activeCharacter.profileFields.map((field) => {
-                  const profileText = field.value.trim() || "-";
-                  const profileGlitch = getCharacterFieldGlitch(
-                    activeCharacter.textGlitch,
-                    profileFieldGlitchPath(field.id),
-                    profileText,
-                  );
-
-                  return (
-                    <div key={field.id} className="case-profile-chip">
-                      <span className="case-profile-chip-label">{field.label || "-"}</span>
-                      <span className="case-profile-chip-value">
-                        <GlitchedText
-                          text={profileText}
-                          glitch={profileGlitch}
-                          {...zoneLinkProps}
-                        />
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <div className="case-tab-strip">
+            <div className="case-tab-strip" role="tablist" aria-label="파일 탭">
               {visibleTabs.map((tab) => (
                 <button
                   key={tab}
                   type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab}
                   onClick={() => setActiveTab(tab)}
                   className={`case-tab-button ${activeTab === tab ? "is-active" : ""}`}
                 >
@@ -599,83 +586,133 @@ export function CharactersSection({
               <ArchiveMotion motionKey={`${activeCharacterId}-${activeTab}`} variant="scan">
                 {activeTab === "settings" && (
                   <>
-                    <div className="grid min-w-0 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-                      <section className="static-record-panel">
-                        <p className="text-xs tracking-[0.25em] text-emerald-100/45 uppercase">
-                          Record Box
-                        </p>
-                        <div className="mt-3 grid gap-3">
-                          {activeSettingSections.length > 0 ? (
-                            activeSettingSections.map((section, index) =>
-                              section.kind === "story" ? (
-                                <StoryRecordCard
-                                  key={section.id || `${section.title}-${index}`}
-                                  section={section}
-                                  index={index}
-                                  titleGlitch={
-                                    activeCharacter.textGlitch?.[
-                                      settingSectionTitleGlitchPath(section.id)
-                                    ]
-                                  }
-                                  excerptGlitch={
-                                    activeCharacter.textGlitch?.[
-                                      settingSectionExcerptGlitchPath(section.id)
-                                    ]
-                                  }
-                                  onOpen={() =>
-                                    onOpenStory({ character: activeCharacter, section })
-                                  }
-                                />
-                              ) : (
-                                <article
-                                  key={section.id || `${section.title}-${index}`}
-                                  className="static-record-panel"
-                                >
-                                  <span className="mb-2 block text-xs tracking-[0.25em] whitespace-pre-line text-emerald-100/45 uppercase">
-                                    {section.title ? (
-                                      <GlitchedText
-                                        text={section.title}
+                    <div className="record-settings-layout">
+                      <div className="record-settings-pair">
+                        <section className="record-box static-record-panel">
+                          <header className="record-box-head">
+                            <p className="record-box-kicker">기록</p>
+                            <span className="record-box-count">
+                              {recordEntryCount > 0
+                                ? `${String(recordEntryCount).padStart(2, "0")}`
+                                : "00"}
+                            </span>
+                          </header>
+                          <div className="record-box-list">
+                            {profileFieldCount > 0 ? (
+                              <RecordBoxEntry
+                                defaultOpen={false}
+                                indexLabel="01"
+                                title="프로필"
+                                hint={`${String(profileFieldCount).padStart(2, "0")} fields`}
+                              >
+                                <div className="dossier-profile-inline">
+                                  {activeCharacter.profileFields.map((field) => {
+                                    const profileText = field.value.trim() || "-";
+                                    const profileGlitch = getCharacterFieldGlitch(
+                                      activeCharacter.textGlitch,
+                                      profileFieldGlitchPath(field.id),
+                                      profileText,
+                                    );
+
+                                    return (
+                                      <div key={field.id} className="dossier-profile-inline-row">
+                                        <span className="dossier-profile-inline-key">
+                                          {field.label || "-"}
+                                        </span>
+                                        <span className="dossier-profile-inline-value">
+                                          <GlitchedText
+                                            text={profileText}
+                                            glitch={profileGlitch}
+                                            {...zoneLinkProps}
+                                          />
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </RecordBoxEntry>
+                            ) : null}
+
+                            {activeSettingSections.length > 0 ? (
+                              activeSettingSections.map((section, index) =>
+                                section.kind === "story" ? (
+                                  <StoryRecordCard
+                                    key={section.id || `${section.title}-${index}`}
+                                    section={section}
+                                    index={settingsEntryOffset + index}
+                                    titleGlitch={
+                                      activeCharacter.textGlitch?.[
+                                        settingSectionTitleGlitchPath(section.id)
+                                      ]
+                                    }
+                                    excerptGlitch={
+                                      activeCharacter.textGlitch?.[
+                                        settingSectionExcerptGlitchPath(section.id)
+                                      ]
+                                    }
+                                    onOpen={() =>
+                                      onOpenStory({ character: activeCharacter, section })
+                                    }
+                                  />
+                                ) : (
+                                  <RecordBoxEntry
+                                    key={section.id || `${section.title}-${index}`}
+                                    defaultOpen={false}
+                                    indexLabel={String(settingsEntryOffset + index + 1).padStart(
+                                      2,
+                                      "0",
+                                    )}
+                                    title={
+                                      section.title ? (
+                                        <GlitchedText
+                                          text={section.title}
+                                          glitch={
+                                            activeCharacter.textGlitch?.[
+                                              settingSectionTitleGlitchPath(section.id)
+                                            ]
+                                          }
+                                          preserveWhitespace
+                                        />
+                                      ) : (
+                                        `기록`
+                                      )
+                                    }
+                                  >
+                                    <p className="record-row-prose">
+                                      <StoryFormattedText
+                                        text={section.body || "-"}
                                         glitch={
                                           activeCharacter.textGlitch?.[
-                                            settingSectionTitleGlitchPath(section.id)
+                                            settingSectionGlitchPath(section.id)
                                           ]
                                         }
                                         preserveWhitespace
+                                        {...zoneLinkProps}
                                       />
-                                    ) : (
-                                      `RECORD ${String(index + 1).padStart(2, "0")}`
-                                    )}
-                                  </span>
-                                  <p className="text-sm leading-7 whitespace-pre-line text-emerald-50/80">
-                                    <StoryFormattedText
-                                      text={section.body || "-"}
-                                      glitch={
-                                        activeCharacter.textGlitch?.[
-                                          settingSectionGlitchPath(section.id)
-                                        ]
-                                      }
-                                      preserveWhitespace
-                                      {...zoneLinkProps}
-                                    />
-                                  </p>
-                                </article>
-                              ),
-                            )
-                          ) : activeCharacter.settings.length > 0 ? (
-                            activeCharacter.settings.map((setting, index) => (
-                              <div key={setting} className="static-record-panel">
-                                <span className="mb-2 block text-xs tracking-[0.25em] text-emerald-100/45 uppercase">
-                                  RECORD {String(index + 1).padStart(2, "0")}
-                                </span>
-                                <p className="text-sm leading-7 text-emerald-50/80">{setting}</p>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="plain-empty-note">등록된 상세 설정이 없어요.</p>
-                          )}
-                        </div>
-                      </section>
-                      <div className="grid content-start gap-4">
+                                    </p>
+                                  </RecordBoxEntry>
+                                ),
+                              )
+                            ) : activeCharacter.settings.length > 0 ? (
+                              activeCharacter.settings.map((setting, index) => (
+                                <RecordBoxEntry
+                                  key={setting}
+                                  defaultOpen={false}
+                                  indexLabel={String(settingsEntryOffset + index + 1).padStart(
+                                    2,
+                                    "0",
+                                  )}
+                                  title={`기록`}
+                                >
+                                  <p className="record-row-prose">{setting}</p>
+                                </RecordBoxEntry>
+                              ))
+                            ) : profileFieldCount === 0 ? (
+                              <p className="plain-empty-note">등록된 상세 설정이 없어요.</p>
+                            ) : null}
+                          </div>
+                        </section>
+
                         <button
                           type="button"
                           onClick={() =>
@@ -685,10 +722,10 @@ export function CharactersSection({
                               character: activeCharacter,
                             })
                           }
-                          className="case-evidence-preview group block w-full text-left"
+                          className="case-evidence-preview record-visual-preview group block w-full text-left"
                           disabled={!activeMainIllustration}
                         >
-                          <div className="relative h-96 overflow-hidden md:h-[520px]">
+                          <div className="record-visual-frame">
                             {activeMainIllustration ? (
                               <ThumbnailImage
                                 image={activeMainIllustration}
@@ -699,7 +736,7 @@ export function CharactersSection({
                             ) : (
                               <div className="h-full w-full bg-black/20" aria-hidden="true" />
                             )}
-                            <span className="case-evidence-stamp">VISUAL RECORD</span>
+                            <span className="case-evidence-stamp">비주얼 기록</span>
                             {activeMainIllustration && imageCreditName(activeMainIllustration) && (
                               <span className="image-credit-label image-credit-label-large">
                                 {imageCreditName(activeMainIllustration)}
@@ -707,48 +744,44 @@ export function CharactersSection({
                             )}
                           </div>
                         </button>
-
-                        {activeStandingImages.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              onOpenExpression({
-                                character: activeCharacter,
-                                images: activeStandingImages,
-                              })
-                            }
-                            className="case-side-record text-left"
-                          >
-                            <p className="text-xs tracking-[0.25em] text-stone-300/55 uppercase">
-                              Standing Expressions
-                            </p>
-                            <div className="mt-3 grid grid-cols-4 gap-2">
-                              {activeStandingImages.slice(0, 4).map((image) => (
-                                <div
-                                  key={image.id}
-                                  className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
-                                >
-                                  <ThumbnailImage
-                                    image={image}
-                                    src={image.url}
-                                    alt="스탠딩 이미지"
-                                  />
-                                </div>
-                              ))}
-                            </div>
-                            <p className="mt-3 text-sm text-emerald-50/75">
-                              스탠딩 표정 {activeStandingImages.length}장 보기
-                            </p>
-                          </button>
-                        )}
                       </div>
+
+                      {activeStandingImages.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenExpression({
+                              character: activeCharacter,
+                              images: activeStandingImages,
+                            })
+                          }
+                          className="case-side-record text-left"
+                        >
+                          <p className="text-xs tracking-[0.25em] text-stone-300/55 uppercase">
+                            스탠딩 표정
+                          </p>
+                          <div className="mt-3 grid grid-cols-4 gap-2">
+                            {activeStandingImages.slice(0, 4).map((image) => (
+                              <div
+                                key={image.id}
+                                className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
+                              >
+                                <ThumbnailImage image={image} src={image.url} alt="스탠딩 이미지" />
+                              </div>
+                            ))}
+                          </div>
+                          <p className="mt-3 text-sm text-white/70">
+                            스탠딩 표정 {activeStandingImages.length}장 보기
+                          </p>
+                        </button>
+                      )}
                     </div>
 
                     {activeRelationshipEntries.length > 0 && (
                       <section className="relation-map-panel mt-4">
                         <header className="relation-map-head">
                           <div>
-                            <p className="case-file-intro-label">Relation Map</p>
+                            <p className="case-file-intro-label">관계도</p>
                             <p className="relation-map-subtitle">관계 기록</p>
                           </div>
                           <span className="world-file-tag">
@@ -861,10 +894,10 @@ export function CharactersSection({
                         <p className="text-xs tracking-[0.28em] text-stone-300/55 uppercase">
                           Standing Expression Set
                         </p>
-                        <h4 className="mt-2 text-xl font-semibold text-emerald-50">
+                        <h4 className="mt-2 text-xl font-semibold text-white/90">
                           스탠딩 표정 모음
                         </h4>
-                        <p className="mt-2 text-sm text-emerald-100/65">
+                        <p className="mt-2 text-sm text-white/65">
                           {activeStandingImages.length}장의 표정 이미지를 한 번에 봅니다.
                         </p>
                       </button>
@@ -899,7 +932,7 @@ export function CharactersSection({
                 {activeTab === "works" && (
                   <div className="dossier-tab-stack">
                     {activeWorks.length > 0 && (
-                      <p className="border border-stone-400/18 bg-stone-900/10 p-3 text-sm text-emerald-100/70">
+                      <p className="border border-stone-400/18 bg-stone-900/10 p-3 text-sm text-white/70">
                         글 카드를 누르면 이북 리더 화면으로 열립니다.
                       </p>
                     )}
@@ -912,7 +945,7 @@ export function CharactersSection({
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-xs text-emerald-100/45">
+                            <p className="text-xs text-white/45">
                               {work.kind} / {work.date}
                             </p>
                             <h4 className="mt-2 text-xl font-semibold">{work.title}</h4>
@@ -996,7 +1029,7 @@ export function CharactersSection({
                                   }
                                   className="grid gap-3 border border-stone-400/15 bg-stone-900/10 p-4"
                                 >
-                                  <p className="text-sm leading-7 text-emerald-100/70">
+                                  <p className="text-sm leading-7 text-white/70">
                                     {canUnlockWorlds
                                       ? "이 세계관의 설정, 그림, 연성/로그를 보려면 비밀번호를 입력해주세요."
                                       : "세계관 비밀번호는 회원가입 또는 로그인 후 입력할 수 있어요."}
@@ -1034,7 +1067,7 @@ export function CharactersSection({
                             ) : (
                               <article className="archive-panel grid gap-5 p-5">
                                 <div>
-                                  <p className="text-xs tracking-[0.25em] text-emerald-100/45 uppercase">
+                                  <p className="text-xs tracking-[0.25em] text-white/45 uppercase">
                                     World Data
                                   </p>
                                   <h4 className="mt-2 text-2xl font-semibold">

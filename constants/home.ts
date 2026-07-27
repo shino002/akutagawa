@@ -5,9 +5,9 @@ import { createDefaultProfileFields } from "@/lib/profile-fields";
  * Firestore의 site/home 문서가 비어 있을 때 사용할 기본 문구입니다.
  */
 export const defaultHomeContent: HomeContent = {
-  eyebrow: "",
-  title: "",
-  body: "",
+  eyebrow: "ARCHIVE",
+  title: "芥川",
+  body: "사진, 설정, 연성, 기록의 파편들.",
 };
 
 /**

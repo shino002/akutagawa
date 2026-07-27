@@ -225,6 +225,10 @@ export type Character = {
   pairMemberIds?: string[];
   /** 캐릭터 상세 보기에서 재생할 BGM (`/audio/...`) */
   bgmUrl?: string;
+  /**
+   * 공개 홈에서 상세 진입 전 기밀 열람 확인을 띄울지 여부.
+   */
+  confidential?: boolean;
 };
 
 export type HomeContent = {

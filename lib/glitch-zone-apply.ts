@@ -3,6 +3,7 @@ import {
   hasGlitchPresentation,
   mergeGlitchZoneStyles,
   normalizeGlitchZoneStyle,
+  clampGlitchFontSizePercent,
   clampGlitchTickMs,
 } from "@/lib/glitch-style";
 import { normalizeGlitchFontPreset } from "@/constants/glitch-font-presets";
@@ -153,7 +154,9 @@ function buildZoneFragment(
   start: number,
   end: number,
   sourceText: string,
-  overrides?: Partial<Pick<GlitchZone, "style" | "errorMessageSource" | "errorMessage" | "linkTarget">>,
+  overrides?: Partial<
+    Pick<GlitchZone, "style" | "errorMessageSource" | "errorMessage" | "linkTarget">
+  >,
 ): GlitchZone | null {
   const clampedStart = Math.max(zone.start, start);
   const clampedEnd = Math.min(zone.end, end);
@@ -216,7 +219,9 @@ function splitZonesForSelection(
     }
   }
 
-  return [...untouched, ...fragments, nextSelectionZone].sort((left, right) => left.start - right.start);
+  return [...untouched, ...fragments, nextSelectionZone].sort(
+    (left, right) => left.start - right.start,
+  );
 }
 
 function findMatchingZone(zones: GlitchZone[], selection: GlitchTextSelection, sourceText: string) {
@@ -277,7 +282,7 @@ function mergePendingOntoExistingZone(
     delete merged.errorMessage;
   }
 
-  const mergedStyle = resolveMergedZoneStyle(pending.style, existing.style);
+  const mergedStyle = normalizeGlitchZoneStyle(pending.style);
   if (mergedStyle) {
     merged.style = mergedStyle;
   } else {
@@ -431,8 +436,7 @@ export function applyGlitchZone(
   const errorMessageSource =
     requestedErrorSource ??
     (wantsReference || effectiveBuiltin ? ("auto" as const) : ("none" as const));
-  const customMessage =
-    errorMessageSource === "custom" ? options.errorMessage?.trim() : undefined;
+  const customMessage = errorMessageSource === "custom" ? options.errorMessage?.trim() : undefined;
   const linkTarget = normalizeZoneLinkTarget(options.linkTarget);
 
   let nextZones: GlitchZone[];
@@ -452,7 +456,10 @@ export function applyGlitchZone(
           : { linkTarget: undefined, linkSubPageId: undefined }),
       };
 
-      const mergedStyle = resolveMergedZoneStyle(mergedApplyStyle, zone.style);
+      const mergedStyle =
+        options.style !== undefined
+          ? normalizeGlitchZoneStyle(options.style)
+          : resolveMergedZoneStyle(mergedApplyStyle, zone.style);
       if (mergedStyle) {
         nextZone.style = mergedStyle;
       } else {
@@ -496,7 +503,10 @@ export function applyGlitchZone(
   const nextConfig = buildNextConfigFromZones(config, nextZones, options);
 
   const message =
-    wantsReference || wantsBuiltin || errorMessageSource === "custom" || errorMessageSource === "auto"
+    wantsReference ||
+    wantsBuiltin ||
+    errorMessageSource === "custom" ||
+    errorMessageSource === "auto"
       ? `${selection.start + 1}~${selection.end}번째 글자에 오류를 적용했어요.`
       : hasLink
         ? `${selection.start + 1}~${selection.end}번째 글자에 페이지 이동을 연결했어요.`
@@ -558,6 +568,27 @@ export function buildQuickFontPresetStyle(
   return normalizeGlitchZoneStyle(next) ?? {};
 }
 
+export function buildQuickFontSizeStyle(
+  current: GlitchZoneStyle | undefined,
+  fontSize: number | null | undefined,
+): GlitchZoneStyle {
+  const next: GlitchZoneStyle = { ...(current ?? {}) };
+
+  if (fontSize === null || fontSize === undefined || fontSize === 100) {
+    delete next.fontSize;
+    return normalizeGlitchZoneStyle(next) ?? {};
+  }
+
+  const clamped = clampGlitchFontSizePercent(fontSize);
+  if (!clamped || clamped === 100) {
+    delete next.fontSize;
+    return normalizeGlitchZoneStyle(next) ?? {};
+  }
+
+  next.fontSize = clamped;
+  return normalizeGlitchZoneStyle(next) ?? {};
+}
+
 export function resolveAnchoredSelection(
   selection: import("@/lib/glitch-selection").GlitchTextSelection,
   fieldValue: string,
@@ -570,7 +601,10 @@ export function resolveAnchoredSelection(
   }
 
   if (slice && slice !== selection.text) {
-    const nearby = fieldValue.indexOf(selection.text, Math.max(0, selection.start - selection.text.length));
+    const nearby = fieldValue.indexOf(
+      selection.text,
+      Math.max(0, selection.start - selection.text.length),
+    );
     if (nearby !== -1 && nearby + selection.text.length <= fieldValue.length) {
       return {
         start: nearby,

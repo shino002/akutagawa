@@ -19,6 +19,7 @@ import { StoryModal } from "@/components/home/modals/StoryModal";
 import { ReaderModal } from "@/components/home/modals/ReaderModal";
 import { GalleryModal } from "@/components/home/modals/GalleryModal";
 import { ExpressionModal } from "@/components/home/modals/ExpressionModal";
+import { ConfidentialAccessModal } from "@/components/home/modals/ConfidentialAccessModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useCharacters } from "@/hooks/useCharacters";
 import { useWorlds } from "@/hooks/useWorlds";
@@ -30,7 +31,13 @@ import { useHomeModals } from "@/hooks/useHomeModals";
 import { useWorldUnlock } from "@/hooks/useWorldUnlock";
 import { useAppHistoryNavigation } from "@/hooks/useAppHistoryNavigation";
 import { createAppHistoryState } from "@/lib/app-history";
-import { defaultArchiveContent, defaultExtractContent, defaultHomeContent, type ArchiveSubSectionId, type SectionId } from "@/constants/home";
+import {
+  defaultArchiveContent,
+  defaultExtractContent,
+  defaultHomeContent,
+  type ArchiveSubSectionId,
+  type SectionId,
+} from "@/constants/home";
 import type { AppHistoryState, CharacterDetailTab } from "@/types/home.types";
 import { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { filterCharactersByKind } from "@/lib/character-kind";
@@ -58,6 +65,14 @@ export default function Home() {
   }, []);
   const [authNotice, setAuthNotice] = useState("");
   const [guestDraft, setGuestDraft] = useState({ name: "", body: "" });
+  const [pendingConfidential, setPendingConfidential] = useState<{
+    characterId: string;
+    characterName: string;
+    kind: "select" | "archive" | "linked" | "zone";
+    tab?: CharacterDetailTab;
+    subPageId?: string;
+    section?: ArchiveSubSectionId;
+  } | null>(null);
 
   const auth = useAuth(setAuthNotice);
   const { data: characters, error: charactersError } = useCharacters();
@@ -93,12 +108,17 @@ export default function Home() {
     activeCharacterParent && activeSubPage
       ? subPageToDisplayCharacter(activeCharacterParent, activeSubPage)
       : activeCharacterParent;
-  const characterBgmUrl =
-    activeCharacter ? resolveCharacterBgmUrl(activeCharacter.bgmUrl) : null;
+  const characterBgmUrl = activeCharacter ? resolveCharacterBgmUrl(activeCharacter.bgmUrl) : null;
 
   // 구독 에러는 사용자 액션 알림(authNotice)이 비어 있을 때만 폴백으로 표시합니다.
   const subscriptionError =
-    charactersError || worldsError || homeError || archiveError || extractError || diaryError || guestbookError;
+    charactersError ||
+    worldsError ||
+    homeError ||
+    archiveError ||
+    extractError ||
+    diaryError ||
+    guestbookError;
   const displayedNotice = authNotice || subscriptionError || "";
 
   const applyAppHistoryState = useCallback((snapshot: AppHistoryState) => {
@@ -141,17 +161,93 @@ export default function Home() {
     applyState: applyAppHistoryState,
   });
 
-  const navigateToArchiveCharacter = useCallback(
-    (characterId: string, options?: { tab?: CharacterDetailTab }) => {
+  const openCharacterDirect = useCallback(
+    (
+      characterId: string,
+      options?: {
+        tab?: CharacterDetailTab;
+        subPageId?: string;
+        section?: ArchiveSubSectionId;
+        scrollTop?: boolean;
+      },
+    ) => {
       setActiveSection("archive");
-      setActiveArchiveSub(characterSectionForId(characters, characterId));
+      setActiveArchiveSub(options?.section ?? characterSectionForId(characters, characterId));
       setActiveCharacterId(characterId);
-      setActiveSubPageId("");
+      setActiveSubPageId(options?.subPageId ?? "");
       if (options?.tab) {
         setActiveTab(options.tab);
       }
+      if (options?.scrollTop && typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     },
     [characters],
+  );
+
+  const requestCharacterAccess = useCallback(
+    (
+      characterId: string,
+      kind: "select" | "archive" | "linked" | "zone",
+      options?: {
+        tab?: CharacterDetailTab;
+        subPageId?: string;
+        section?: ArchiveSubSectionId;
+      },
+    ) => {
+      const character = characters.find((entry) => entry.id === characterId);
+      if (character?.confidential && activeCharacterId !== characterId) {
+        setPendingConfidential({
+          characterId,
+          characterName: character.name,
+          kind,
+          tab: options?.tab,
+          subPageId: options?.subPageId,
+          section: options?.section,
+        });
+        return;
+      }
+
+      if (kind === "select") {
+        setActiveCharacterId(characterId);
+        setActiveSubPageId("");
+        return;
+      }
+
+      openCharacterDirect(characterId, {
+        tab: options?.tab,
+        subPageId: options?.subPageId,
+        section: options?.section,
+        scrollTop: kind === "linked" || kind === "zone",
+      });
+    },
+    [activeCharacterId, characters, openCharacterDirect],
+  );
+
+  const confirmPendingConfidential = () => {
+    if (!pendingConfidential) return;
+    const { characterId, kind, tab, subPageId, section } = pendingConfidential;
+    setPendingConfidential(null);
+
+    if (kind === "select") {
+      setActiveCharacterId(characterId);
+      setActiveSubPageId("");
+      return;
+    }
+
+    openCharacterDirect(characterId, {
+      tab,
+      subPageId,
+      section,
+      scrollTop: kind === "linked" || kind === "zone",
+    });
+  };
+
+  const navigateToArchiveCharacter = useCallback(
+    (characterId: string, options?: { tab?: CharacterDetailTab }) => {
+      requestCharacterAccess(characterId, "archive", { tab: options?.tab });
+    },
+    [requestCharacterAccess],
   );
 
   const navigateBackFromDetail = useCallback((): boolean => goBack(), [goBack]);
@@ -165,34 +261,20 @@ export default function Home() {
     worldUnlock.unlockWorldById(event, activeWorld.id);
   };
 
-  const navigateToGuest = () => setActiveSection("guest");
-
   const openAuthForWorldUnlock = () => {
     setAuthNotice("세계관 비밀번호는 회원가입 또는 로그인 후 입력할 수 있어요.");
     auth.setAuthPanelOpen(true);
   };
 
-  const navigateToCharacterWorks = (characterId: string) => {
-    navigateToArchiveCharacter(characterId, { tab: "works" });
-  };
-
-  const navigateToCharacterDetail = (characterId: string) => {
-    navigateToArchiveCharacter(characterId);
-  };
-
   const navigateToLinkedCharacter = (characterId: string, subPageId?: string) => {
-    navigateToArchiveCharacter(characterId, { tab: "settings" });
-    if (subPageId) {
-      setActiveSubPageId(subPageId);
-    }
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    requestCharacterAccess(characterId, "linked", {
+      tab: "settings",
+      subPageId: subPageId ?? "",
+    });
   };
 
   const handleSelectCharacter = (characterId: string) => {
-    setActiveCharacterId(characterId);
-    setActiveSubPageId("");
+    requestCharacterAccess(characterId, "select");
   };
 
   const handleSelectSection = (section: SectionId) => {
@@ -209,14 +291,11 @@ export default function Home() {
   };
 
   const navigateToZoneLink = (target: ZoneLinkTarget) => {
-    setActiveSection("archive");
-    setActiveArchiveSub(target.section);
-    setActiveCharacterId(target.characterId);
-    setActiveSubPageId(target.subPageId ?? "");
-    setActiveTab("settings");
-    if (typeof window !== "undefined") {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    requestCharacterAccess(target.characterId, "zone", {
+      tab: "settings",
+      subPageId: target.subPageId ?? "",
+      section: target.section,
+    });
   };
 
   const renderArchiveSection = (
@@ -226,9 +305,7 @@ export default function Home() {
     emptyListMessage: string,
   ) => (
     <CharactersSection
-      characters={
-        kind === "oc" ? ocCharacters : kind === "pair" ? pairCharacters : otherCharacters
-      }
+      characters={kind === "oc" ? ocCharacters : kind === "pair" ? pairCharacters : otherCharacters}
       allCharacters={characters}
       sectionIndexTitle={sectionIndexTitle}
       emptyListMessage={emptyListMessage}
@@ -295,7 +372,7 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-transparent text-emerald-50">
+    <main className="min-h-screen overflow-x-hidden bg-transparent text-neutral-100">
       <style jsx global>{`
         @font-face {
           font-family: "KbizHanmaumMyungjo";
@@ -313,7 +390,7 @@ export default function Home() {
           font-family: "KbizHanmaumMyungjo", "Zen Old Mincho", serif !important;
         }
       `}</style>
-      <div className="fixed inset-0 z-0" aria-hidden="true" />
+      <div className="fixed inset-0 z-0 bg-[#080808]" aria-hidden="true" />
       <div className="noise-layer" aria-hidden="true" />
 
       <SideMenu
@@ -334,15 +411,12 @@ export default function Home() {
           {activeSection === "home" && (
             <HomeSection
               homeContent={homeContent}
-              characters={ocCharacters}
-              guestbook={guestbook}
-              onNavigateToGuest={navigateToGuest}
-              onNavigateToCharacterWorks={navigateToCharacterWorks}
-              onNavigateToCharacterDetail={navigateToCharacterDetail}
+              onEnterArchive={() => handleSelectArchiveSub("characters")}
             />
           )}
 
-          {activeSection === "archive" && activeArchiveSub === "characters" &&
+          {activeSection === "archive" &&
+            activeArchiveSub === "characters" &&
             renderArchiveSection(
               "oc",
               "characters",
@@ -350,7 +424,8 @@ export default function Home() {
               "아직 등록된 자캐가 없어요. 관리자 로그인 후 OC에서 첫 카드를 추가해주세요.",
             )}
 
-          {activeSection === "archive" && activeArchiveSub === "pairs" &&
+          {activeSection === "archive" &&
+            activeArchiveSub === "pairs" &&
             renderArchiveSection(
               "pair",
               "pairs",
@@ -358,7 +433,8 @@ export default function Home() {
               "아직 등록된 페어가 없어요. 관리자 로그인 후 Pair에서 첫 카드를 추가해주세요.",
             )}
 
-          {activeSection === "archive" && activeArchiveSub === "others" &&
+          {activeSection === "archive" &&
+            activeArchiveSub === "others" &&
             renderArchiveSection(
               "other",
               "others",
@@ -408,11 +484,16 @@ export default function Home() {
         </aside>
       </section>
 
-      {modals.storyModalItem && (
-        <StoryModal
-          item={modals.storyModalItem}
-          onClose={() => modals.setStoryModalItem(null)}
+      {pendingConfidential && (
+        <ConfidentialAccessModal
+          characterName={pendingConfidential.characterName}
+          onCancel={() => setPendingConfidential(null)}
+          onConfirm={confirmPendingConfidential}
         />
+      )}
+
+      {modals.storyModalItem && (
+        <StoryModal item={modals.storyModalItem} onClose={() => modals.setStoryModalItem(null)} />
       )}
 
       {modals.readerModalItem && (

@@ -2,6 +2,7 @@
 
 import { GlitchedText } from "@/components/GlitchedText";
 import { StoryFormattedText } from "@/components/StoryFormattedText";
+import { DocumentSheet } from "@/components/home/DocumentSheet";
 import { settingSectionGlitchPath, settingSectionTitleGlitchPath } from "@/lib/glitch-fields";
 import { splitStoryParagraphs } from "@/lib/story-text";
 import type { CharacterDetailSection } from "@/lib/zone-links";
@@ -27,23 +28,20 @@ export function StoryModal({ item, onClose, className }: StoryModalProps) {
 
   return (
     <div
-      className={cn(
-        "fixed inset-0 z-50 grid place-items-center bg-black p-4",
-        className,
-      )}
+      className={cn("desk-backdrop fixed inset-0 z-50 grid place-items-center p-4", className)}
       role="dialog"
       aria-modal="true"
       aria-label={`${section.title || "스토리"} 기록 열람`}
       onClick={onClose}
     >
-      <div
-        className="story-log-viewer story-viewer dossier-viewer flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden border !border-stone-700/30 !bg-black !shadow-none"
-        onClick={(event) => event.stopPropagation()}
+      <DocumentSheet
+        tabLabel="LOG"
+        className="story-log-viewer story-viewer flex h-[92vh] w-full max-w-5xl flex-col"
       >
-        <div className="story-viewer-header flex items-center justify-between gap-3 border-b border-stone-400/15 bg-black p-4">
+        <div className="story-viewer-header flex items-center justify-between gap-3 border-b border-white/15 bg-black p-4">
           <div>
             <p className="archive-kicker">Story Log / {character.name}</p>
-            <h3 className="archive-title mt-1 whitespace-pre-line text-2xl">
+            <h3 className="archive-title mt-1 text-3xl whitespace-pre-line">
               {section.title ? (
                 <GlitchedText text={section.title} glitch={titleGlitch} preserveWhitespace />
               ) : (
@@ -51,13 +49,17 @@ export function StoryModal({ item, onClose, className }: StoryModalProps) {
               )}
             </h3>
           </div>
-          <button type="button" onClick={onClose} className="archive-submit-button px-3 py-2 text-sm">
+          <button
+            type="button"
+            onClick={onClose}
+            className="archive-submit-button px-3 py-2 text-sm"
+          >
             닫기
           </button>
         </div>
 
         <article className="story-viewer-body min-h-0 flex-1 overflow-y-auto overscroll-contain !bg-black">
-          <div className="story-viewer-content px-7 py-8 md:px-12 md:py-10">
+          <div className="story-viewer-content px-6 py-8 md:px-10 md:py-10">
             {paragraphs.length > 0 ? (
               paragraphs.map((paragraph, index) => (
                 <p key={index} className="story-viewer-paragraph">
@@ -74,7 +76,7 @@ export function StoryModal({ item, onClose, className }: StoryModalProps) {
             )}
           </div>
         </article>
-      </div>
+      </DocumentSheet>
     </div>
   );
 }

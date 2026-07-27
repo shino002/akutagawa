@@ -251,6 +251,22 @@ function findEnclosingGlitchZone(zones: GlitchZone[], selection: GlitchTextSelec
   return zones.find((zone) => zone.start <= selection.start && zone.end >= selection.end);
 }
 
+/**
+ * 기존 구간을 고칠 때는 draft 서식이 소스 오브 트루스.
+ * 바깥 구간 style을 다시 merge하면 지운 fontSize 등이 되살아납니다.
+ */
+function resolvePendingInheritedStyle(
+  zones: GlitchZone[],
+  selection: GlitchTextSelection,
+  fieldValue: string,
+) {
+  if (findMatchingGlitchZone(zones, selection, fieldValue)) {
+    return undefined;
+  }
+
+  return findEnclosingGlitchZone(zones, selection)?.style;
+}
+
 function buildPendingGlitchZone(
   selection: GlitchTextSelection,
   draft: PendingZoneDraft,
@@ -272,7 +288,7 @@ function buildPendingGlitchZone(
       start: selection.start,
       end: selection.end,
       original: selection.text,
-      style: normalizedStyle,
+      ...(normalizedStyle ? { style: normalizedStyle } : {}),
       errorMessageSource,
       ...(customMessage ? { errorMessage: customMessage } : {}),
       ...(linkTarget ? { linkTarget } : {}),
@@ -362,9 +378,8 @@ export function TextScrambleTool({
       return zones;
     }
 
-    const enclosingZone = findEnclosingGlitchZone(zones, activeSelection);
     const pendingZone = buildPendingGlitchZone(activeSelection, pendingZoneDraft, {
-      inheritedStyle: enclosingZone?.style,
+      inheritedStyle: resolvePendingInheritedStyle(zones, activeSelection, fieldValue),
     });
 
     return mergePendingGlitchZonePreview(zones, activeSelection, fieldValue, pendingZone);
@@ -389,7 +404,7 @@ export function TextScrambleTool({
   const pendingZonePreview: GlitchZone | null = activeSelection
     ? buildPendingGlitchZone(activeSelection, pendingZoneDraft, {
         zoneId: "pending",
-        inheritedStyle: findEnclosingGlitchZone(zones, activeSelection)?.style,
+        inheritedStyle: resolvePendingInheritedStyle(zones, activeSelection, fieldValue),
       })
     : null;
   const selectionPreviewConfig = useMemo(() => {
@@ -410,7 +425,7 @@ export function TextScrambleTool({
     });
   }, [activeSelection, pendingZonePreview, zoneStyle]);
   const selectionPreviewKey = activeSelection
-    ? glitchSelectionKey(activeSelection)
+    ? `${glitchSelectionKey(activeSelection)}:${glitchZoneStyleSignature(pendingZoneDraft.style)}`
     : "selection-preview";
   const livePreviewKey = activeFieldPath ?? "live-preview";
   const activeFieldLabel = activeFieldPath ? getGlitchFieldLabel(activeFieldPath) : null;
@@ -647,7 +662,7 @@ export function TextScrambleTool({
     const wantsReference = Boolean(pool);
     const wantsBuiltin = !pool && pendingZoneDraft.builtinScramble;
     const pendingZone = buildPendingGlitchZone(selection, pendingZoneDraft, {
-      inheritedStyle: findEnclosingGlitchZone(zones, selection)?.style,
+      inheritedStyle: resolvePendingInheritedStyle(zones, selection, fieldValue),
     });
     const applyStyle = pendingZone.style ?? normalizedStyle;
     const hasPresentation = hasGlitchPresentation(applyStyle);

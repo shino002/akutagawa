@@ -148,8 +148,10 @@
   --glitch-decoration-color: var(--glitch-text-color, currentColor);
 }
 
-.admin-page [data-text-scramble-tool] .glitch-zone-mark.glitch-zone-has-custom-font-size {
+.admin-page [data-text-scramble-tool] .glitch-zone-mark.glitch-zone-has-custom-font-size,
+.admin-page [data-text-scramble-tool] .glitch-zone-mark[style*="--glitch-font-size"] {
   font-size: var(--glitch-font-size, inherit) !important;
+  line-height: var(--glitch-line-height, 1.75) !important;
 }
 
 .admin-page [data-text-scramble-tool] .glitch-zone-mark.glitch-zone-has-custom-font {
@@ -303,6 +305,11 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
   line-height: 1.2 !important;
 }
 
+.glitch-float-toolbar-font-size-select {
+  min-width: 6.75rem;
+  max-width: 8.5rem;
+}
+
 .glitch-float-toolbar-color-swatch {
   width: 1.35rem;
   height: 1.35rem;
@@ -433,9 +440,22 @@ html body main.admin-page .admin-choice-btn {
   box-shadow: none !important;
   text-shadow: none !important;
   border: none !important;
+}
+
+.admin-inline-glitch-editor-body
+  .admin-inline-zone:not(.glitch-zone-has-custom-font-size):not([style*="--glitch-font-size"]) {
   font-size: inherit;
   line-height: inherit;
+}
+
+.admin-inline-glitch-editor-body .admin-inline-zone:not(.glitch-zone-has-custom-font) {
   font-family: inherit;
+}
+
+.admin-inline-glitch-editor-body .admin-inline-zone.glitch-zone-has-custom-font-size,
+.admin-inline-glitch-editor-body .admin-inline-zone[style*="--glitch-font-size"] {
+  font-size: var(--glitch-font-size, inherit) !important;
+  line-height: var(--glitch-line-height, 1.75) !important;
 }
 
 .admin-inline-glitch-editor-body .admin-inline-zone.glitch-zone-has-underline,

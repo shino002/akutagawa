@@ -1,4 +1,10 @@
-import type { SettingSection, ProfileField, RelationshipEntry, CaseFileDetailTheme, CaseMetaField } from "@/lib/types";
+import type {
+  SettingSection,
+  ProfileField,
+  RelationshipEntry,
+  CaseFileDetailTheme,
+  CaseMetaField,
+} from "@/lib/types";
 import type { CharacterKind, FieldGlitchConfig, CharacterSubPage } from "@/lib/types";
 
 export type CharacterDraft = {
@@ -18,4 +24,5 @@ export type CharacterDraft = {
   subPages: CharacterSubPage[];
   pairMemberIds: string[];
   bgmUrl: string;
+  confidential: boolean;
 };

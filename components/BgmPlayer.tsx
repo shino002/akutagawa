@@ -72,6 +72,8 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
   const needsGestureUnlockRef = useRef(false);
   const playlistRef = useRef<string[]>([...SITE_BGM_PLAYLIST]);
   const loopPlaylistRef = useRef(false);
+  const prevFocusedBgmUrlRef = useRef<string | null>(null);
+  const playGenerationRef = useRef(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [track, setTrack] = useState(INITIAL_TRACK);
@@ -85,15 +87,18 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
     [focusedBgmUrl, sitePlaylist],
   );
   const isCharacterMode = Boolean(focusedBgmUrl);
+  // 단곡(캐릭터 테마·사이트 1곡)은 루프, 그 외 사이트 플레이리스트는 순차 재생
+  const shouldLoopPlaylist = isCharacterMode || playlist.length <= 1;
+
+  // effect 순서와 무관하게 playTrack이 최신 목록을 쓰도록 렌더 중 동기화
+  playlistRef.current = playlist;
+  loopPlaylistRef.current = shouldLoopPlaylist;
 
   useEffect(() => {
-    playlistRef.current = playlist;
-    loopPlaylistRef.current = isCharacterMode;
-
     if (audioRef.current) {
-      audioRef.current.loop = isCharacterMode;
+      audioRef.current.loop = shouldLoopPlaylist;
     }
-  }, [isCharacterMode, playlist]);
+  }, [shouldLoopPlaylist]);
 
   useEffect(() => {
     if (!isVolumeReady || !audioRef.current) {
@@ -210,10 +215,14 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
     return audio;
   }
 
-  async function playTrack(nextTrackIndex: number, shouldAutoPlay = isPlaying) {
+  async function playTrack(
+    nextTrackIndex: number,
+    shouldAutoPlay = isPlaying,
+    options?: { forceReload?: boolean },
+  ) {
+    const generation = ++playGenerationRef.current;
     const currentPlaylist = playlistRef.current;
-    const safeIndex =
-      currentPlaylist.length > 0 ? nextTrackIndex % currentPlaylist.length : 0;
+    const safeIndex = currentPlaylist.length > 0 ? nextTrackIndex % currentPlaylist.length : 0;
     const nextSrc = currentPlaylist[safeIndex];
 
     if (!nextSrc) {
@@ -227,7 +236,7 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
     const audio = getAudio();
     audio.loop = loopPlaylistRef.current;
 
-    if (loadedSrcRef.current !== nextSrc) {
+    if (options?.forceReload || loadedSrcRef.current !== nextSrc) {
       audio.pause();
       audio.src = encodeURI(nextSrc);
       audio.currentTime = 0;
@@ -239,10 +248,17 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
 
     try {
       await playWhenReady(audio);
+      // 캐릭터 진입/이탈이 연달아 일어나면 이전 playTrack 결과가 덮어쓰지 않게 함
+      if (generation !== playGenerationRef.current) {
+        return;
+      }
       setIsPlaying(true);
       setNotice("");
       needsGestureUnlockRef.current = false;
     } catch {
+      if (generation !== playGenerationRef.current) {
+        return;
+      }
       setIsPlaying(false);
       needsGestureUnlockRef.current = true;
       setNotice("Click anywhere");
@@ -308,13 +324,26 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
 
   useEffect(() => {
     if (!autoPlayAttemptedRef.current) {
+      prevFocusedBgmUrlRef.current = focusedBgmUrl;
       return;
     }
 
-    userPausedRef.current = false;
-    const shouldAutoPlay = isPlaying || isCharacterMode;
+    const previousFocused = prevFocusedBgmUrlRef.current;
+    prevFocusedBgmUrlRef.current = focusedBgmUrl;
+
+    if (previousFocused === focusedBgmUrl) {
+      return;
+    }
+
+    const audio = audioRef.current;
+    const wasPlaying = Boolean(audio && !audio.paused) || isPlaying;
+    const leavingCharacterMode = Boolean(previousFocused) && !focusedBgmUrl;
+    // 캐릭터 테마에서 나올 때는 사이트 BGM으로 반드시 되돌림 (재생 중이었으면 이어서 재생)
+    const shouldAutoPlay = isCharacterMode || leavingCharacterMode || wasPlaying;
     const nextIndex = isCharacterMode ? 0 : getRandomTrackIndex(playlistRef.current.length);
-    void playTrack(nextIndex, shouldAutoPlay);
+
+    userPausedRef.current = false;
+    void playTrack(nextIndex, shouldAutoPlay, { forceReload: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusedBgmUrl]);
 
@@ -378,7 +407,7 @@ export function BgmPlayer({ characterBgmUrl = null }: BgmPlayerProps) {
             </button>
           </div>
           <h2 className="mt-1 truncate text-sm font-semibold text-emerald-50">{track.title}</h2>
-          <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-stone-300/55">
+          <p className="mt-2 text-[10px] tracking-[0.22em] text-stone-300/55 uppercase">
             {isCharacterMode ? "character theme" : isPlaying ? "playing" : "paused"}
           </p>
           {notice && <p className="mt-1 text-xs text-stone-300/70">{notice}</p>}

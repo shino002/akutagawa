@@ -1,6 +1,6 @@
 /* character.css — 캐릭터 색인·카드·dossier·case-file */
 .character-index-panel {
-  background: linear-gradient(180deg, rgba(12, 0, 2, 0.98), rgba(0, 0, 0, 0.99)), #000;
+  background: linear-gradient(180deg, #101010 0%, #080808 55%, #050505 100%);
 }
 
 .character-index-header {
@@ -8,16 +8,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid rgba(111, 143, 215, 0.34);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.34);
   padding-bottom: 0.9rem;
 }
 
 .character-index-header > p.character-index-blue-text,
 .character-index-header > span.character-index-blue-text {
-  border: 1px solid rgba(111, 143, 215, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.38);
   background: rgba(0, 0, 0, 0.56);
   padding: 0.28rem 0.48rem;
-  color: rgba(168, 176, 188, 0.82);
+  color: rgba(180, 180, 180, 0.82);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.64rem;
   letter-spacing: 0.16em;
@@ -52,18 +52,17 @@
 .archive-character-card {
   position: relative;
   width: 100%;
+  margin-top: 0;
   overflow: hidden;
-  border: 1px solid rgba(111, 143, 215, 0.42);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 18%), rgba(2, 0, 0, 0.88);
-  box-shadow:
-    inset 0 0 0 1px rgba(0, 0, 0, 0.84),
-    inset 0 0 32px rgba(0, 0, 0, 0.9),
-    0 20px 45px rgba(0, 0, 0, 0.62);
-  transition:
-    border-color 160ms ease,
-    filter 160ms ease,
-    transform 160ms ease;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: #080808;
+  box-shadow: none;
+  transition: border-color 160ms ease;
+}
+
+/* FILE 장식 탭 제거 — id는 body 상단 mono로만 표시 */
+.archive-character-card-tab {
+  display: none;
 }
 
 .archive-character-card::before {
@@ -71,18 +70,19 @@
 }
 
 .archive-character-card:hover {
-  border-color: rgba(111, 143, 215, 0.9);
-  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.55);
+  background: #080808;
+  transform: none;
 }
 
 .archive-character-card-image {
   position: relative;
   z-index: 2;
   isolation: isolate;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 3 / 4;
   overflow: hidden;
   border-bottom: 1px solid var(--character-card-divider);
-  background-color: #020208;
+  background-color: #080808;
 }
 
 .archive-character-card-image > :not(.character-palette-backdrop) {
@@ -92,62 +92,59 @@
 }
 
 .archive-character-card-image::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(111, 143, 215, 0.14), transparent 32%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.028) 0 1px, transparent 1px 4px);
-  opacity: 0.22;
+  display: none;
 }
 
 .archive-character-card-image img {
-  opacity: 0.94;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 1;
   filter: none;
-  transition:
-    opacity 180ms ease,
-    transform 220ms ease;
 }
 
 .archive-character-card:hover .archive-character-card-image img {
   opacity: 1;
-  transform: scale(1.035);
+  transform: none;
 }
 
 .archive-character-card-body {
   position: relative;
   z-index: 3;
-  min-height: 8rem;
-  padding: 0.95rem;
-  background: var(--surface-base);
+  min-height: 0;
+  padding: 0.7rem 0.75rem;
+  background: #080808;
 }
 
+/* 파일 메타: 조용한 mono id + 이름 */
 .archive-character-card-id {
-  color: rgba(111, 143, 215, 0.72);
+  display: block;
+  margin: 0 0 0.28rem;
+  color: rgba(160, 160, 160, 0.72);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
-  font-size: 0.64rem;
-  letter-spacing: 0.2em;
+  font-size: 0.58rem;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
 .archive-character-card-name {
-  margin-top: 0.45rem;
-  color: rgba(236, 240, 245, 0.95);
-  font-size: 1.55rem;
-  font-weight: 900;
-  letter-spacing: -0.04em;
-  line-height: 1.05;
+  margin: 0;
+  color: rgba(245, 245, 245, 0.96);
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
 }
 
 .archive-character-card-subtitle {
   display: -webkit-box;
-  margin-top: 0.55rem;
+  margin-top: 0.35rem;
   overflow: hidden;
-  color: rgba(198, 210, 232, 0.6);
-  font-size: 0.82rem;
-  line-height: 1.65;
+  color: rgba(180, 180, 180, 0.6);
+  font-size: 0.78rem;
+  line-height: 1.45;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -164,11 +161,11 @@
   display: block;
   width: 100%;
   overflow: hidden;
-  border: 1px solid rgba(111, 143, 215, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.46);
   background:
     radial-gradient(circle at 50% 0%, rgba(0, 0, 0, 0.78), transparent 34%),
-    radial-gradient(circle at 100% 100%, rgba(111, 143, 215, 0.035), transparent 38%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.99), rgba(2, 2, 8, 0.99));
+    radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.035), transparent 38%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.99), rgba(8, 8, 8, 0.99));
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.86),
     inset 0 0 34px rgba(0, 0, 0, 0.86),
@@ -186,7 +183,7 @@
 
 .character-card:hover,
 .character-card.is-active {
-  border-color: rgba(111, 143, 215, 0.92);
+  border-color: rgba(255, 255, 255, 0.92);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.9),
     inset 0 0 38px rgba(0, 0, 0, 0.88),
@@ -200,11 +197,11 @@
   align-self: start;
   height: fit-content;
   overflow: hidden;
-  border: 1px solid rgba(111, 143, 215, 0.44);
+  border: 1px solid rgba(255, 255, 255, 0.44);
   background:
     radial-gradient(circle at 50% 0%, rgba(0, 0, 0, 0.82), transparent 38%),
-    radial-gradient(circle at 100% 100%, rgba(111, 143, 215, 0.032), transparent 42%),
-    linear-gradient(180deg, rgba(0, 0, 0, 0.99), rgba(2, 2, 8, 0.99));
+    radial-gradient(circle at 100% 100%, rgba(255, 255, 255, 0.032), transparent 42%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.99), rgba(8, 8, 8, 0.99));
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.86),
     inset 0 0 30px rgba(0, 0, 0, 0.82);
@@ -215,16 +212,391 @@
 }
 
 .gallery-tile:hover {
-  border-color: rgba(111, 143, 215, 0.9);
+  border-color: rgba(255, 255, 255, 0.9);
 }
 
-/* 캐릭터 상세 리뉴얼: 프로필 카드가 아니라 조사 파일/기록실처럼 보이게 만드는 전용 스타일입니다. */
+/* 캐릭터 상세: 열린 폴더 본체 */
 .case-file-detail {
+  position: relative;
   isolation: isolate;
 }
 
+/* 모달용 대형 서류 시트 */
+.desk-backdrop {
+  background: rgba(0, 0, 0, 0.92);
+}
+
+.document-sheet {
+  position: relative;
+  margin-top: 1.35rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%), #050505;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 24px 64px rgba(0, 0, 0, 0.75);
+}
+
+.document-sheet-tab {
+  position: absolute;
+  top: 0;
+  left: 0.9rem;
+  z-index: 3;
+  padding: 0.48rem 0.95rem 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-bottom: none;
+  border-radius: 0.35rem 0.35rem 0 0;
+  background: linear-gradient(180deg, #222 0%, #0c0c0c 100%);
+  color: rgba(235, 235, 235, 0.95);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  line-height: 1;
+  text-transform: uppercase;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.story-log-viewer .document-sheet-tab,
+.story-viewer .document-sheet-tab,
+.ebook-reader .document-sheet-tab {
+  padding: 0.55rem 1.15rem 0.45rem;
+  font-size: 0.88rem;
+  letter-spacing: 0.22em;
+}
+
+/* 기밀 열람 게이트 — secret-document-modal-v5 기반.
+   순검정 패널 + 검붉은 피색 액센트. 글로우/그레인 없음. */
+
+.confidential-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.95);
+  overflow-y: auto;
+}
+
+.confidential-gate-panel {
+  position: relative;
+  box-sizing: border-box;
+  width: min(100%, 28rem);
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  padding: 2.4rem 1.9rem 1.75rem;
+  background: #030303;
+  border: 1px solid #4a0000;
+  text-align: center;
+  opacity: 0;
+}
+
+.confidential-gate-panel * {
+  box-sizing: border-box;
+}
+
+.confidential-gate-panel.is-ready {
+  animation: confidential-gate-panel-in 0.5s ease both;
+}
+
+.confidential-gate-panel.is-final {
+  border-color: #6b1515;
+}
+
+.confidential-gate-panel.is-ready.is-final {
+  animation-name: confidential-gate-panel-final-in;
+}
+
+/* 상단에서 떨어지는 피방울 */
+.confidential-gate-drip-wrap {
+  position: absolute;
+  top: 0;
+  width: 3px;
+  height: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.confidential-gate-drip-wrap-a {
+  left: 30%;
+}
+
+.confidential-gate-drip-wrap-b {
+  left: 68%;
+}
+
+.confidential-gate-drip {
+  position: absolute;
+  left: -1px;
+  top: 0;
+  width: 3px;
+  height: 0;
+  background: linear-gradient(#9e0a1a, #4a0000);
+  border-radius: 0 0 2px 2px;
+  animation: confidential-gate-drip-fall 1.8s 1s ease-in both;
+}
+
+.confidential-gate-drip-delayed {
+  animation-delay: 1.4s;
+}
+
+.confidential-gate-stain {
+  position: absolute;
+  left: -3px;
+  top: 30px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #4a0000;
+  opacity: 0;
+  animation: confidential-gate-stain-in 0.4s 2.75s ease both;
+}
+
+.confidential-gate-stain-delayed {
+  animation-delay: 3.15s;
+}
+
+.confidential-gate-seal {
+  width: 50px;
+  height: 50px;
+  margin: 0.15rem auto 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #9e0a1a;
+  border-radius: 50%;
+  color: #9e0a1a;
+  font-family: var(--font-shippori-mincho), "Shippori Mincho", "Yu Mincho", serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.confidential-gate-seal-mark {
+  display: block;
+  color: transparent;
+  transition: color 0.28s ease;
+}
+
+.confidential-gate-seal-mark.is-visible {
+  color: inherit;
+}
+
+.confidential-gate-panel.is-final .confidential-gate-seal {
+  border-color: #a32222;
+  color: #a32222;
+}
+
+.confidential-gate-eyebrow {
+  margin: 0 0 0.75rem;
+  color: #9e0a1a;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.confidential-gate-panel.is-final .confidential-gate-eyebrow {
+  color: #a32222;
+}
+
+.confidential-gate-doc-name {
+  margin: 0 0 0.85rem;
+  color: #cfc5bd;
+  font-family: var(--font-shippori-mincho), "Shippori Mincho", "Yu Mincho", serif;
+  font-size: clamp(1.15rem, 3.5vw, 1.35rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+}
+
+/* 여는 문서의 메타 정보 */
+.confidential-gate-meta {
+  margin: 0 auto 1.25rem;
+  padding: 0.75rem 0.85rem;
+  width: 100%;
+  border: 1px solid #3a1010;
+  background: #000000;
+  text-align: left;
+}
+
+.confidential-gate-meta-row {
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  gap: 0.55rem;
+  align-items: baseline;
+}
+
+.confidential-gate-meta-row + .confidential-gate-meta-row {
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #1a0808;
+}
+
+.confidential-gate-meta dt {
+  margin: 0;
+  color: #6b1515;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.confidential-gate-meta dd {
+  margin: 0;
+  color: #cfc5bd;
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+
+.confidential-gate-message {
+  margin: 0 0 1.5rem;
+  color: #cfc5bd;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.8;
+}
+
+.confidential-gate-message p {
+  margin: 0;
+}
+
+.confidential-gate-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.confidential-gate-retreat,
+.confidential-gate-breach {
+  flex: 1;
+  border-radius: 0;
+  padding: 0.78rem 0.5rem;
+  font-size: 0.88rem;
+  letter-spacing: 0.08em;
+  background: transparent;
+}
+
+.confidential-gate-retreat {
+  border: 1px solid #4d453f;
+  color: #4d453f;
+}
+
+.confidential-gate-retreat:hover,
+.confidential-gate-retreat:focus-visible {
+  border-color: #cfc5bd;
+  color: #cfc5bd;
+  outline: none;
+}
+
+.confidential-gate-breach {
+  border: 1px solid #4a0000;
+  color: #cfc5bd;
+}
+
+.confidential-gate-breach:hover,
+.confidential-gate-breach:focus-visible {
+  border-color: #9e0a1a;
+  background: #3a1010;
+  color: #cfc5bd;
+  outline: none;
+}
+
+.confidential-gate-breach:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.confidential-gate-panel.is-final .confidential-gate-breach {
+  border-color: #6b1515;
+}
+
+@keyframes confidential-gate-panel-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes confidential-gate-panel-final-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes confidential-gate-drip-fall {
+  0% {
+    height: 0;
+    opacity: 1;
+  }
+  75% {
+    height: 46px;
+    opacity: 1;
+  }
+  100% {
+    height: 30px;
+    opacity: 0.55;
+  }
+}
+
+@keyframes confidential-gate-stain-in {
+  to {
+    opacity: 0.5;
+  }
+}
+
+@media (max-width: 420px) {
+  .confidential-gate-actions {
+    flex-direction: column;
+  }
+
+  .confidential-gate-meta-row {
+    grid-template-columns: 3.8rem 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .confidential-gate-panel {
+    opacity: 1;
+  }
+
+  .confidential-gate-panel.is-ready,
+  .confidential-gate-panel.is-ready.is-final {
+    animation: none;
+  }
+
+  .confidential-gate-drip,
+  .confidential-gate-drip-delayed,
+  .confidential-gate-stain,
+  .confidential-gate-stain-delayed {
+    animation: none;
+  }
+
+  .confidential-gate-drip {
+    height: 30px;
+    opacity: 0.55;
+  }
+
+  .confidential-gate-stain {
+    opacity: 0.5;
+  }
+
+  .confidential-gate-seal-mark {
+    color: inherit;
+    transition: none;
+  }
+}
+
 .dossier-viewer {
-  border-color: rgba(100, 100, 100, 0.3);
+  border-color: rgba(255, 255, 255, 0.28);
   background: #000000;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.96);
 }
@@ -233,11 +605,106 @@
   background: #000000;
 }
 
+/* 도씨에 요약: 항상 보이는 얇은 메타 한 줄 */
+.dossier-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.15rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(200, 200, 200, 0.78);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.dossier-meta-item {
+  display: inline;
+}
+
+.dossier-meta-item + .dossier-meta-item::before {
+  content: "·";
+  margin: 0 0.55rem;
+  color: rgba(120, 120, 120, 0.7);
+}
+
+.dossier-meta-item--id {
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: rgba(220, 220, 220, 0.88);
+  text-transform: lowercase;
+}
+
+.dossier-meta-quiet {
+  margin-right: 0.28rem;
+  color: rgba(140, 140, 140, 0.62);
+  font-size: 0.7rem;
+}
+
+.dossier-voice {
+  margin: 0 0 1.25rem;
+}
+
+.dossier-voice-label {
+  margin: 0 0 0.4rem;
+  color: rgba(150, 150, 150, 0.7);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dossier-voice-text {
+  margin: 0;
+  padding: 0.1rem 0 0.1rem 0.75rem;
+  border: none;
+  border-left: 2px solid rgba(255, 255, 255, 0.32);
+  color: rgba(210, 210, 210, 0.9);
+  font-size: 0.88rem;
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.dossier-profile-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.dossier-profile-inline-row {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dossier-profile-inline-row:last-child {
+  border-bottom: none;
+}
+
+.dossier-profile-inline-key {
+  color: rgba(140, 140, 140, 0.65);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  padding-top: 0.12rem;
+}
+
+.dossier-profile-inline-value {
+  min-width: 0;
+  color: rgba(238, 238, 238, 0.94);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
 .case-file-hero {
   position: relative;
   min-height: 21rem;
   overflow: hidden;
-  border-bottom: 1px solid rgba(111, 143, 215, 0.42);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.42);
   background: transparent;
 }
 
@@ -320,8 +787,8 @@
   z-index: 3;
   pointer-events: none;
   background:
-    linear-gradient(rgba(111, 143, 215, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(111, 143, 215, 0.065) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.065) 1px, transparent 1px);
   background-size: 2.6rem 2.6rem;
   opacity: 0.22;
   mask-image: linear-gradient(90deg, #000 0 50%, transparent 100%);
@@ -376,7 +843,7 @@
   letter-spacing: -0.08em;
   line-height: 0.88;
   text-shadow:
-    2px 0 rgba(111, 143, 215, 0.48),
+    2px 0 rgba(255, 255, 255, 0.48),
     -2px 0 rgba(255, 255, 255, 0.18),
     0 14px 35px rgba(0, 0, 0, 0.9);
 }
@@ -415,7 +882,7 @@
   padding: 0.62rem 0.85rem 0.65rem;
   border: 1px solid var(--case-intro-border, rgba(255, 255, 255, 0.09));
   background: var(--case-intro-bg, rgba(0, 0, 0, 0.38));
-  color: var(--case-intro-text, rgba(236, 240, 245, 0.86));
+  color: var(--case-intro-text, rgba(238, 238, 238, 0.86));
   font-family: var(--font-ui-stack), var(--font-emoji-stack);
   font-size: 0.82rem;
   line-height: 1.6;
@@ -440,25 +907,28 @@
   top: -1px;
   left: -1px;
   border-top: 1px solid
-    color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 85%, #6f8fd7);
+    color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 85%, #eeeeee);
   border-left: 1px solid
-    color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 85%, #6f8fd7);
+    color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 85%, #eeeeee);
 }
 
 .case-file-intro-text::after {
   right: -1px;
   bottom: -1px;
   border-right: 1px solid
-    color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 65%, #6f8fd7);
+    color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 65%, #eeeeee);
   border-bottom: 1px solid
-    color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 65%, #6f8fd7);
+    color-mix(in srgb, var(--case-intro-border, rgba(255, 255, 255, 0.09)) 65%, #eeeeee);
 }
 
-.case-file-intro-text .glitch-zone-mark:not([style*="color"]):not(.glitch-zone-has-custom-color):not(.glitch-zone-has-custom-font) {
-  color: color-mix(in srgb, var(--case-intro-text, rgba(236, 240, 245, 0.86)) 92%, #fff);
+.case-file-intro-text
+  .glitch-zone-mark:not([style*="color"]):not(.glitch-zone-has-custom-color):not(
+    .glitch-zone-has-custom-font
+  ) {
+  color: color-mix(in srgb, var(--case-intro-text, rgba(238, 238, 238, 0.86)) 92%, #fff);
   font-family: var(--font-ui-stack), var(--font-emoji-stack);
   text-shadow:
-    0 0 10px rgba(111, 143, 215, 0.18),
+    0 0 10px rgba(255, 255, 255, 0.18),
     0 1px 14px rgba(0, 0, 0, 0.86);
 }
 
@@ -472,20 +942,20 @@
 }
 
 .case-file-voice .case-file-intro-text {
-  border-color: var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22)));
+  border-color: var(--case-voice-border, var(--case-intro-border, rgba(255, 255, 255, 0.22)));
   background: var(--case-voice-bg, var(--case-intro-bg, rgba(0, 0, 0, 0.35)));
-  color: var(--case-voice-text, var(--case-intro-text, rgba(236, 240, 245, 0.86)));
+  color: var(--case-voice-text, var(--case-intro-text, rgba(238, 238, 238, 0.86)));
 }
 
 .case-file-voice .case-file-intro-text::before {
   border-top-color: color-mix(
     in srgb,
-    var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) 85%,
+    var(--case-voice-border, var(--case-intro-border, rgba(255, 255, 255, 0.22))) 85%,
     transparent
   );
   border-left-color: color-mix(
     in srgb,
-    var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) 85%,
+    var(--case-voice-border, var(--case-intro-border, rgba(255, 255, 255, 0.22))) 85%,
     transparent
   );
 }
@@ -493,20 +963,22 @@
 .case-file-voice .case-file-intro-text::after {
   border-right-color: color-mix(
     in srgb,
-    var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) 65%,
+    var(--case-voice-border, var(--case-intro-border, rgba(255, 255, 255, 0.22))) 65%,
     transparent
   );
   border-bottom-color: color-mix(
     in srgb,
-    var(--case-voice-border, var(--case-intro-border, rgba(111, 143, 215, 0.22))) 65%,
+    var(--case-voice-border, var(--case-intro-border, rgba(255, 255, 255, 0.22))) 65%,
     transparent
   );
 }
 
-.case-file-voice .case-file-intro-text .glitch-zone-mark:not([style*="color"]):not(.glitch-zone-has-custom-color) {
+.case-file-voice
+  .case-file-intro-text
+  .glitch-zone-mark:not([style*="color"]):not(.glitch-zone-has-custom-color) {
   color: color-mix(
     in srgb,
-    var(--case-voice-text, var(--case-intro-text, rgba(236, 240, 245, 0.86))) 92%,
+    var(--case-voice-text, var(--case-intro-text, rgba(238, 238, 238, 0.86))) 92%,
     #fff
   );
 }
@@ -565,8 +1037,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border: 1px solid rgba(111, 143, 215, 0.32);
-  background: rgba(5, 6, 11, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(8, 8, 8, 0.9);
   padding: 0.52rem 0.9rem;
   color: rgba(200, 208, 220, 0.88);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
@@ -587,9 +1059,9 @@
 }
 
 .case-back-button:hover {
-  border-color: rgba(111, 143, 215, 0.5);
+  border-color: rgba(255, 255, 255, 0.5);
   background: var(--surface-raised);
-  color: rgba(236, 240, 245, 0.96);
+  color: rgba(238, 238, 238, 0.96);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.78),
     0 12px 28px rgba(0, 0, 0, 0.45);
@@ -601,7 +1073,7 @@
 }
 
 .case-back-button:focus-visible {
-  outline: 1px solid rgba(111, 143, 215, 0.45);
+  outline: 1px solid rgba(255, 255, 255, 0.45);
   outline-offset: 2px;
 }
 
@@ -609,12 +1081,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
-  border-bottom: 1px solid rgba(111, 143, 215, 0.16);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
   padding-bottom: 0.9rem;
 }
 
 .case-file-meta-line {
-  border: 1px solid rgba(111, 143, 215, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   background: rgba(0, 0, 0, 0.42);
   padding: 0.38rem 0.55rem;
   color: rgba(200, 212, 232, 0.72);
@@ -634,7 +1106,7 @@
   position: relative;
   margin-top: 1.15rem;
   padding: 0.9rem 0.95rem 1rem;
-  border: 1px solid rgba(111, 143, 215, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.38);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
@@ -651,15 +1123,15 @@
 .case-profile-panel::before {
   top: -1px;
   left: -1px;
-  border-top: 1px solid rgba(111, 143, 215, 0.34);
-  border-left: 1px solid rgba(111, 143, 215, 0.34);
+  border-top: 1px solid rgba(255, 255, 255, 0.34);
+  border-left: 1px solid rgba(255, 255, 255, 0.34);
 }
 
 .case-profile-panel::after {
   right: -1px;
   bottom: -1px;
-  border-right: 1px solid rgba(111, 143, 215, 0.26);
-  border-bottom: 1px solid rgba(111, 143, 215, 0.26);
+  border-right: 1px solid rgba(255, 255, 255, 0.26);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.26);
 }
 
 .case-profile-kicker {
@@ -674,7 +1146,7 @@
 .case-profile-kicker::before {
   content: "◆";
   margin-right: 0.4rem;
-  color: rgba(111, 143, 215, 0.45);
+  color: rgba(255, 255, 255, 0.45);
   font-size: 0.48rem;
 }
 
@@ -697,7 +1169,7 @@
   justify-content: center;
   gap: 0.38rem;
   padding: 0.68rem 0.72rem;
-  border: 1px solid rgba(111, 143, 215, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(0, 0, 0, 0.46);
 }
 
@@ -713,7 +1185,7 @@
 .case-profile-chip-value {
   display: flex;
   align-items: center;
-  color: rgba(236, 240, 245, 0.92);
+  color: rgba(238, 238, 238, 0.92);
   font-size: 0.9rem;
   line-height: 1.3;
 }
@@ -725,95 +1197,80 @@
 .case-tab-strip {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.3rem;
-  margin-top: 1.35rem;
-  padding-top: 0.42rem;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 0.25rem;
+  padding: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .case-tab-button {
   position: relative;
-  flex: 1 1 7.25rem;
-  min-width: 7.25rem;
+  flex: 1 1 0;
+  min-width: 5.5rem;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.12rem;
+  gap: 0.18rem;
   margin-bottom: 0;
-  padding: 0.72rem 0.85rem 0.58rem;
-  border: 1px solid rgba(111, 143, 215, 0.2);
-  border-bottom: 1px solid rgba(111, 143, 215, 0.16);
-  border-radius: 0.55rem 0.55rem 0 0;
-  background: rgba(0, 0, 0, 0.48);
-  color: rgba(200, 208, 220, 0.72);
+  padding: 0.7rem 0.75rem 0.65rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(170, 170, 170, 0.7);
   text-align: left;
   z-index: 1;
   transition:
-    border-color 160ms ease,
     color 160ms ease,
-    background 160ms ease,
-    padding 160ms ease;
+    background 160ms ease;
 }
 
 .case-tab-button::before {
-  position: absolute;
-  top: 0;
-  left: 0.7rem;
-  width: 2.15rem;
-  height: 0.4rem;
-  border: 1px solid rgba(111, 143, 215, 0.2);
-  border-bottom: none;
-  border-radius: 0.35rem 0.35rem 0 0;
-  background: rgba(0, 0, 0, 0.48);
-  content: "";
-  pointer-events: none;
-  transform: translateY(-100%);
+  display: none;
 }
 
 .case-tab-button span {
   display: block;
-  color: rgba(140, 155, 180, 0.78);
+  color: rgba(130, 130, 130, 0.72);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
-  font-size: 0.6rem;
+  font-size: 0.56rem;
   letter-spacing: 0.16em;
   line-height: 1.2;
 }
 
 .case-tab-button.is-active {
-  margin-bottom: -1px;
-  padding-bottom: 0.7rem;
-  border-color: rgba(111, 143, 215, 0.3);
-  border-bottom-color: rgba(0, 0, 0, 0.88);
-  background: rgba(0, 0, 0, 0.88);
-  color: rgba(236, 240, 245, 0.96);
+  margin-bottom: 0;
+  padding-bottom: 0.65rem;
+  border: none;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(245, 245, 245, 0.98);
   box-shadow: none;
-  z-index: 3;
+  z-index: 2;
 }
 
 .case-tab-button.is-active::before {
-  border-color: rgba(111, 143, 215, 0.3);
-  background: rgba(0, 0, 0, 0.88);
+  display: none;
 }
 
 .case-tab-button:hover:not(.is-active) {
-  border-color: rgba(111, 143, 215, 0.26);
-  background: rgba(8, 8, 8, 0.72);
-  color: rgba(232, 236, 241, 0.88);
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(230, 230, 230, 0.9);
 }
 
 .case-tab-button:hover:not(.is-active)::before {
-  border-color: rgba(111, 143, 215, 0.26);
-  background: rgba(8, 8, 8, 0.72);
+  display: none;
 }
 
 .case-tab-panel {
   margin-top: 0;
   min-width: 0;
   max-width: 100%;
-  padding: 1.15rem 1rem 1.25rem;
-  border: 1px solid rgba(111, 143, 215, 0.22);
-  border-radius: 0 0.35rem 0.35rem 0.35rem;
-  background: rgba(0, 0, 0, 0.28);
+  padding: 1.1rem 0 0.35rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   animation: none;
 }
 
@@ -845,6 +1302,247 @@
   }
 }
 
+/* RECORD BOX: 바깥 프레임 하나 + 안쪽은 펼침 목록 (중첩 카드 제거) */
+.record-settings-layout {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.record-settings-pair {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  grid-template-columns: 1fr;
+}
+
+.record-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.record-visual-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 16rem;
+  max-height: 22rem;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.record-visual-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.record-visual-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+}
+
+@media (min-width: 900px) {
+  .record-settings-pair {
+    grid-template-columns: minmax(0, 1.1fr) minmax(14rem, 0.85fr);
+    align-items: start;
+    min-height: 28rem;
+  }
+
+  .record-box {
+    min-height: 28rem;
+    height: auto;
+  }
+
+  .record-visual-preview {
+    /* 기록 행을 펼쳐도 옆 일러가 따라 커지지 않게 고정 */
+    width: 100%;
+    min-height: 28rem;
+    height: 28rem;
+    max-height: 28rem;
+    aspect-ratio: auto;
+    align-self: start;
+    position: sticky;
+    top: 1rem;
+  }
+}
+
+.record-box-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem 0.7rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.record-box-kicker {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.record-box-count {
+  flex: 0 0 auto;
+  color: rgba(160, 160, 160, 0.7);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+.record-box-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  max-height: min(70vh, 36rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+/* 통일된 파일 인덱스 행 */
+.record-row {
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  width: 100%;
+  text-align: left;
+}
+
+.record-row:last-child {
+  border-bottom: none;
+}
+
+.record-row-summary,
+.record-row--file {
+  display: grid;
+  grid-template-columns: 2.1rem minmax(0, 1fr) 1.25rem;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.95rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  color: rgba(230, 230, 230, 0.92);
+  transition: background-color 140ms ease;
+}
+
+.record-row-summary::-webkit-details-marker {
+  display: none;
+}
+
+.record-row-summary:hover,
+.record-row-summary:focus-visible,
+.record-row--file:hover,
+.record-row--file:focus-visible {
+  background: rgba(255, 255, 255, 0.045);
+  outline: none;
+}
+
+.record-row-index {
+  color: rgba(140, 140, 140, 0.75);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
+.record-row-main {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.record-row-title {
+  color: rgba(245, 245, 245, 0.96);
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.record-row-hint {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgba(150, 150, 150, 0.72);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.record-row-hint--rich {
+  -webkit-line-clamp: 2;
+}
+
+.record-row-action {
+  justify-self: end;
+  color: rgba(160, 160, 160, 0.55);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.record-row--file:hover .record-row-action,
+.record-row--file:focus-visible .record-row-action {
+  color: rgba(240, 240, 240, 0.9);
+}
+
+.record-row--fold[open] > .record-row-summary {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.record-row-body {
+  padding: 0 1rem 1rem 3.85rem;
+}
+
+.record-row-body img,
+.record-row-body picture,
+.record-row-body video,
+.record-row-body canvas,
+.record-row-body .thumbnail-image,
+.record-row-body [class*="thumbnail"] {
+  display: block;
+  max-width: 100%;
+  width: auto !important;
+  max-height: 16rem;
+  height: auto !important;
+  object-fit: contain;
+  object-position: center top;
+  margin: 0.5rem 0;
+}
+
+.record-row-prose {
+  margin: 0;
+  color: rgba(220, 220, 220, 0.9);
+  font-size: 0.9rem;
+  line-height: 1.75;
+  white-space: pre-line;
+}
+
+.record-row-prose img {
+  max-height: 16rem;
+}
+
 .case-setting-list {
   display: grid;
   gap: 0.75rem;
@@ -855,7 +1553,7 @@
 .case-empty-note,
 .case-side-record,
 .case-evidence-preview {
-  border: 1px solid rgba(111, 143, 215, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 22%), rgba(0, 0, 0, 0.46);
   box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.72);
@@ -871,7 +1569,7 @@
 .case-setting-note span:not(.archive-submit-button) {
   display: block;
   margin-bottom: 0.45rem;
-  color: rgba(111, 143, 215, 0.72);
+  color: rgba(255, 255, 255, 0.72);
   font-size: 0.66rem;
   letter-spacing: 0.16em;
 }
@@ -899,7 +1597,7 @@
 }
 
 .case-evidence-preview:hover {
-  border-color: rgba(111, 143, 215, 0.82);
+  border-color: rgba(255, 255, 255, 0.82);
   filter: contrast(1.08);
 }
 
@@ -907,7 +1605,7 @@
   position: absolute;
   left: 0.85rem;
   top: 0.85rem;
-  border: 1px solid rgba(111, 143, 215, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.52);
   background: rgba(0, 0, 0, 0.62);
   padding: 0.32rem 0.48rem;
   color: rgba(200, 212, 232, 0.72);
@@ -928,14 +1626,12 @@
   min-width: 4.4rem;
   max-width: calc(100% - 1.1rem);
   overflow: hidden;
-  border: 1px solid rgba(111, 143, 215, 0.42);
-  background:
-    linear-gradient(90deg, rgba(0, 0, 0, 0.78), rgba(35, 0, 6, 0.58)), rgba(0, 0, 0, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  background: rgba(8, 8, 8, 0.88);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.65),
-    0 0 10px rgba(0, 0, 0, 0.82),
-    0 0 5px rgba(111, 143, 215, 0.16);
-  color: #f7eeee;
+    0 0 8px rgba(0, 0, 0, 0.75);
+  color: #f0f0f0;
   font-size: 0.78rem;
   font-weight: 900;
   letter-spacing: 0.01em;
@@ -943,10 +1639,7 @@
   padding: 0.34rem 0.54rem;
   text-align: center;
   text-overflow: ellipsis;
-  text-shadow:
-    0 1px 3px #000,
-    0 0 7px #000,
-    0 0 6px rgba(255, 255, 255, 0.6);
+  text-shadow: 0 1px 2px #000;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -1019,12 +1712,12 @@ label {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  border-bottom: 1px solid rgba(111, 143, 215, 0.34);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.34);
   padding-bottom: 0.9rem;
 }
 
 .world-index-note {
-  border-left: 1px solid rgba(111, 143, 215, 0.22);
+  border-left: 1px solid rgba(255, 255, 255, 0.22);
   padding-left: 0.85rem;
 }
 
@@ -1057,10 +1750,9 @@ label {
   flex-direction: column;
   margin-top: 0.55rem;
   overflow: visible;
-  border: 1px solid rgba(111, 143, 215, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 14%),
-    rgba(3, 4, 10, 0.92);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 14%), rgba(3, 4, 10, 0.92);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.84),
     inset 0 0 30px rgba(0, 0, 0, 0.88),
@@ -1084,11 +1776,11 @@ label {
   align-items: center;
   justify-content: center;
   padding: 0.2rem 0.42rem 0.16rem;
-  border: 1px solid rgba(111, 143, 215, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   border-bottom: none;
   border-radius: 0.28rem 0.28rem 0 0;
-  background: linear-gradient(180deg, rgba(18, 26, 50, 0.98), rgba(4, 5, 12, 0.98));
-  color: rgba(168, 184, 220, 0.82);
+  background: linear-gradient(180deg, rgba(28, 28, 28, 0.98), rgba(8, 8, 8, 0.98));
+  color: rgba(200, 200, 200, 0.82);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.54rem;
   font-weight: 500;
@@ -1106,28 +1798,28 @@ label {
   position: absolute;
   inset: 0.32rem;
   z-index: 0;
-  border: 1px solid rgba(111, 143, 215, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   pointer-events: none;
 }
 
 .world-file-card:hover {
-  border-color: rgba(111, 143, 215, 0.85);
+  border-color: rgba(255, 255, 255, 0.85);
   transform: translateY(-2px);
 }
 
 .world-file-card.is-active {
-  border-color: rgba(111, 143, 215, 0.95);
+  border-color: rgba(255, 255, 255, 0.95);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.9),
     inset 0 0 36px rgba(0, 0, 0, 0.88),
-    0 0 26px rgba(111, 143, 215, 0.12),
+    0 0 26px rgba(255, 255, 255, 0.12),
     0 24px 52px rgba(0, 0, 0, 0.7);
 }
 
 .world-file-card.is-active .world-file-card-tab {
-  border-color: rgba(111, 143, 215, 0.85);
-  background: linear-gradient(180deg, rgba(22, 32, 62, 0.98), rgba(6, 8, 16, 0.98));
-  color: rgba(214, 226, 248, 0.95);
+  border-color: rgba(255, 255, 255, 0.85);
+  background: linear-gradient(180deg, rgba(36, 36, 36, 0.98), rgba(10, 10, 10, 0.98));
+  color: rgba(236, 236, 236, 0.95);
 }
 
 /* 카드 헤더: 파일 코드 + 분류 스탬프 */
@@ -1139,14 +1831,14 @@ label {
   justify-content: space-between;
   gap: 0.6rem;
   padding: 0.72rem 0.9rem 0.7rem;
-  border-bottom: 1px dashed rgba(111, 143, 215, 0.26);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.26);
   background:
     repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.022) 0 1px, transparent 1px 5px),
     rgba(2, 3, 8, 0.7);
 }
 
 .world-file-card-code {
-  color: rgba(111, 143, 215, 0.78);
+  color: rgba(255, 255, 255, 0.78);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.62rem;
   letter-spacing: 0.2em;
@@ -1155,7 +1847,7 @@ label {
 
 .world-file-card-stamp {
   flex-shrink: 0;
-  border: 1px solid rgba(111, 143, 215, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   background: rgba(0, 0, 0, 0.55);
   padding: 0.2rem 0.42rem;
   color: rgba(170, 184, 214, 0.85);
@@ -1166,7 +1858,7 @@ label {
 }
 
 .world-file-card[data-state="classified"] .world-file-card-stamp {
-  border-color: rgba(111, 143, 215, 0.38);
+  border-color: rgba(255, 255, 255, 0.38);
   color: rgba(168, 184, 214, 0.82);
 }
 
@@ -1199,7 +1891,7 @@ label {
 
 .world-file-card-title {
   margin: 0;
-  color: rgba(236, 240, 245, 0.96);
+  color: rgba(238, 238, 238, 0.96);
   font-size: 1.32rem;
   font-weight: 900;
   letter-spacing: -0.04em;
@@ -1230,7 +1922,7 @@ label {
   align-items: center;
   justify-content: space-between;
   padding: 0.6rem 0.9rem;
-  border-top: 1px solid rgba(111, 143, 215, 0.18);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
   background: rgba(2, 3, 8, 0.72);
   color: rgba(168, 176, 188, 0.6);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
@@ -1255,10 +1947,10 @@ label {
   overflow: hidden;
   min-height: 13rem;
   padding: clamp(1.4rem, 3vw, 2.1rem) clamp(1.25rem, 3vw, 2rem) clamp(1.25rem, 2.6vw, 1.8rem);
-  border-bottom: 1px solid rgba(111, 143, 215, 0.42);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
   background:
-    linear-gradient(90deg, rgba(10, 14, 28, 0.6), transparent 60%),
-    linear-gradient(180deg, rgba(6, 8, 16, 0.96), rgba(0, 0, 0, 0.98));
+    linear-gradient(90deg, rgba(18, 18, 18, 0.75), transparent 60%),
+    linear-gradient(180deg, #101010 0%, #050505 100%);
 }
 
 .world-file-doc-grid {
@@ -1267,10 +1959,10 @@ label {
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(rgba(111, 143, 215, 0.09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(111, 143, 215, 0.065) 1px, transparent 1px);
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
   background-size: 2.6rem 2.6rem;
-  opacity: 0.2;
+  opacity: 0.18;
   mask-image: linear-gradient(90deg, #000 0 55%, transparent 100%);
   -webkit-mask-image: linear-gradient(90deg, #000 0 55%, transparent 100%);
 }
@@ -1282,7 +1974,7 @@ label {
   z-index: 1;
   max-width: calc(100% - 1.8rem);
   margin: 0;
-  color: rgba(168, 184, 220, 0.06);
+  color: rgba(255, 255, 255, 0.05);
   font-size: clamp(3.4rem, 9vw, 7rem);
   line-height: 1;
   text-align: right;
@@ -1316,24 +2008,24 @@ label {
 }
 
 .world-file-tag {
-  border: 1px solid rgba(111, 143, 215, 0.3);
-  background: rgba(0, 0, 0, 0.46);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(0, 0, 0, 0.55);
   padding: 0.36rem 0.55rem;
-  color: rgba(206, 214, 228, 0.78);
+  color: rgba(200, 200, 200, 0.82);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.66rem;
   letter-spacing: 0.1em;
 }
 
 .world-file-tag[data-state="classified"] {
-  border-color: rgba(111, 143, 215, 0.38);
-  color: rgba(168, 184, 214, 0.82);
+  border-color: rgba(255, 255, 255, 0.38);
+  color: rgba(210, 210, 210, 0.88);
 }
 
 .world-file-tag[data-state="decrypted"],
 .world-file-tag[data-state="open"] {
-  border-color: rgba(120, 190, 150, 0.45);
-  color: rgba(168, 214, 184, 0.88);
+  border-color: rgba(180, 180, 180, 0.45);
+  color: rgba(220, 220, 220, 0.9);
 }
 
 .world-file-doc-body {
@@ -1381,7 +2073,9 @@ label {
   line-height: inherit;
 }
 
-.world-file-doc-body .case-file-intro-text .glitch-zone-mark {
+.world-file-doc-body
+  .case-file-intro-text
+  .glitch-zone-mark:not(.glitch-zone-has-custom-font-size):not([style*="--glitch-font-size"]) {
   font-size: inherit;
   line-height: inherit;
 }
@@ -1395,11 +2089,11 @@ label {
   display: grid;
   gap: 0.85rem;
   padding: 1rem 1.1rem 1.1rem;
-  border: 1px solid rgba(111, 143, 215, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   background:
     repeating-linear-gradient(
       135deg,
-      rgba(111, 143, 215, 0.045) 0 0.6rem,
+      rgba(255, 255, 255, 0.045) 0 0.6rem,
       transparent 0.6rem 1.2rem
     ),
     rgba(0, 0, 0, 0.46);
@@ -1412,7 +2106,7 @@ label {
   justify-content: space-between;
   gap: 0.75rem;
   padding-bottom: 0.65rem;
-  border-bottom: 1px dashed rgba(111, 143, 215, 0.22);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.22);
 }
 
 .world-file-lock-head .case-file-intro-label {
@@ -1421,7 +2115,7 @@ label {
 
 .world-file-lock-stamp {
   flex-shrink: 0;
-  border: 1px solid rgba(111, 143, 215, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.42);
   background: rgba(0, 0, 0, 0.55);
   padding: 0.22rem 0.48rem;
   color: rgba(170, 192, 232, 0.88);
@@ -1469,7 +2163,7 @@ label {
   flex-direction: column;
   gap: 0.95rem;
   padding: 1.1rem;
-  border: 1px solid rgba(111, 143, 215, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 18%), rgba(0, 0, 0, 0.42);
   box-shadow: inset 0 0 26px rgba(0, 0, 0, 0.68);
@@ -1480,11 +2174,11 @@ label {
   flex-direction: column;
   gap: 0.4rem;
   padding-bottom: 0.85rem;
-  border-bottom: 1px dashed rgba(111, 143, 215, 0.22);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.22);
 }
 
 .world-file-record-code {
-  color: rgba(111, 143, 215, 0.68);
+  color: rgba(255, 255, 255, 0.68);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.6rem;
   letter-spacing: 0.2em;
@@ -1501,7 +2195,7 @@ label {
 
 .world-file-record-name {
   margin: 0;
-  color: rgba(236, 240, 245, 0.96);
+  color: rgba(238, 238, 238, 0.96);
   font-size: 1.5rem;
   font-weight: 900;
   letter-spacing: -0.04em;
@@ -1509,7 +2203,7 @@ label {
 }
 
 .world-file-record-id {
-  color: rgba(111, 143, 215, 0.72);
+  color: rgba(255, 255, 255, 0.72);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.62rem;
   letter-spacing: 0.2em;
@@ -1573,7 +2267,7 @@ label {
   flex-direction: column;
   gap: 1.15rem;
   padding: clamp(1rem, 2vw, 1.35rem);
-  border: 1px solid rgba(111, 143, 215, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 18%), rgba(0, 0, 0, 0.42);
   box-shadow: inset 0 0 26px rgba(0, 0, 0, 0.68);
@@ -1586,7 +2280,7 @@ label {
   justify-content: space-between;
   gap: 0.75rem;
   padding-bottom: 0.85rem;
-  border-bottom: 1px dashed rgba(111, 143, 215, 0.22);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.22);
 }
 
 .relation-map-head .case-file-intro-label {
@@ -1597,7 +2291,7 @@ label {
 
 .relation-map-subtitle {
   margin: 0.35rem 0 0;
-  color: rgba(214, 222, 238, 0.72);
+  color: rgba(200, 200, 200, 0.72);
   font-size: 0.88rem;
   line-height: 1.5;
 }
@@ -1615,7 +2309,7 @@ label {
   flex-direction: column;
   gap: 0.5rem;
   padding: 0.55rem 0.85rem 0.65rem;
-  border: 1px solid rgba(111, 143, 215, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.24);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 18%), rgba(0, 0, 0, 0.46);
   box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.7);
@@ -1625,10 +2319,10 @@ label {
 }
 
 .relation-link-file:hover {
-  border-color: rgba(111, 143, 215, 0.42);
+  border-color: rgba(255, 255, 255, 0.42);
   box-shadow:
     inset 0 0 24px rgba(0, 0, 0, 0.7),
-    0 0 0 1px rgba(111, 143, 215, 0.08);
+    0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
 .relation-link-file-head {
@@ -1636,7 +2330,7 @@ label {
   flex-direction: column;
   gap: 0.35rem;
   padding-bottom: 0.45rem;
-  border-bottom: 1px dashed rgba(111, 143, 215, 0.18);
+  border-bottom: 1px dashed rgba(255, 255, 255, 0.18);
 }
 
 .relation-link-file-meta {
@@ -1651,10 +2345,10 @@ label {
   align-items: center;
   justify-content: center;
   padding: 0.14rem 0.36rem;
-  border: 1px solid rgba(111, 143, 215, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.38);
   border-radius: 0.2rem;
-  background: rgba(7, 10, 20, 0.92);
-  color: rgba(168, 184, 220, 0.82);
+  background: rgba(10, 10, 10, 0.92);
+  color: rgba(200, 200, 200, 0.82);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.54rem;
   font-weight: 500;
@@ -1665,7 +2359,7 @@ label {
 }
 
 .relation-link-file-code {
-  color: rgba(111, 143, 215, 0.68);
+  color: rgba(255, 255, 255, 0.68);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.6rem;
   letter-spacing: 0.2em;
@@ -1682,7 +2376,7 @@ label {
 
 .relation-link-file-name {
   margin: 0;
-  color: rgba(236, 240, 245, 0.96);
+  color: rgba(238, 238, 238, 0.96);
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -1690,9 +2384,9 @@ label {
 }
 
 .relation-link-file-badge {
-  border: 1px solid rgba(111, 143, 215, 0.32);
-  background: rgba(111, 143, 215, 0.1);
-  color: rgba(200, 212, 232, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(210, 210, 210, 0.88);
   font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.58rem;
   letter-spacing: 0.16em;
@@ -1703,7 +2397,7 @@ label {
 }
 
 .relation-link-file-body {
-  color: rgba(214, 222, 238, 0.86);
+  color: rgba(210, 210, 210, 0.9);
   font-size: 0.88rem;
   line-height: 1.55;
   white-space: pre-line;
@@ -1723,9 +2417,9 @@ label {
   gap: 0.5rem;
   width: 100%;
   margin: 0.15rem 0 0;
-  border: 1px solid rgba(111, 143, 215, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   background: rgba(0, 0, 0, 0.42);
-  color: rgba(226, 236, 255, 0.9);
+  color: rgba(220, 220, 220, 0.9);
   font-size: 0.72rem;
   line-height: 1;
   letter-spacing: 0.08em;
@@ -1739,9 +2433,9 @@ label {
 
 .relation-link-file-action:hover,
 .relation-link-file-action:focus-visible {
-  border-color: rgba(140, 155, 180, 0.45);
+  border-color: rgba(180, 180, 180, 0.45);
   background: rgba(18, 18, 18, 0.95);
-  color: #eceff4;
+  color: #eeeeee;
 }
 
 .relation-link-file-action-label {
@@ -1758,4 +2452,92 @@ label {
   width: 1rem;
   font-size: 0.95rem;
   line-height: 1;
+}
+
+/* ================================================================
+   Home Entrance — 사이트 본문과 같은 중립 니어블랙 입구.
+   ================================================================ */
+
+.home-entrance {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: min(72vh, 40rem);
+  padding: 2.75rem 1.5rem 3rem;
+  background: #0c0c0c;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.home-entrance-brand {
+  max-width: 36rem;
+}
+
+.home-entrance-kicker {
+  margin: 0;
+  color: rgba(180, 180, 180, 0.78);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.home-entrance-mark {
+  display: block;
+  margin: 1.15rem 0 0;
+  color: rgba(245, 245, 243, 0.96);
+  font-family: var(--font-yuji-mai), "Yuji Mai", "Yu Mincho", serif;
+  font-size: clamp(3.4rem, 11vw, 6.5rem);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  line-height: 0.94;
+}
+
+.home-entrance-body {
+  margin: 2rem 0 0;
+  max-width: 26rem;
+  padding: 0 0 0 1.05rem;
+  border-left: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(238, 238, 238, 0.72);
+  font-size: 0.92rem;
+  line-height: 1.9;
+  white-space: pre-line;
+}
+
+.home-entrance-foot {
+  margin-top: 2.75rem;
+}
+
+.home-entrance-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 11rem;
+  padding: 0.82rem 1.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 0;
+  background: rgba(8, 8, 8, 0.94);
+  color: rgba(210, 210, 210, 0.92);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.28em;
+}
+
+.home-entrance-cta:hover,
+.home-entrance-cta:focus-visible {
+  border-color: rgba(255, 255, 255, 0.52);
+  background: var(--surface-raised, #121212);
+  color: rgba(245, 245, 245, 0.98);
+  outline: none;
+}
+
+.home-entrance-meta {
+  margin: 1rem 0 0;
+  color: rgba(160, 160, 160, 0.55);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
 }

@@ -1,19 +1,52 @@
 "use client";
 
-import { ChangeEvent, FormEvent, KeyboardEvent, MouseEvent, PointerEvent, SyntheticEvent, WheelEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  KeyboardEvent,
+  MouseEvent,
+  PointerEvent,
+  SyntheticEvent,
+  WheelEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
-import { collection, deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
-import { ADMIN_AUTH_EMAIL, friendlyAuthError, resolveLoginEmail, validateLoginId } from "@/lib/auth-helpers";
+import {
+  collection,
+  deleteDoc,
+  deleteField,
+  doc,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+} from "firebase/firestore";
+import {
+  ADMIN_AUTH_EMAIL,
+  friendlyAuthError,
+  resolveLoginEmail,
+  validateLoginId,
+} from "@/lib/auth-helpers";
 import { normalizeBgmTracks, resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
-import { DEFAULT_CHARACTER_PALETTE, extractCharacterPaletteFromImage, normalizeCharacterPaletteInput } from "@/lib/character-palette";
+import {
+  DEFAULT_CHARACTER_PALETTE,
+  extractCharacterPaletteFromImage,
+  normalizeCharacterPaletteInput,
+} from "@/lib/character-palette";
 import { PaletteEditor } from "@/components/admin/PaletteEditor";
 import { compactCaseFileDetailTheme, normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { CaseFileThemeEditor } from "@/components/admin/CaseFileThemeEditor";
 import { clamp } from "@/lib/image-helpers";
 import { ThumbnailImage } from "@/components/ThumbnailImage";
-import { ProfileFieldsEditor, profileFieldGlitchPath } from "@/components/admin/ProfileFieldsEditor";
+import {
+  ProfileFieldsEditor,
+  profileFieldGlitchPath,
+} from "@/components/admin/ProfileFieldsEditor";
 import { RelationshipsEditor } from "@/components/admin/RelationshipsEditor";
 import { BgmQuickPicker } from "@/components/admin/BgmQuickPicker";
 import { DocumentTextImport } from "@/components/admin/DocumentTextImport";
@@ -21,7 +54,11 @@ import { useAdminHistoryNavigation } from "@/hooks/useAdminHistoryNavigation";
 import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import { createAdminHistoryState } from "@/lib/admin-history";
 import type { AdminHistoryState } from "@/types/admin.types";
-import { createDefaultProfileFields, normalizeProfileFields, profileFieldsHaveContent } from "@/lib/profile-fields";
+import {
+  createDefaultProfileFields,
+  normalizeProfileFields,
+  profileFieldsHaveContent,
+} from "@/lib/profile-fields";
 import {
   normalizeRelationshipEntries,
   relationshipEntriesHaveContent,
@@ -89,7 +126,11 @@ import {
   buildTextGlitchFirestorePatch,
   countRemovedGlitchPaths,
 } from "@/lib/text-glitch-persistence";
-import { readGlitchTextSelection, scheduleReadGlitchTextSelection, type GlitchTextSelection } from "@/lib/glitch-selection";
+import {
+  readGlitchTextSelection,
+  scheduleReadGlitchTextSelection,
+  type GlitchTextSelection,
+} from "@/lib/glitch-selection";
 import { scheduleReadContentEditableSelection } from "@/lib/contenteditable-glitch";
 import {
   isGlitchFieldTarget,
@@ -104,7 +145,11 @@ import {
   normalizeCharacterKind,
 } from "@/lib/character-kind";
 import { characterKindToSection } from "@/lib/zone-links";
-import { compactSubPageForStorage, listNavigableSubPages, normalizeSubPages } from "@/lib/sub-pages";
+import {
+  compactSubPageForStorage,
+  listNavigableSubPages,
+  normalizeSubPages,
+} from "@/lib/sub-pages";
 import {
   formatPairDisplayName,
   normalizePairMemberIds,
@@ -152,7 +197,6 @@ type ThumbnailDragState = {
   startThumbY: number;
 };
 
-
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
 const MAX_AUDIO_UPLOAD_SIZE = 15 * 1024 * 1024;
@@ -176,7 +220,9 @@ function formatBytes(bytes: number) {
 }
 
 function glitchFieldClass(path: string, activePath: string | null, baseClass = "auth-input") {
-  return activePath === path ? `${baseClass} border-amber-300/50 ring-1 ring-amber-300/40` : baseClass;
+  return activePath === path
+    ? `${baseClass} border-amber-300/50 ring-1 ring-amber-300/40`
+    : baseClass;
 }
 
 function slugifyId(value: string) {
@@ -225,11 +271,15 @@ function characterToDraft(character: Character): CharacterDraft {
     subPages: normalizeSubPages(character.subPages),
     pairMemberIds: resolvePairMemberIds(character),
     bgmUrl: character.bgmUrl ?? "",
+    confidential: Boolean(character.confidential),
   };
 }
 
 function getLegacyRelationshipsMigrationNotice(character: Character) {
-  const resolved = resolveRelationshipEntries(character.relationshipEntries, character.relationships);
+  const resolved = resolveRelationshipEntries(
+    character.relationshipEntries,
+    character.relationships,
+  );
   return resolved.migratedFromLegacy
     ? "예전 관계 목록을 관계 카드로 불러왔어요. 아래 내용을 확인한 뒤 「본 페이지에 저장」을 눌러주세요."
     : null;
@@ -273,7 +323,8 @@ function mergeDraftForKindMigration(draft: CharacterDraft, existing: Character):
     id: draft.id.trim() || existingDraft.id,
     name: draft.name.trim() || existingDraft.name,
     pairMemberIds: draft.kind === "pair" ? existingDraft.pairMemberIds : ["", ""],
-    textGlitch: Object.keys(draft.textGlitch).length > 0 ? draft.textGlitch : existingDraft.textGlitch,
+    textGlitch:
+      Object.keys(draft.textGlitch).length > 0 ? draft.textGlitch : existingDraft.textGlitch,
     subPages: draft.subPages.length > 0 ? draft.subPages : existingDraft.subPages,
     bgmUrl: draft.bgmUrl.trim() ? draft.bgmUrl : existingDraft.bgmUrl,
   };
@@ -297,6 +348,7 @@ function createBlankDraft(kind: CharacterKind = "oc"): CharacterDraft {
     subPages: [],
     pairMemberIds: ["", ""],
     bgmUrl: "",
+    confidential: false,
   };
 }
 
@@ -342,7 +394,10 @@ function draftToCharacter(
       const subPageBgmUrl = resolveCharacterBgmUrl(compacted.bgmUrl);
       const nextSubPage = {
         ...compacted,
-        relationshipEntries: normalizeRelationshipEntries(compacted.relationshipEntries, compacted.relationships),
+        relationshipEntries: normalizeRelationshipEntries(
+          compacted.relationshipEntries,
+          compacted.relationships,
+        ),
         relationships: relationshipEntriesToLegacyLines(
           normalizeRelationshipEntries(compacted.relationshipEntries, compacted.relationships),
         ),
@@ -366,6 +421,7 @@ function draftToCharacter(
     return {
       ...pairCharacter,
       ...(bgmUrl ? { bgmUrl } : {}),
+      ...(draft.confidential ? { confidential: true } : {}),
       ...(textGlitch ? { textGlitch } : {}),
       ...(compactCaseFileDetailTheme(draft.detailTheme)
         ? { detailTheme: compactCaseFileDetailTheme(draft.detailTheme) }
@@ -376,6 +432,7 @@ function draftToCharacter(
   const character: Character = {
     ...characterBase,
     ...(bgmUrl ? { bgmUrl } : {}),
+    ...(draft.confidential ? { confidential: true } : {}),
     ...(textGlitch ? { textGlitch } : {}),
     ...(compactCaseFileDetailTheme(draft.detailTheme)
       ? { detailTheme: compactCaseFileDetailTheme(draft.detailTheme) }
@@ -473,7 +530,10 @@ function normalizeWorldEntries(entries: CharacterWorldEntry[] | undefined): Char
     : [];
 }
 
-function upsertWorldEntry(entries: CharacterWorldEntry[] | undefined, nextEntry: CharacterWorldEntry) {
+function upsertWorldEntry(
+  entries: CharacterWorldEntry[] | undefined,
+  nextEntry: CharacterWorldEntry,
+) {
   const normalizedEntries = normalizeWorldEntries(entries);
   const existingIndex = normalizedEntries.findIndex((entry) => entry.worldId === nextEntry.worldId);
 
@@ -518,11 +578,18 @@ export default function AdminPage() {
   const [draft, setDraft] = useState<CharacterDraft>(() => createBlankDraft());
   const [worldDraft, setWorldDraft] = useState<WorldDraft>(() => createBlankWorldDraft());
   const [worldSettingsText, setWorldSettingsText] = useState("");
-  const [worldWorkDraft, setWorldWorkDraft] = useState({ title: "", kind: "세계관 연성", date: "", body: "" });
+  const [worldWorkDraft, setWorldWorkDraft] = useState({
+    title: "",
+    kind: "세계관 연성",
+    date: "",
+    body: "",
+  });
   const [workDraft, setWorkDraft] = useState({ title: "", kind: "새 연성", date: "", body: "" });
   const [worldWorkImageFiles, setWorldWorkImageFiles] = useState<File[]>([]);
   const [workImageFiles, setWorkImageFiles] = useState<File[]>([]);
-  const [imageUploadCategory, setImageUploadCategory] = useState<"illustration" | "standing">("illustration");
+  const [imageUploadCategory, setImageUploadCategory] = useState<"illustration" | "standing">(
+    "illustration",
+  );
   const [imageUploadWorldId, setImageUploadWorldId] = useState("");
   const [notice, setNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -538,28 +605,43 @@ export default function AdminPage() {
   const [diaryDraft, setDiaryDraft] = useState<DiaryEntry>(() => createBlankDiaryEntry());
   const [extractBanners, setExtractBanners] = useState<PersonalHomeBanner[]>([]);
   const [activeExtractBannerId, setActiveExtractBannerId] = useState("");
-  const [extractBannerDraft, setExtractBannerDraft] = useState<ExtractBannerDraft>(() => createBlankExtractBannerDraft());
+  const [extractBannerDraft, setExtractBannerDraft] = useState<ExtractBannerDraft>(() =>
+    createBlankExtractBannerDraft(),
+  );
   const [extractBannerImageFile, setExtractBannerImageFile] = useState<File | null>(null);
   const [bgmTracks, setBgmTracks] = useState<BgmTrack[]>([]);
   const [activeBgmTrackId, setActiveBgmTrackId] = useState("");
-  const [bgmTrackDraft, setBgmTrackDraft] = useState<BgmTrackDraft>(() => createBlankBgmTrackDraft());
+  const [bgmTrackDraft, setBgmTrackDraft] = useState<BgmTrackDraft>(() =>
+    createBlankBgmTrackDraft(),
+  );
   const [bgmAudioFile, setBgmAudioFile] = useState<File | null>(null);
   const [adminPanel, setAdminPanel] = useState<"categories" | "characters">("categories");
   const [characterEditSection, setCharacterEditSection] = useState<CharacterEditSection>("basics");
   const [activeCharacterKind, setActiveCharacterKind] = useState<CharacterKind>("oc");
   const [activeSubPageId, setActiveSubPageId] = useState("");
   const [activeGlitchFieldPath, setActiveGlitchFieldPath] = useState<string | null>(null);
-  const [glitchFieldSelection, setGlitchFieldSelection] = useState<GlitchTextSelection | null>(null);
-  const [glitchFieldAnchorElement, setGlitchFieldAnchorElement] =
-    useState<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
+  const [glitchFieldSelection, setGlitchFieldSelection] = useState<GlitchTextSelection | null>(
+    null,
+  );
+  const [glitchFieldAnchorElement, setGlitchFieldAnchorElement] = useState<
+    HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
+  >(null);
   const [activeWorldGlitchFieldPath, setActiveWorldGlitchFieldPath] = useState<string | null>(null);
-  const [worldGlitchFieldSelection, setWorldGlitchFieldSelection] = useState<GlitchTextSelection | null>(null);
-  const [worldGlitchFieldAnchorElement, setWorldGlitchFieldAnchorElement] =
-    useState<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
-  const glitchFieldAnchorRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
-  const worldGlitchFieldAnchorRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(null);
+  const [worldGlitchFieldSelection, setWorldGlitchFieldSelection] =
+    useState<GlitchTextSelection | null>(null);
+  const [worldGlitchFieldAnchorElement, setWorldGlitchFieldAnchorElement] = useState<
+    HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
+  >(null);
+  const glitchFieldAnchorRef = useRef<HTMLInputElement | HTMLTextAreaElement | HTMLElement | null>(
+    null,
+  );
+  const worldGlitchFieldAnchorRef = useRef<
+    HTMLInputElement | HTMLTextAreaElement | HTMLElement | null
+  >(null);
   const adminGlitchInteractionMountedRef = useRef(false);
-  const [activeCategory, setActiveCategory] = useState<"home" | "archive" | "diary" | "guestbook" | "worlds" | "extract" | "bgm">("home");
+  const [activeCategory, setActiveCategory] = useState<
+    "home" | "archive" | "diary" | "guestbook" | "worlds" | "extract" | "bgm"
+  >("home");
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
   const charactersRef = useRef(characters);
   charactersRef.current = characters;
@@ -598,7 +680,9 @@ export default function AdminPage() {
       })),
     [draft, glitchFieldOptionGroups],
   );
-  const activeGlitchLabel = activeGlitchFieldPath ? getGlitchFieldLabel(activeGlitchFieldPath) : null;
+  const activeGlitchLabel = activeGlitchFieldPath
+    ? getGlitchFieldLabel(activeGlitchFieldPath)
+    : null;
   const glitchFieldCount = countDraftGlitchFields(draft);
   const subPageCount = draft.subPages.length;
   const worldGlitchFieldOptions = useMemo(
@@ -632,7 +716,10 @@ export default function AdminPage() {
     [activeCharacter],
   );
   const activeCharacterWorldEntry = useMemo(
-    () => normalizeWorldEntries(activeCharacter?.worldEntries).find((entry) => entry.worldId === activeCharacterWorldId),
+    () =>
+      normalizeWorldEntries(activeCharacter?.worldEntries).find(
+        (entry) => entry.worldId === activeCharacterWorldId,
+      ),
     [activeCharacter, activeCharacterWorldId],
   );
 
@@ -841,7 +928,10 @@ export default function AdminPage() {
         return;
       }
 
-      scheduleReadGlitchTextSelection(element as HTMLInputElement | HTMLTextAreaElement, applySelection);
+      scheduleReadGlitchTextSelection(
+        element as HTMLInputElement | HTMLTextAreaElement,
+        applySelection,
+      );
     },
     [],
   );
@@ -872,7 +962,10 @@ export default function AdminPage() {
         return;
       }
 
-      scheduleReadGlitchTextSelection(element as HTMLInputElement | HTMLTextAreaElement, applySelection);
+      scheduleReadGlitchTextSelection(
+        element as HTMLInputElement | HTMLTextAreaElement,
+        applySelection,
+      );
     },
     [],
   );
@@ -992,13 +1085,17 @@ export default function AdminPage() {
   const openCharacterGlitchAdvanced = useCallback(() => {
     setCharacterEditSection("glitch");
     window.requestAnimationFrame(() => {
-      document.getElementById("admin-glitch-tool")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document
+        .getElementById("admin-glitch-tool")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }, []);
 
   const openWorldGlitchAdvanced = useCallback(() => {
     window.requestAnimationFrame(() => {
-      document.getElementById("admin-world-glitch-tool")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document
+        .getElementById("admin-world-glitch-tool")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }, []);
 
@@ -1007,13 +1104,17 @@ export default function AdminPage() {
       "data-glitch-field": path,
       onFocus: () => setActiveGlitchFieldPath(path),
       onClick: () => setActiveGlitchFieldPath(path),
-      onSelect: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
+      onSelect: (event: {
+        currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement;
+      }) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
       onKeyUp: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
-      onMouseUp: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
+      onMouseUp: (event: {
+        currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement;
+      }) => {
         captureGlitchFieldSelection(event.currentTarget);
       },
     }),
@@ -1026,13 +1127,17 @@ export default function AdminPage() {
       "data-glitch-scope": "world",
       onFocus: () => setActiveWorldGlitchFieldPath(path),
       onClick: () => setActiveWorldGlitchFieldPath(path),
-      onSelect: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
+      onSelect: (event: {
+        currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement;
+      }) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
       onKeyUp: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
-      onMouseUp: (event: { currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement }) => {
+      onMouseUp: (event: {
+        currentTarget: HTMLInputElement | HTMLTextAreaElement | HTMLElement;
+      }) => {
         captureWorldGlitchFieldSelection(event.currentTarget);
       },
     }),
@@ -1050,7 +1155,12 @@ export default function AdminPage() {
           };
           const resolvedBgmUrl = resolveCharacterBgmUrl(data.bgmUrl);
           const normalizedDetailTheme = normalizeCaseFileDetailTheme(data.detailTheme);
-          const { bgmUrl: _bgmUrl, profile: legacyProfile, detailTheme: _detailTheme, ...rest } = data;
+          const {
+            bgmUrl: _bgmUrl,
+            profile: legacyProfile,
+            detailTheme: _detailTheme,
+            ...rest
+          } = data;
           return {
             ...rest,
             id: data.id || characterDoc.id,
@@ -1063,7 +1173,10 @@ export default function AdminPage() {
             settings: Array.isArray(data.settings) ? data.settings : [],
             settingSections: normalizeSettingSections(data.settingSections),
             relationships: Array.isArray(data.relationships) ? data.relationships : [],
-            relationshipEntries: normalizeRelationshipEntries(data.relationshipEntries, data.relationships),
+            relationshipEntries: normalizeRelationshipEntries(
+              data.relationshipEntries,
+              data.relationships,
+            ),
             images: Array.isArray(data.images) ? data.images : [],
             worldEntries: normalizeWorldEntries(data.worldEntries),
             kind: normalizeCharacterKind(data.kind),
@@ -1269,7 +1382,11 @@ export default function AdminPage() {
 
     try {
       setIsAuthLoading(true);
-      await signInWithEmailAndPassword(getFirebaseAuth(), resolveLoginEmail(loginDraft.loginId), loginDraft.password);
+      await signInWithEmailAndPassword(
+        getFirebaseAuth(),
+        resolveLoginEmail(loginDraft.loginId),
+        loginDraft.password,
+      );
       setLoginDraft({ loginId: "", password: "" });
       setAuthNotice("로그인 완료.");
     } catch (error) {
@@ -1359,7 +1476,8 @@ export default function AdminPage() {
   }
 
   async function deleteWorldWork(workIndex: number) {
-    if (!isAdmin || !activeCharacter || !activeCharacterWorldId || !activeCharacterWorldEntry) return;
+    if (!isAdmin || !activeCharacter || !activeCharacterWorldId || !activeCharacterWorldEntry)
+      return;
     const targetWork = activeCharacterWorldEntry.works[workIndex];
 
     const nextEntry: CharacterWorldEntry = {
@@ -1387,7 +1505,8 @@ export default function AdminPage() {
   }
 
   async function deleteCharacterWorldEntry() {
-    if (!isAdmin || !activeCharacter || !activeCharacterWorldId || !activeCharacterWorldEntry) return;
+    if (!isAdmin || !activeCharacter || !activeCharacterWorldId || !activeCharacterWorldEntry)
+      return;
 
     const nextCharacter: Character = {
       ...activeCharacter,
@@ -1409,7 +1528,11 @@ export default function AdminPage() {
         }),
         { merge: true },
       );
-      setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
+      setCharacters((current) =>
+        current.map((character) =>
+          character.id === activeCharacter.id ? nextCharacter : character,
+        ),
+      );
       setActiveCharacterWorldId("");
       setWorldSettingsText("");
       setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
@@ -1482,7 +1605,7 @@ export default function AdminPage() {
     const hadStoredGlitch = Boolean(storedGlitch && Object.keys(storedGlitch).length > 0);
     const resolvedBgmUrl = resolveCharacterBgmUrl(prunedDraft.bgmUrl);
     const compactedDetailTheme = compactCaseFileDetailTheme(character.detailTheme);
-    const { textGlitch: _textGlitch, ...characterBody } = character;
+    const { textGlitch: _textGlitch, confidential, ...characterBody } = character;
 
     try {
       setIsSaving(true);
@@ -1492,10 +1615,13 @@ export default function AdminPage() {
           ...characterBody,
           ...textGlitchPatch,
           ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
+          ...(confidential ? { confidential: true } : { confidential: deleteField() }),
           ...(compactedDetailTheme
             ? { detailTheme: compactedDetailTheme }
             : { detailTheme: deleteField() }),
-          ...(normalizeCharacterKind(character.kind) !== "pair" ? { pairMemberIds: deleteField() } : {}),
+          ...(normalizeCharacterKind(character.kind) !== "pair"
+            ? { pairMemberIds: deleteField() }
+            : {}),
           updatedAt: serverTimestamp(),
         }),
         { merge: true },
@@ -1507,7 +1633,9 @@ export default function AdminPage() {
         textGlitch: character.textGlitch ?? prunedDraft.textGlitch,
       });
       if (hadGlitchDraft && !character.textGlitch) {
-        setNotice("자캐는 저장됐지만, 오류 구간이 텍스트와 맞지 않아 오류 설정은 빠졌어요. 구간을 다시 지정해주세요.");
+        setNotice(
+          "자캐는 저장됐지만, 오류 구간이 텍스트와 맞지 않아 오류 설정은 빠졌어요. 구간을 다시 지정해주세요.",
+        );
       } else if (!character.textGlitch && hadStoredGlitch) {
         setNotice("본 페이지에 반영되도록 저장했어요. 오류 구간은 모두 제거됐습니다.");
       } else if (character.textGlitch && removedGlitchPathCount > 0) {
@@ -1577,7 +1705,9 @@ export default function AdminPage() {
     }
 
     loadCharacterDraft(activeCharacter);
-    setNotice("서버에 저장된 내용을 다시 불러왔어요. 카드·레코드가 비어 보이면 이 버튼을 눌러보세요.");
+    setNotice(
+      "서버에 저장된 내용을 다시 불러왔어요. 카드·레코드가 비어 보이면 이 버튼을 눌러보세요.",
+    );
   }
 
   async function recoverLegacyPairMemberData() {
@@ -1618,7 +1748,7 @@ export default function AdminPage() {
     const textGlitchPatch = buildTextGlitchFirestorePatch(character.textGlitch, storedGlitch);
     const resolvedBgmUrl = resolveCharacterBgmUrl(prunedDraft.bgmUrl);
     const compactedDetailTheme = compactCaseFileDetailTheme(character.detailTheme);
-    const { textGlitch: _textGlitch, ...characterBody } = character;
+    const { textGlitch: _textGlitch, confidential, ...characterBody } = character;
 
     try {
       setIsSaving(true);
@@ -1628,10 +1758,13 @@ export default function AdminPage() {
           ...characterBody,
           ...textGlitchPatch,
           ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
+          ...(confidential ? { confidential: true } : { confidential: deleteField() }),
           ...(compactedDetailTheme
             ? { detailTheme: compactedDetailTheme }
             : { detailTheme: deleteField() }),
-          ...(normalizeCharacterKind(character.kind) !== "pair" ? { pairMemberIds: deleteField() } : {}),
+          ...(normalizeCharacterKind(character.kind) !== "pair"
+            ? { pairMemberIds: deleteField() }
+            : {}),
           updatedAt: serverTimestamp(),
         }),
         { merge: true },
@@ -1892,7 +2025,9 @@ export default function AdminPage() {
     const linkUrl = extractBannerDraft.linkUrl.trim();
 
     if (!isAllowedBannerLinkUrl(linkUrl)) {
-      setNotice("http:// 또는 https:// 로 시작하는 링크, 또는 / 로 시작하는 내부 경로를 입력해주세요.");
+      setNotice(
+        "http:// 또는 https:// 로 시작하는 링크, 또는 / 로 시작하는 내부 경로를 입력해주세요.",
+      );
       return;
     }
 
@@ -2250,9 +2385,7 @@ export default function AdminPage() {
         textGlitch: textGlitch ?? prunedDraft.textGlitch,
       });
       setNotice(
-        textGlitch
-          ? "세계관을 저장했어요. 오류 구간도 함께 저장됐습니다."
-          : "세계관을 저장했어요.",
+        textGlitch ? "세계관을 저장했어요. 오류 구간도 함께 저장됐습니다." : "세계관을 저장했어요.",
       );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "세계관 저장에 실패했어요.");
@@ -2285,10 +2418,19 @@ export default function AdminPage() {
 
     try {
       setIsSaving(true);
-      const worldImages = normalizeWorldEntries(character.worldEntries).flatMap((entry) => entry.images);
+      const worldImages = normalizeWorldEntries(character.worldEntries).flatMap(
+        (entry) => entry.images,
+      );
       const workImages = normalizeWorks(character.works).flatMap((work) => work.images ?? []);
-      const worldWorkImages = normalizeWorldEntries(character.worldEntries).flatMap((entry) => normalizeWorks(entry.works).flatMap((work) => work.images ?? []));
-      await deleteR2Images([...(character.images ?? []), ...worldImages, ...workImages, ...worldWorkImages]);
+      const worldWorkImages = normalizeWorldEntries(character.worldEntries).flatMap((entry) =>
+        normalizeWorks(entry.works).flatMap((work) => work.images ?? []),
+      );
+      await deleteR2Images([
+        ...(character.images ?? []),
+        ...worldImages,
+        ...workImages,
+        ...worldWorkImages,
+      ]);
       await deleteDoc(doc(getFirebaseDb(), "characters", character.id));
       setActiveCharacterId("");
       setDraft(createBlankDraft(activeCharacterKind));
@@ -2319,7 +2461,9 @@ export default function AdminPage() {
     const blockedFiles = files.filter((file) => file.size > MAX_UPLOAD_SIZE);
 
     if (blockedFiles.length > 0) {
-      setNotice(`${blockedFiles.map((file) => `${file.name} (${formatBytes(file.size)})`).join(", ")} 파일은 10MB를 넘어 제외했어요.`);
+      setNotice(
+        `${blockedFiles.map((file) => `${file.name} (${formatBytes(file.size)})`).join(", ")} 파일은 10MB를 넘어 제외했어요.`,
+      );
     }
 
     if (!allowedFiles.length) {
@@ -2348,8 +2492,13 @@ export default function AdminPage() {
     event.target.value = "";
   }
 
-  function updatePendingUpload(id: string, updates: Partial<Pick<PendingUpload, "displayName" | "thumbX" | "thumbY" | "thumbScale">>) {
-    setPendingUploads((current) => current.map((upload) => (upload.id === id ? { ...upload, ...updates } : upload)));
+  function updatePendingUpload(
+    id: string,
+    updates: Partial<Pick<PendingUpload, "displayName" | "thumbX" | "thumbY" | "thumbScale">>,
+  ) {
+    setPendingUploads((current) =>
+      current.map((upload) => (upload.id === id ? { ...upload, ...updates } : upload)),
+    );
   }
 
   function startThumbnailDrag(upload: PendingUpload, event: PointerEvent<HTMLDivElement>) {
@@ -2369,8 +2518,12 @@ export default function AdminPage() {
     event.preventDefault();
 
     const rect = event.currentTarget.getBoundingClientRect();
-    const nextX = thumbnailDrag.startThumbX - ((event.clientX - thumbnailDrag.startPointerX) / rect.width) * 100;
-    const nextY = thumbnailDrag.startThumbY - ((event.clientY - thumbnailDrag.startPointerY) / rect.height) * 100;
+    const nextX =
+      thumbnailDrag.startThumbX -
+      ((event.clientX - thumbnailDrag.startPointerX) / rect.width) * 100;
+    const nextY =
+      thumbnailDrag.startThumbY -
+      ((event.clientY - thumbnailDrag.startPointerY) / rect.height) * 100;
 
     updatePendingUpload(uploadId, {
       thumbX: Math.round(clamp(nextX, 0, 100)),
@@ -2560,7 +2713,11 @@ export default function AdminPage() {
         }),
         { merge: true },
       );
-      setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
+      setCharacters((current) =>
+        current.map((character) =>
+          character.id === activeCharacter.id ? nextCharacter : character,
+        ),
+      );
       setNotice("이미지를 Cloudflare R2와 Firestore 기록에서 삭제했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "이미지 삭제에 실패했어요.");
@@ -2569,7 +2726,10 @@ export default function AdminPage() {
     }
   }
 
-  async function updateImageInfo(imageId: string, updates: Partial<Pick<UploadedImage, "category" | "name">>) {
+  async function updateImageInfo(
+    imageId: string,
+    updates: Partial<Pick<UploadedImage, "category" | "name">>,
+  ) {
     if (!isAdmin || !activeCharacter) return;
 
     const nextImages = (activeCharacter.images ?? []).map((image) =>
@@ -2589,7 +2749,11 @@ export default function AdminPage() {
         }),
         { merge: true },
       );
-      setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
+      setCharacters((current) =>
+        current.map((character) =>
+          character.id === activeCharacter.id ? nextCharacter : character,
+        ),
+      );
       setNotice("그림 정보를 수정했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "그림 정보 수정에 실패했어요.");
@@ -2599,7 +2763,8 @@ export default function AdminPage() {
   }
 
   async function deleteWorldImage(imageId: string) {
-    if (!isAdmin || !activeCharacter || !activeCharacterWorldId || !activeCharacterWorldEntry) return;
+    if (!isAdmin || !activeCharacter || !activeCharacterWorldId || !activeCharacterWorldEntry)
+      return;
 
     const targetImage = activeCharacterWorldEntry.images.find((image) => image.id === imageId);
     if (!targetImage) {
@@ -2626,7 +2791,11 @@ export default function AdminPage() {
         }),
         { merge: true },
       );
-      setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
+      setCharacters((current) =>
+        current.map((character) =>
+          character.id === activeCharacter.id ? nextCharacter : character,
+        ),
+      );
       setNotice("세계관 이미지를 Cloudflare R2와 Firestore 기록에서 삭제했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "세계관 이미지 삭제에 실패했어요.");
@@ -2635,12 +2804,17 @@ export default function AdminPage() {
     }
   }
 
-  async function updateWorldImageInfo(imageId: string, updates: Partial<Pick<UploadedImage, "category" | "name">>) {
+  async function updateWorldImageInfo(
+    imageId: string,
+    updates: Partial<Pick<UploadedImage, "category" | "name">>,
+  ) {
     if (!isAdmin || !activeCharacter || !activeCharacterWorldEntry) return;
 
     const nextEntry: CharacterWorldEntry = {
       ...activeCharacterWorldEntry,
-      images: activeCharacterWorldEntry.images.map((image) => (image.id === imageId ? { ...image, ...updates } : image)),
+      images: activeCharacterWorldEntry.images.map((image) =>
+        image.id === imageId ? { ...image, ...updates } : image,
+      ),
     };
     const nextCharacter: Character = {
       ...activeCharacter,
@@ -2656,7 +2830,11 @@ export default function AdminPage() {
         }),
         { merge: true },
       );
-      setCharacters((current) => current.map((character) => (character.id === activeCharacter.id ? nextCharacter : character)));
+      setCharacters((current) =>
+        current.map((character) =>
+          character.id === activeCharacter.id ? nextCharacter : character,
+        ),
+      );
       setNotice("세계관 그림 정보를 수정했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "세계관 그림 정보 수정에 실패했어요.");
@@ -2729,12 +2907,12 @@ export default function AdminPage() {
   // 관리자 페이지 실제 레이아웃입니다: 좌측 선택 패널과 우측 편집 폼을 나눠 보여줍니다.
   return (
     <main className="admin-page min-h-screen bg-black px-5 py-8 text-emerald-50 md:px-8">
-      <div className="fixed inset-0 -z-10 bg-[linear-gradient(180deg,#0a0c12_0%,#080a10_78%,#070910_100%)] pointer-events-none" />
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(180deg,#0a0c12_0%,#080a10_78%,#070910_100%)]" />
       <div className="noise-layer" aria-hidden="true" />
 
       <section className="relative z-10 mx-auto grid w-full max-w-[1500px] gap-6">
         <header className="glass-card p-6 md:p-8">
-          <p className="text-xs uppercase tracking-[0.35em] text-emerald-100/60">Admin Edit Page</p>
+          <p className="text-xs tracking-[0.35em] text-emerald-100/60 uppercase">Admin Edit Page</p>
           <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <h1 className="font-serif text-4xl font-bold md:text-6xl">수정 페이지</h1>
@@ -2742,7 +2920,10 @@ export default function AdminPage() {
                 여기서 저장한 내용은 본 페이지 카드와 상세 화면에 바로 반영됩니다.
               </p>
             </div>
-            <Link href="/" className="border border-emerald-100/20 px-5 py-3 text-center text-sm text-emerald-50">
+            <Link
+              href="/"
+              className="border border-emerald-100/20 px-5 py-3 text-center text-sm text-emerald-50"
+            >
               본 페이지로 돌아가기
             </Link>
           </div>
@@ -2754,7 +2935,9 @@ export default function AdminPage() {
             <form onSubmit={submitLogin} className="mt-5 grid gap-3">
               <input
                 value={loginDraft.loginId}
-                onChange={(event) => setLoginDraft((current) => ({ ...current, loginId: event.target.value }))}
+                onChange={(event) =>
+                  setLoginDraft((current) => ({ ...current, loginId: event.target.value }))
+                }
                 placeholder="id"
                 className="auth-input"
                 autoCapitalize="none"
@@ -2763,7 +2946,9 @@ export default function AdminPage() {
               />
               <input
                 value={loginDraft.password}
-                onChange={(event) => setLoginDraft((current) => ({ ...current, password: event.target.value }))}
+                onChange={(event) =>
+                  setLoginDraft((current) => ({ ...current, password: event.target.value }))
+                }
                 placeholder="password"
                 type="text"
                 className="auth-input"
@@ -2771,10 +2956,17 @@ export default function AdminPage() {
                 autoCorrect="off"
                 spellCheck={false}
               />
-              <button disabled={isAuthLoading} className="bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
+              <button
+                disabled={isAuthLoading}
+                className="bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+              >
                 {isAuthLoading ? "로그인 중..." : "로그인"}
               </button>
-              {authNotice && <p className="border border-stone-400/25 bg-stone-900/25 p-3 text-sm text-stone-200">{authNotice}</p>}
+              {authNotice && (
+                <p className="border border-stone-400/25 bg-stone-900/25 p-3 text-sm text-stone-200">
+                  {authNotice}
+                </p>
+              )}
             </form>
           </section>
         ) : (
@@ -2815,8 +3007,14 @@ export default function AdminPage() {
                     ))}
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="board-title">{CHARACTER_KIND_ADMIN_LABELS[activeCharacterKind]} 목록</h2>
-                    <button type="button" onClick={() => startNewCharacter()} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
+                    <h2 className="board-title">
+                      {CHARACTER_KIND_ADMIN_LABELS[activeCharacterKind]} 목록
+                    </h2>
+                    <button
+                      type="button"
+                      onClick={() => startNewCharacter()}
+                      className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950"
+                    >
                       새 {CHARACTER_KIND_ADMIN_LABELS[activeCharacterKind]}
                     </button>
                   </div>
@@ -2827,11 +3025,15 @@ export default function AdminPage() {
                         type="button"
                         onClick={() => selectCharacterFromList(character)}
                         className={`border p-3 text-left text-sm ${
-                          activeCharacter?.id === character.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                          activeCharacter?.id === character.id
+                            ? "border-stone-400/35 bg-emerald-100/10"
+                            : "border-emerald-100/10 bg-black/30"
                         }`}
                       >
                         <span className="block text-lg font-semibold">{character.name}</span>
-                        <span className="mt-1 block text-xs text-emerald-100/50">{character.id}</span>
+                        <span className="mt-1 block text-xs text-emerald-100/50">
+                          {character.id}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -2843,7 +3045,11 @@ export default function AdminPage() {
                   <div className="mt-5 grid gap-3">
                     {[
                       { id: "home" as const, title: "상단문구 수정", subtitle: "home main text" },
-                      { id: "archive" as const, title: "보관소 문구", subtitle: "archive sidebar text" },
+                      {
+                        id: "archive" as const,
+                        title: "보관소 문구",
+                        subtitle: "archive sidebar text",
+                      },
                       { id: "diary" as const, title: "다이어리", subtitle: "diary category" },
                       { id: "guestbook" as const, title: "방명록", subtitle: "guest comments" },
                       { id: "extract" as const, title: "Banner", subtitle: "banner links" },
@@ -2855,11 +3061,15 @@ export default function AdminPage() {
                         type="button"
                         onClick={() => setActiveCategory(category.id)}
                         className={`border p-3 text-left text-sm ${
-                          activeCategory === category.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                          activeCategory === category.id
+                            ? "border-stone-400/35 bg-emerald-100/10"
+                            : "border-emerald-100/10 bg-black/30"
                         }`}
                       >
                         <span className="block text-lg font-semibold">{category.title}</span>
-                        <span className="mt-1 block text-xs text-emerald-100/50">{category.subtitle}</span>
+                        <span className="mt-1 block text-xs text-emerald-100/50">
+                          {category.subtitle}
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -2867,7 +3077,11 @@ export default function AdminPage() {
                     <div className="mt-5 border-t border-emerald-100/10 pt-5">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-sm font-semibold text-emerald-50">일기 목록</h3>
-                        <button type="button" onClick={startNewDiaryEntry} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
+                        <button
+                          type="button"
+                          onClick={startNewDiaryEntry}
+                          className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950"
+                        >
                           새 일기
                         </button>
                       </div>
@@ -2881,11 +3095,15 @@ export default function AdminPage() {
                               setDiaryDraft(entry);
                             }}
                             className={`border p-3 text-left text-sm ${
-                              activeDiaryId === entry.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                              activeDiaryId === entry.id
+                                ? "border-stone-400/35 bg-emerald-100/10"
+                                : "border-emerald-100/10 bg-black/30"
                             }`}
                           >
                             <span className="block text-base font-semibold">{entry.title}</span>
-                            <span className="mt-1 block text-xs text-emerald-100/50">{entry.date || "no date"}</span>
+                            <span className="mt-1 block text-xs text-emerald-100/50">
+                              {entry.date || "no date"}
+                            </span>
                           </button>
                         ))}
                         {diaryEntries.length === 0 && (
@@ -2900,7 +3118,11 @@ export default function AdminPage() {
                     <div className="mt-5 border-t border-emerald-100/10 pt-5">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-sm font-semibold text-emerald-50">배너 목록</h3>
-                        <button type="button" onClick={startNewExtractBanner} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
+                        <button
+                          type="button"
+                          onClick={startNewExtractBanner}
+                          className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950"
+                        >
                           새 배너
                         </button>
                       </div>
@@ -2915,11 +3137,17 @@ export default function AdminPage() {
                               setExtractBannerImageFile(null);
                             }}
                             className={`border p-3 text-left text-sm ${
-                              activeExtractBannerId === banner.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                              activeExtractBannerId === banner.id
+                                ? "border-stone-400/35 bg-emerald-100/10"
+                                : "border-emerald-100/10 bg-black/30"
                             }`}
                           >
-                            <span className="block text-base font-semibold">{banner.label || "제목 없음"}</span>
-                            <span className="mt-1 block truncate text-xs text-emerald-100/50">{banner.linkUrl}</span>
+                            <span className="block text-base font-semibold">
+                              {banner.label || "제목 없음"}
+                            </span>
+                            <span className="mt-1 block truncate text-xs text-emerald-100/50">
+                              {banner.linkUrl}
+                            </span>
                           </button>
                         ))}
                         {extractBanners.length === 0 && (
@@ -2934,7 +3162,11 @@ export default function AdminPage() {
                     <div className="mt-5 border-t border-emerald-100/10 pt-5">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-sm font-semibold text-emerald-50">BGM 목록</h3>
-                        <button type="button" onClick={startNewBgmTrack} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
+                        <button
+                          type="button"
+                          onClick={startNewBgmTrack}
+                          className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950"
+                        >
                           새 BGM
                         </button>
                       </div>
@@ -2949,7 +3181,9 @@ export default function AdminPage() {
                               setBgmAudioFile(null);
                             }}
                             className={`border p-3 text-left text-sm ${
-                              activeBgmTrackId === track.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                              activeBgmTrackId === track.id
+                                ? "border-stone-400/35 bg-emerald-100/10"
+                                : "border-emerald-100/10 bg-black/30"
                             }`}
                           >
                             <span className="block text-base font-semibold">{track.label}</span>
@@ -2970,7 +3204,11 @@ export default function AdminPage() {
                     <div className="mt-5 border-t border-emerald-100/10 pt-5">
                       <div className="flex items-center justify-between gap-3">
                         <h3 className="text-sm font-semibold text-emerald-50">세계관 목록</h3>
-                        <button type="button" onClick={startNewWorld} className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950">
+                        <button
+                          type="button"
+                          onClick={startNewWorld}
+                          className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950"
+                        >
                           새 세계관
                         </button>
                       </div>
@@ -2984,11 +3222,15 @@ export default function AdminPage() {
                               setWorldDraft(worldToDraft(world));
                             }}
                             className={`border p-3 text-left text-sm ${
-                              activeWorldId === world.id ? "border-stone-400/35 bg-emerald-100/10" : "border-emerald-100/10 bg-black/30"
+                              activeWorldId === world.id
+                                ? "border-stone-400/35 bg-emerald-100/10"
+                                : "border-emerald-100/10 bg-black/30"
                             }`}
                           >
                             <span className="block text-base font-semibold">{world.title}</span>
-                            <span className="mt-1 block text-xs text-emerald-100/50">{world.id}</span>
+                            <span className="mt-1 block text-xs text-emerald-100/50">
+                              {world.id}
+                            </span>
                           </button>
                         ))}
                         {worlds.length === 0 && (
@@ -3025,267 +3267,334 @@ export default function AdminPage() {
                   className="glass-card grid gap-6 p-5 md:p-6"
                 >
                   {activeCategory === "home" && (
-                  <section className="grid gap-4">
-                    <h2 className="board-title">홈 상단 문구</h2>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      작은 문구
-                      <input
-                        value={homeContent.eyebrow}
-                        onChange={(event) => setHomeContent((current) => ({ ...current, eyebrow: event.target.value }))}
-                        placeholder="상단 작은 문구"
-                        className="auth-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      큰 제목
-                      <input
-                        value={homeContent.title}
-                        onChange={(event) => setHomeContent((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="상단 제목"
-                        className="auth-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      본문 문구
-                      <textarea
-                        value={homeContent.body}
-                        onChange={(event) => setHomeContent((current) => ({ ...current, body: event.target.value }))}
-                        placeholder="홈에 보일 소개 문구"
-                        className="auth-input min-h-36"
-                      />
-                    </label>
-                  </section>
+                    <section className="grid gap-4">
+                      <h2 className="board-title">홈 상단 문구</h2>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        작은 문구
+                        <input
+                          value={homeContent.eyebrow}
+                          onChange={(event) =>
+                            setHomeContent((current) => ({
+                              ...current,
+                              eyebrow: event.target.value,
+                            }))
+                          }
+                          placeholder="상단 작은 문구"
+                          className="auth-input"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        큰 제목
+                        <input
+                          value={homeContent.title}
+                          onChange={(event) =>
+                            setHomeContent((current) => ({ ...current, title: event.target.value }))
+                          }
+                          placeholder="상단 제목"
+                          className="auth-input"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        본문 문구
+                        <textarea
+                          value={homeContent.body}
+                          onChange={(event) =>
+                            setHomeContent((current) => ({ ...current, body: event.target.value }))
+                          }
+                          placeholder="홈에 보일 소개 문구"
+                          className="auth-input min-h-36"
+                        />
+                      </label>
+                    </section>
                   )}
 
                   {activeCategory === "archive" && (
-                  <section className="grid gap-4">
-                    <h2 className="board-title">왼쪽 보관소 문구</h2>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      작은 문구
-                      <input
-                        value={archiveContent.eyebrow}
-                        onChange={(event) => setArchiveContent((current) => ({ ...current, eyebrow: event.target.value }))}
-                        placeholder="Archive"
-                        className="auth-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      제목
-                      <input
-                        value={archiveContent.title}
-                        onChange={(event) => setArchiveContent((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="보관소 제목"
-                        className="auth-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      소개 문구
-                      <textarea
-                        value={archiveContent.body}
-                        onChange={(event) => setArchiveContent((current) => ({ ...current, body: event.target.value }))}
-                        placeholder="왼쪽 보관소 영역에 보일 문구"
-                        className="auth-input min-h-32"
-                      />
-                    </label>
-                  </section>
+                    <section className="grid gap-4">
+                      <h2 className="board-title">왼쪽 보관소 문구</h2>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        작은 문구
+                        <input
+                          value={archiveContent.eyebrow}
+                          onChange={(event) =>
+                            setArchiveContent((current) => ({
+                              ...current,
+                              eyebrow: event.target.value,
+                            }))
+                          }
+                          placeholder="Archive"
+                          className="auth-input"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        제목
+                        <input
+                          value={archiveContent.title}
+                          onChange={(event) =>
+                            setArchiveContent((current) => ({
+                              ...current,
+                              title: event.target.value,
+                            }))
+                          }
+                          placeholder="보관소 제목"
+                          className="auth-input"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        소개 문구
+                        <textarea
+                          value={archiveContent.body}
+                          onChange={(event) =>
+                            setArchiveContent((current) => ({
+                              ...current,
+                              body: event.target.value,
+                            }))
+                          }
+                          placeholder="왼쪽 보관소 영역에 보일 문구"
+                          className="auth-input min-h-32"
+                        />
+                      </label>
+                    </section>
                   )}
 
                   {activeCategory === "diary" && (
-                  <section className="grid gap-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <h2 className="board-title">다이어리</h2>
-                      {diaryDraft.id && (
-                        <button
-                          type="button"
-                          onClick={() => deleteDiaryEntry(diaryDraft)}
-                          disabled={isSaving}
-                          className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                        >
-                          현재 일기 삭제
-                        </button>
-                      )}
-                    </div>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      일기 제목
-                      <input
-                        value={diaryDraft.title}
-                        onChange={(event) => setDiaryDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="다이어리 제목"
-                        className="auth-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      날짜
-                      <input
-                        value={diaryDraft.date}
-                        onChange={(event) => setDiaryDraft((current) => ({ ...current, date: event.target.value }))}
-                        placeholder="2026-06-15"
-                        className="auth-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      일기 내용
-                      <textarea
-                        value={diaryDraft.body}
-                        onChange={(event) => setDiaryDraft((current) => ({ ...current, body: event.target.value }))}
-                        placeholder="오늘의 기록을 적어주세요."
-                        className="auth-input min-h-56"
-                      />
-                    </label>
-                  </section>
+                    <section className="grid gap-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <h2 className="board-title">다이어리</h2>
+                        {diaryDraft.id && (
+                          <button
+                            type="button"
+                            onClick={() => deleteDiaryEntry(diaryDraft)}
+                            disabled={isSaving}
+                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                          >
+                            현재 일기 삭제
+                          </button>
+                        )}
+                      </div>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        일기 제목
+                        <input
+                          value={diaryDraft.title}
+                          onChange={(event) =>
+                            setDiaryDraft((current) => ({ ...current, title: event.target.value }))
+                          }
+                          placeholder="다이어리 제목"
+                          className="auth-input"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        날짜
+                        <input
+                          value={diaryDraft.date}
+                          onChange={(event) =>
+                            setDiaryDraft((current) => ({ ...current, date: event.target.value }))
+                          }
+                          placeholder="2026-06-15"
+                          className="auth-input"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        일기 내용
+                        <textarea
+                          value={diaryDraft.body}
+                          onChange={(event) =>
+                            setDiaryDraft((current) => ({ ...current, body: event.target.value }))
+                          }
+                          placeholder="오늘의 기록을 적어주세요."
+                          className="auth-input min-h-56"
+                        />
+                      </label>
+                    </section>
                   )}
 
                   {activeCategory === "extract" && (
-                  <section className="grid gap-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <h2 className="board-title">Banner</h2>
-                      {extractBannerDraft.id && extractBannerDraft.image && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            deleteExtractBanner({
-                              id: extractBannerDraft.id,
-                              label: extractBannerDraft.label,
-                              linkUrl: extractBannerDraft.linkUrl,
-                              image: extractBannerDraft.image!,
-                            })
+                    <section className="grid gap-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <h2 className="board-title">Banner</h2>
+                        {extractBannerDraft.id && extractBannerDraft.image && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteExtractBanner({
+                                id: extractBannerDraft.id,
+                                label: extractBannerDraft.label,
+                                linkUrl: extractBannerDraft.linkUrl,
+                                image: extractBannerDraft.image!,
+                              })
+                            }
+                            disabled={isSaving}
+                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                          >
+                            현재 배너 삭제
+                          </button>
+                        )}
+                      </div>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        배너 라벨 (선택)
+                        <input
+                          value={extractBannerDraft.label}
+                          onChange={(event) =>
+                            setExtractBannerDraft((current) => ({
+                              ...current,
+                              label: event.target.value,
+                            }))
                           }
-                          disabled={isSaving}
-                          className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                        >
-                          현재 배너 삭제
-                        </button>
-                      )}
-                    </div>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      배너 라벨 (선택)
-                      <input
-                        value={extractBannerDraft.label}
-                        onChange={(event) => setExtractBannerDraft((current) => ({ ...current, label: event.target.value }))}
-                        placeholder="배너에 표시할 짧은 문구"
-                        className="auth-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      이동 링크
-                      <input
-                        value={extractBannerDraft.linkUrl}
-                        onChange={(event) => setExtractBannerDraft((current) => ({ ...current, linkUrl: event.target.value }))}
-                        placeholder="https://example.com 또는 /guest"
-                        className="auth-input"
-                      />
-                    </label>
-                    <div className="grid gap-2 text-sm text-emerald-100/75">
-                      배너 이미지
-                      <input type="file" accept="image/*" onChange={handleExtractBannerImageChange} className="text-xs" />
-                      {(extractBannerImageFile || extractBannerDraft.image) && (
-                        <div className="extract-banner-link overflow-hidden">
-                          {extractBannerDraft.image ? (
-                            <ThumbnailImage
-                              image={extractBannerDraft.image}
-                              src={
-                                extractBannerImageFile
-                                  ? URL.createObjectURL(extractBannerImageFile)
-                                  : extractBannerDraft.image.url
-                              }
-                              alt="Banner 미리보기"
-                              className="extract-banner-image"
-                            />
-                          ) : (
-                            /* eslint-disable-next-line @next/next/no-img-element -- Local preview URL for banner upload. */
-                            <img
-                              src={extractBannerImageFile ? URL.createObjectURL(extractBannerImageFile) : ""}
-                              alt="Banner 미리보기"
-                              className="extract-banner-image"
-                            />
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </section>
+                          placeholder="배너에 표시할 짧은 문구"
+                          className="auth-input"
+                        />
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        이동 링크
+                        <input
+                          value={extractBannerDraft.linkUrl}
+                          onChange={(event) =>
+                            setExtractBannerDraft((current) => ({
+                              ...current,
+                              linkUrl: event.target.value,
+                            }))
+                          }
+                          placeholder="https://example.com 또는 /guest"
+                          className="auth-input"
+                        />
+                      </label>
+                      <div className="grid gap-2 text-sm text-emerald-100/75">
+                        배너 이미지
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleExtractBannerImageChange}
+                          className="text-xs"
+                        />
+                        {(extractBannerImageFile || extractBannerDraft.image) && (
+                          <div className="extract-banner-link overflow-hidden">
+                            {extractBannerDraft.image ? (
+                              <ThumbnailImage
+                                image={extractBannerDraft.image}
+                                src={
+                                  extractBannerImageFile
+                                    ? URL.createObjectURL(extractBannerImageFile)
+                                    : extractBannerDraft.image.url
+                                }
+                                alt="Banner 미리보기"
+                                className="extract-banner-image"
+                              />
+                            ) : (
+                              /* eslint-disable-next-line @next/next/no-img-element -- Local preview URL for banner upload. */
+                              <img
+                                src={
+                                  extractBannerImageFile
+                                    ? URL.createObjectURL(extractBannerImageFile)
+                                    : ""
+                                }
+                                alt="Banner 미리보기"
+                                className="extract-banner-image"
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </section>
                   )}
 
                   {activeCategory === "bgm" && (
-                  <section className="grid gap-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <h2 className="board-title">BGM</h2>
-                      {bgmTrackDraft.id && bgmTrackDraft.url && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            deleteBgmTrack({
-                              id: bgmTrackDraft.id,
-                              label: bgmTrackDraft.label,
-                              url: bgmTrackDraft.url,
-                              scope: bgmTrackDraft.scope,
-                            })
+                    <section className="grid gap-4">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <h2 className="board-title">BGM</h2>
+                        {bgmTrackDraft.id && bgmTrackDraft.url && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              deleteBgmTrack({
+                                id: bgmTrackDraft.id,
+                                label: bgmTrackDraft.label,
+                                url: bgmTrackDraft.url,
+                                scope: bgmTrackDraft.scope,
+                              })
+                            }
+                            disabled={isSaving}
+                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                          >
+                            현재 BGM 삭제
+                          </button>
+                        )}
+                      </div>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        곡 이름
+                        <input
+                          value={bgmTrackDraft.label}
+                          onChange={(event) =>
+                            setBgmTrackDraft((current) => ({
+                              ...current,
+                              label: event.target.value,
+                            }))
                           }
-                          disabled={isSaving}
-                          className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                        >
-                          현재 BGM 삭제
-                        </button>
-                      )}
-                    </div>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      곡 이름
-                      <input
-                        value={bgmTrackDraft.label}
-                        onChange={(event) => setBgmTrackDraft((current) => ({ ...current, label: event.target.value }))}
-                        placeholder="플레이어·선택 목록에 보일 이름"
-                        className="auth-input"
-                      />
-                    </label>
-                    <label className="grid gap-2 text-sm text-emerald-100/75">
-                      사용 범위
-                      <select
-                        value={bgmTrackDraft.scope}
-                        onChange={(event) =>
-                          setBgmTrackDraft((current) => ({
-                            ...current,
-                            scope: event.target.value as BgmTrackScope,
-                          }))
-                        }
-                        className="auth-input"
-                      >
-                        <option value="site">사이트 기본 (플레이어 순환 + 캐릭터 선택)</option>
-                        <option value="character-only">캐릭터 전용 (상세에서만)</option>
-                      </select>
-                    </label>
-                    <div className="grid gap-2 text-sm text-emerald-100/75">
-                      오디오 파일
-                      <input
-                        type="file"
-                        accept="audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/mp4,audio/aac,.mp3,.ogg,.wav,.m4a,.aac"
-                        onChange={handleBgmAudioChange}
-                        className="text-xs"
-                      />
-                      <p className="text-xs text-emerald-100/55">mp3·ogg·wav 등, 파일 1개당 최대 15MB</p>
-                      {(bgmAudioFile || bgmTrackDraft.url) && (
-                        <audio
-                          controls
-                          preload="none"
-                          src={bgmAudioFile ? URL.createObjectURL(bgmAudioFile) : bgmTrackDraft.url}
-                          className="w-full"
+                          placeholder="플레이어·선택 목록에 보일 이름"
+                          className="auth-input"
                         />
-                      )}
-                    </div>
-                  </section>
+                      </label>
+                      <label className="grid gap-2 text-sm text-emerald-100/75">
+                        사용 범위
+                        <select
+                          value={bgmTrackDraft.scope}
+                          onChange={(event) =>
+                            setBgmTrackDraft((current) => ({
+                              ...current,
+                              scope: event.target.value as BgmTrackScope,
+                            }))
+                          }
+                          className="auth-input"
+                        >
+                          <option value="site">사이트 기본 (플레이어 순환 + 캐릭터 선택)</option>
+                          <option value="character-only">캐릭터 전용 (상세에서만)</option>
+                        </select>
+                      </label>
+                      <div className="grid gap-2 text-sm text-emerald-100/75">
+                        오디오 파일
+                        <input
+                          type="file"
+                          accept="audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/mp4,audio/aac,.mp3,.ogg,.wav,.m4a,.aac"
+                          onChange={handleBgmAudioChange}
+                          className="text-xs"
+                        />
+                        <p className="text-xs text-emerald-100/55">
+                          mp3·ogg·wav 등, 파일 1개당 최대 15MB
+                        </p>
+                        {(bgmAudioFile || bgmTrackDraft.url) && (
+                          <audio
+                            controls
+                            preload="none"
+                            src={
+                              bgmAudioFile ? URL.createObjectURL(bgmAudioFile) : bgmTrackDraft.url
+                            }
+                            className="w-full"
+                          />
+                        )}
+                      </div>
+                    </section>
                   )}
 
                   {activeCategory === "guestbook" && (
                     <section className="grid gap-4">
                       <div>
                         <h2 className="board-title">방명록 관리</h2>
-                        <p className="mt-2 text-sm text-emerald-100/55">본 페이지에 남겨진 방명록에 관리자 답글을 달 수 있어요.</p>
+                        <p className="mt-2 text-sm text-emerald-100/55">
+                          본 페이지에 남겨진 방명록에 관리자 답글을 달 수 있어요.
+                        </p>
                       </div>
                       <div className="grid gap-4">
                         {guestbookEntries.map((entry, index) => (
-                          <article key={entry.id} className="border border-emerald-100/10 bg-black/30 p-4">
+                          <article
+                            key={entry.id}
+                            className="border border-emerald-100/10 bg-black/30 p-4"
+                          >
                             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                               <div>
-                                <p className="font-semibold text-emerald-50">No.{guestbookEntries.length - index} {entry.name}</p>
-                                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-emerald-50/70">{entry.body}</p>
+                                <p className="font-semibold text-emerald-50">
+                                  No.{guestbookEntries.length - index} {entry.name}
+                                </p>
+                                <p className="mt-2 text-sm leading-7 whitespace-pre-wrap text-emerald-50/70">
+                                  {entry.body}
+                                </p>
                               </div>
                               <button
                                 type="button"
@@ -3301,7 +3610,10 @@ export default function AdminPage() {
                               <textarea
                                 value={guestbookReplyDrafts[entry.id] ?? ""}
                                 onChange={(event) =>
-                                  setGuestbookReplyDrafts((current) => ({ ...current, [entry.id]: event.target.value }))
+                                  setGuestbookReplyDrafts((current) => ({
+                                    ...current,
+                                    [entry.id]: event.target.value,
+                                  }))
                                 }
                                 placeholder="답글을 입력해주세요."
                                 className="auth-input min-h-28"
@@ -3333,7 +3645,8 @@ export default function AdminPage() {
                           <h2 className="board-title">World 관리</h2>
                           {activeWorldGlitchLabel ? (
                             <p className="mt-2 border border-amber-300/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
-                              오류 대상: <span className="font-semibold">{activeWorldGlitchLabel}</span>
+                              오류 대상:{" "}
+                              <span className="font-semibold">{activeWorldGlitchLabel}</span>
                             </p>
                           ) : null}
                         </div>
@@ -3353,7 +3666,9 @@ export default function AdminPage() {
                           고유 ID
                           <input
                             value={worldDraft.id}
-                            onChange={(event) => setWorldDraft((current) => ({ ...current, id: event.target.value }))}
+                            onChange={(event) =>
+                              setWorldDraft((current) => ({ ...current, id: event.target.value }))
+                            }
                             placeholder="예: coc-1920"
                             className="auth-input"
                           />
@@ -3363,11 +3678,15 @@ export default function AdminPage() {
                           <AdminInlineGlitchEditor
                             value={worldDraft.title}
                             onChange={(value) =>
-                              setWorldDraft((current) => updateWorldDraftFieldValue(current, "title", value))
+                              setWorldDraft((current) =>
+                                updateWorldDraftFieldValue(current, "title", value),
+                              )
                             }
                             glitch={worldDraft.textGlitch.title}
                             onGlitchChange={(config) =>
-                              setWorldDraft((current) => updateWorldDraftGlitchPath(current, "title", config))
+                              setWorldDraft((current) =>
+                                updateWorldDraftGlitchPath(current, "title", config),
+                              )
                             }
                             glitchBindings={bindWorldGlitchField("title")}
                             placeholder="예: 크툴루 1920"
@@ -3381,11 +3700,15 @@ export default function AdminPage() {
                         <AdminInlineGlitchEditor
                           value={worldDraft.subtitle}
                           onChange={(value) =>
-                            setWorldDraft((current) => updateWorldDraftFieldValue(current, "subtitle", value))
+                            setWorldDraft((current) =>
+                              updateWorldDraftFieldValue(current, "subtitle", value),
+                            )
                           }
                           glitch={worldDraft.textGlitch.subtitle}
                           onGlitchChange={(config) =>
-                            setWorldDraft((current) => updateWorldDraftGlitchPath(current, "subtitle", config))
+                            setWorldDraft((current) =>
+                              updateWorldDraftGlitchPath(current, "subtitle", config),
+                            )
                           }
                           glitchBindings={bindWorldGlitchField("subtitle")}
                           placeholder="세계관을 짧게 설명해주세요."
@@ -3397,12 +3720,18 @@ export default function AdminPage() {
                         기록 열람 비밀번호
                         <input
                           value={worldDraft.password}
-                          onChange={(event) => setWorldDraft((current) => ({ ...current, password: event.target.value }))}
+                          onChange={(event) =>
+                            setWorldDraft((current) => ({
+                              ...current,
+                              password: event.target.value,
+                            }))
+                          }
                           placeholder="비워두면 공개 / 입력하면 기록 잠금"
                           className="auth-input"
                         />
                         <span className="text-xs leading-5 text-emerald-100/45">
-                          본 페이지에서는 세계관 목록과 소개만 보이고, 참가 자캐 기록은 이 비밀번호를 입력해야 열립니다.
+                          본 페이지에서는 세계관 목록과 소개만 보이고, 참가 자캐 기록은 이
+                          비밀번호를 입력해야 열립니다.
                         </span>
                       </label>
                       <label className="grid gap-2 text-sm text-emerald-100/75">
@@ -3435,7 +3764,13 @@ export default function AdminPage() {
                         <TextScrambleTool
                           fieldPickerGroups={
                             worldGlitchFieldPickerOptions.length > 0
-                              ? [{ id: "world", label: "세계관 필드", options: worldGlitchFieldPickerOptions }]
+                              ? [
+                                  {
+                                    id: "world",
+                                    label: "세계관 필드",
+                                    options: worldGlitchFieldPickerOptions,
+                                  },
+                                ]
                               : []
                           }
                           onFieldSelect={selectWorldGlitchField}
@@ -3453,7 +3788,11 @@ export default function AdminPage() {
                             }
 
                             setWorldDraft((current) =>
-                              updateWorldDraftFieldValue(current, activeWorldGlitchFieldPath, value),
+                              updateWorldDraftFieldValue(
+                                current,
+                                activeWorldGlitchFieldPath,
+                                value,
+                              ),
                             );
                           }}
                           glitchConfig={
@@ -3467,7 +3806,11 @@ export default function AdminPage() {
                             }
 
                             setWorldDraft((current) =>
-                              updateWorldDraftGlitchPath(current, activeWorldGlitchFieldPath, config),
+                              updateWorldDraftGlitchPath(
+                                current,
+                                activeWorldGlitchFieldPath,
+                                config,
+                              ),
                             );
                           }}
                           onNotice={setNotice}
@@ -3478,7 +3821,10 @@ export default function AdminPage() {
                   )}
 
                   {activeCategory !== "guestbook" && (
-                    <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
+                    <button
+                      disabled={isSaving}
+                      className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+                    >
                       {activeCategory === "diary"
                         ? "일기 저장"
                         : activeCategory === "extract"
@@ -3486,730 +3832,952 @@ export default function AdminPage() {
                           : activeCategory === "bgm"
                             ? "BGM 저장"
                             : activeCategory === "worlds"
-                            ? "세계관 저장"
-                            : "카테고리 저장"}
+                              ? "세계관 저장"
+                              : "카테고리 저장"}
                     </button>
                   )}
                 </form>
               )}
 
               {adminPanel === "characters" && (
-              <>
-                <CharacterEditSectionNav
-                  active={characterEditSection}
-                  onChange={setCharacterEditSection}
-                  characterName={draft.name || activeCharacter?.name || ""}
-                  newItemLabel={`새 ${kindLabel}`}
-                  glitchFieldCount={glitchFieldCount}
-                  subPageCount={subPageCount}
-                  isPair={isPairDraft}
-                  activeGlitchLabel={activeGlitchLabel}
-                />
-              <form onSubmit={saveCharacter} className="glass-card admin-edit-form grid min-w-0 max-w-full gap-3 p-5 pb-28 md:p-6">
-                {characterEditSection === "basics" && (
                 <>
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <h2 className="board-title">{kindLabel} 카드 · 레코드</h2>
-                  <div className="flex flex-wrap gap-2">
-                    {canRecoverLegacyPairMember && (
-                      <button
-                        type="button"
-                        onClick={recoverLegacyPairMemberData}
-                        disabled={isSaving}
-                        className="border border-amber-300/35 bg-amber-950/25 px-4 py-2 text-sm text-amber-100 disabled:opacity-60"
-                      >
-                        페어 멤버 데이터 복구
-                      </button>
-                    )}
-                    {activeCharacter && (
-                      <button
-                        type="button"
-                        onClick={reloadCharacterFromServer}
-                        disabled={isSaving}
-                        className="border border-emerald-200/25 px-4 py-2 text-sm text-emerald-100/85 disabled:opacity-60"
-                      >
-                        서버에서 다시 불러오기
-                      </button>
-                    )}
-                    {activeCharacter && (
-                      <button
-                        type="button"
-                        onClick={() => deleteCharacter(activeCharacter)}
-                        disabled={isSaving}
-                        className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                      >
-                        현재 {kindLabel} 삭제
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    고유 ID
-                    <input value={draft.id} onChange={(event) => setDraft((current) => ({ ...current, id: event.target.value }))} placeholder="id 예: shin" className="auth-input" />
-                  </label>
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    분류 (Archive)
-                    <select
-                      value={draft.kind}
-                      onChange={(event) => {
-                        const kind = event.target.value as CharacterKind;
-                        setDraft((current) => ({
-                          ...current,
-                          kind,
-                          pairMemberIds: kind === "pair" ? current.pairMemberIds : ["", ""],
-                        }));
-                      }}
-                      className="auth-input"
-                    >
-                      {CHARACTER_KINDS.map((kind) => (
-                        <option key={kind} value={kind}>
-                          {CHARACTER_KIND_ADMIN_LABELS[kind]}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="grid gap-2 text-sm text-emerald-100/75 md:col-span-2">
-                    {isPairDraft ? "페어 이름" : "이름"}
-                    <AdminInlineGlitchEditor
-                      value={draft.name}
-                      onChange={(value) => setDraft((current) => updateDraftFieldValue(current, "name", value))}
-                      glitch={getDraftGlitchConfig(draft, "name")}
-                      onGlitchChange={(config) =>
-                        setDraft((current) => updateDraftGlitchPath(current, "name", config))
-                      }
-                      glitchBindings={bindGlitchField("name")}
-                      placeholder={isPairDraft ? "비우면 멤버 이름으로 자동 표시" : `${kindLabel} 이름`}
-                      className={glitchFieldClass("name", activeGlitchFieldPath, "")}
-                      minHeightClass="min-h-10"
-                    />
-                  </label>
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    한자 이름
-                    <AdminInlineGlitchEditor
-                      value={draft.kanjiName}
-                      onChange={(value) =>
-                        setDraft((current) => updateDraftFieldValue(current, "kanjiName", value))
-                      }
-                      glitch={getDraftGlitchConfig(draft, "kanjiName")}
-                      onGlitchChange={(config) =>
-                        setDraft((current) => updateDraftGlitchPath(current, "kanjiName", config))
-                      }
-                      glitchBindings={bindGlitchField("kanjiName")}
-                      placeholder="예: 芥川"
-                      className={glitchFieldClass("kanjiName", activeGlitchFieldPath, "")}
-                      minHeightClass="min-h-10"
-                    />
-                  </label>
-                </div>
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                  <label className="grid gap-2 text-sm text-emerald-100/75">
-                    한 줄 소개
-                    <AdminInlineGlitchEditor
-                      value={draft.subtitle}
-                      onChange={(value) =>
-                        setDraft((current) => updateDraftFieldValue(current, "subtitle", value))
-                      }
-                      glitch={getDraftGlitchConfig(draft, "subtitle")}
-                      onGlitchChange={(config) =>
-                        setDraft((current) => updateDraftGlitchPath(current, "subtitle", config))
-                      }
-                      glitchBindings={bindGlitchField("subtitle")}
-                      placeholder="카드에 보일 짧은 소개"
-                      className={glitchFieldClass("subtitle", activeGlitchFieldPath, "")}
-                      minHeightClass="min-h-10"
-                    />
-                  </label>
-                  <div className="grid gap-2">
-                    <label className="text-sm text-emerald-100/75">색 분위기</label>
-                    <PaletteEditor
-                      palette={draft.palette}
-                      onChange={(palette) => setDraft((current) => ({ ...current, palette }))}
-                      onExtractFromImage={extractCharacterPaletteFromImage}
-                    />
-                  </div>
-                </div>
-                <MetaFieldsEditor
-                  fields={draft.metaFields}
-                  onFieldsChange={(metaFields) => {
-                    setDraft((current) => {
-                      const removedField = current.metaFields.find(
-                        (field) => !metaFields.some((next) => next.id === field.id),
-                      );
-                      const nextGlitch = { ...current.textGlitch };
-                      if (removedField) {
-                        delete nextGlitch[metaFieldGlitchPath(removedField.id)];
-                      }
-                      return { ...current, metaFields, textGlitch: nextGlitch };
-                    });
-                  }}
-                  bindGlitchField={bindGlitchField}
-                  activeGlitchFieldPath={activeGlitchFieldPath}
-                  glitchFieldClass={glitchFieldClass}
-                  onBodyChange={(fieldId, value) =>
-                    setDraft((current) => updateDraftFieldValue(current, metaFieldGlitchPath(fieldId), value))
-                  }
-                  getFieldGlitch={(fieldId) => getDraftGlitchConfig(draft, metaFieldGlitchPath(fieldId))}
-                  onFieldGlitchChange={(fieldId, config) =>
-                    setDraft((current) => updateDraftGlitchPath(current, metaFieldGlitchPath(fieldId), config))
-                  }
-                />
-                <label className="grid gap-2 text-sm text-emerald-100/75">
-                  {isPairDraft ? "페어 대표 대사" : "대표 대사"}
-                  <AdminInlineGlitchEditor
-                    value={draft.quote}
-                    onChange={(value) => setDraft((current) => updateDraftFieldValue(current, "quote", value))}
-                    glitch={getDraftGlitchConfig(draft, "quote")}
-                    onGlitchChange={(config) =>
-                      setDraft((current) => updateDraftGlitchPath(current, "quote", config))
-                    }
-                    glitchBindings={bindGlitchField("quote")}
-                    placeholder={isPairDraft ? "페어 관계를 보여 줄 대표 문장" : "캐릭터 상세에 보일 대표 문장"}
-                    className={glitchFieldClass("quote", activeGlitchFieldPath, "")}
-                    minHeightClass="min-h-20"
+                  <CharacterEditSectionNav
+                    active={characterEditSection}
+                    onChange={setCharacterEditSection}
+                    characterName={draft.name || activeCharacter?.name || ""}
+                    newItemLabel={`새 ${kindLabel}`}
+                    glitchFieldCount={glitchFieldCount}
+                    subPageCount={subPageCount}
+                    isPair={isPairDraft}
+                    activeGlitchLabel={activeGlitchLabel}
                   />
-                </label>
-                <CaseFileThemeEditor
-                  theme={draft.detailTheme}
-                  onChange={(detailTheme) =>
-                    setDraft((current) => ({
-                      ...current,
-                      detailTheme,
-                    }))
-                  }
-                />
-                {!isPairDraft && (
-                <label className="grid gap-2 text-sm text-emerald-100/75">
-                  상세 보기 BGM
-                  <BgmQuickPicker
-                    value={draft.bgmUrl}
-                    options={bgmCharacterOptions}
-                    disabled={isSaving}
-                    onChange={(bgmUrl) =>
-                      setDraft((current) => ({
-                        ...current,
-                        bgmUrl,
-                      }))
-                    }
-                    onQuickUpload={quickAddCharacterBgm}
-                  />
-                </label>
-                )}
-                <ProfileFieldsEditor
-                  fields={draft.profileFields}
-                  onFieldsChange={(profileFields) =>
-                    setDraft((current) => {
-                      const removedField = current.profileFields.find(
-                        (field) => !profileFields.some((next) => next.id === field.id),
-                      );
-                      const nextGlitch = { ...current.textGlitch };
-                      if (removedField) {
-                        delete nextGlitch[profileFieldGlitchPath(removedField.id)];
-                      }
-                      return { ...current, profileFields, textGlitch: nextGlitch };
-                    })
-                  }
-                  getFieldGlitchPath={profileFieldGlitchPath}
-                  bindGlitchField={bindGlitchField}
-                  activeGlitchFieldPath={activeGlitchFieldPath}
-                  glitchFieldClass={glitchFieldClass}
-                  onValueChange={(fieldId, value) =>
-                    setDraft((current) => updateDraftFieldValue(current, profileFieldGlitchPath(fieldId), value))
-                  }
-                  getFieldGlitch={(fieldId) =>
-                    getDraftGlitchConfig(draft, profileFieldGlitchPath(fieldId))
-                  }
-                  onFieldGlitchChange={(fieldId, config) =>
-                    setDraft((current) => updateDraftGlitchPath(current, profileFieldGlitchPath(fieldId), config))
-                  }
-                />
-
-                <section
-                  id="admin-record-boxes"
-                  className="mt-2 grid gap-3 border border-emerald-200/20 bg-emerald-950/15 p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-emerald-50">레코드 박스</p>
-                      <p className="mt-1 text-xs text-emerald-100/55">
-                        {isPairDraft
-                          ? "페어 Record 탭에 나올 관계·특징 박스입니다."
-                          : "본 페이지 Record 탭에 나오는 상세 설정 박스입니다. ↑↓로 표시 순서를 바꿀 수 있어요."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={addSettingSection}
-                      className="shrink-0 border border-stone-400/35 px-3 py-2 text-xs text-stone-200"
-                    >
-                      레코드 박스 추가
-                    </button>
-                  </div>
-                  <div className="grid gap-3">
-                    {draft.settingSections.map((section, index) => (
-                      <article
-                        key={section.id}
-                        className="grid gap-2 border border-emerald-100/10 bg-black/35 p-3"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs tracking-[0.22em] text-emerald-100/45 uppercase">
-                            레코드 박스 {String(index + 1).padStart(2, "0")}
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <SettingSectionOrderButtons
-                              index={index}
-                              total={draft.settingSections.length}
-                              onMoveUp={() => moveSettingSection(section.id, "up")}
-                              onMoveDown={() => moveSettingSection(section.id, "down")}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeSettingSection(section.id)}
-                              className="text-xs text-stone-300/70"
-                            >
-                              삭제
-                            </button>
+                  <form
+                    onSubmit={saveCharacter}
+                    className="glass-card admin-edit-form grid max-w-full min-w-0 gap-3 p-5 pb-28 md:p-6"
+                  >
+                    {characterEditSection === "basics" && (
+                      <>
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <h2 className="board-title">{kindLabel} 카드 · 레코드</h2>
+                          <div className="flex flex-wrap gap-2">
+                            {canRecoverLegacyPairMember && (
+                              <button
+                                type="button"
+                                onClick={recoverLegacyPairMemberData}
+                                disabled={isSaving}
+                                className="border border-amber-300/35 bg-amber-950/25 px-4 py-2 text-sm text-amber-100 disabled:opacity-60"
+                              >
+                                페어 멤버 데이터 복구
+                              </button>
+                            )}
+                            {activeCharacter && (
+                              <button
+                                type="button"
+                                onClick={reloadCharacterFromServer}
+                                disabled={isSaving}
+                                className="border border-emerald-200/25 px-4 py-2 text-sm text-emerald-100/85 disabled:opacity-60"
+                              >
+                                서버에서 다시 불러오기
+                              </button>
+                            )}
+                            {activeCharacter && (
+                              <button
+                                type="button"
+                                onClick={() => deleteCharacter(activeCharacter)}
+                                disabled={isSaving}
+                                className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                              >
+                                현재 {kindLabel} 삭제
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <AdminInlineGlitchEditor
-                          value={section.title}
-                          onChange={(value) =>
-                            setDraft((current) =>
-                              updateDraftFieldValue(
-                                current,
-                                settingSectionTitleGlitchPath(section.id),
-                                value,
-                              ),
-                            )
-                          }
-                          glitch={getDraftGlitchConfig(
-                            draft,
-                            settingSectionTitleGlitchPath(section.id),
-                          )}
-                          onGlitchChange={(config) =>
-                            setDraft((current) =>
-                              updateDraftGlitchPath(
-                                current,
-                                settingSectionTitleGlitchPath(section.id),
-                                config,
-                              ),
-                            )
-                          }
-                          glitchBindings={bindGlitchField(settingSectionTitleGlitchPath(section.id))}
-                          placeholder="예: 성격"
-                          className={glitchFieldClass(
-                            settingSectionTitleGlitchPath(section.id),
-                            activeGlitchFieldPath,
-                            "",
-                          )}
-                          minHeightClass="min-h-10"
-                        />
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => updateSettingSection(section.id, { kind: "record", excerpt: "" })}
-                            className={`border px-3 py-1.5 text-xs ${
-                              (section.kind ?? "record") === "record"
-                                ? "border-emerald-200/45 text-emerald-50"
-                                : "border-stone-400/25 text-stone-300/70"
-                            }`}
-                          >
-                            일반 레코드
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateSettingSection(section.id, { kind: "story" })}
-                            className={`border px-3 py-1.5 text-xs ${
-                              section.kind === "story"
-                                ? "border-emerald-200/45 text-emerald-50"
-                                : "border-stone-400/25 text-stone-300/70"
-                            }`}
-                          >
-                            스토리 창
-                          </button>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            고유 ID
+                            <input
+                              value={draft.id}
+                              onChange={(event) =>
+                                setDraft((current) => ({ ...current, id: event.target.value }))
+                              }
+                              placeholder="id 예: shin"
+                              className="auth-input"
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            분류 (Archive)
+                            <select
+                              value={draft.kind}
+                              onChange={(event) => {
+                                const kind = event.target.value as CharacterKind;
+                                setDraft((current) => ({
+                                  ...current,
+                                  kind,
+                                  pairMemberIds: kind === "pair" ? current.pairMemberIds : ["", ""],
+                                }));
+                              }}
+                              className="auth-input"
+                            >
+                              {CHARACTER_KINDS.map((kind) => (
+                                <option key={kind} value={kind}>
+                                  {CHARACTER_KIND_ADMIN_LABELS[kind]}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="flex items-start gap-3 rounded border border-stone-400/20 bg-black/25 px-3 py-3 text-sm text-emerald-100/75 md:col-span-2">
+                            <input
+                              type="checkbox"
+                              checked={draft.confidential}
+                              onChange={(event) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  confidential: event.target.checked,
+                                }))
+                              }
+                              className="mt-1"
+                            />
+                            <span className="grid gap-1">
+                              <span className="font-medium text-emerald-50">기밀 문서 경고</span>
+                              <span className="text-xs leading-5 text-emerald-100/55">
+                                켜면 공개 홈에서 이 자캐를 열 때 기밀 문서 경고와 경고음이 납니다.
+                              </span>
+                            </span>
+                          </label>
+                          <label className="grid gap-2 text-sm text-emerald-100/75 md:col-span-2">
+                            {isPairDraft ? "페어 이름" : "이름"}
+                            <AdminInlineGlitchEditor
+                              value={draft.name}
+                              onChange={(value) =>
+                                setDraft((current) => updateDraftFieldValue(current, "name", value))
+                              }
+                              glitch={getDraftGlitchConfig(draft, "name")}
+                              onGlitchChange={(config) =>
+                                setDraft((current) =>
+                                  updateDraftGlitchPath(current, "name", config),
+                                )
+                              }
+                              glitchBindings={bindGlitchField("name")}
+                              placeholder={
+                                isPairDraft ? "비우면 멤버 이름으로 자동 표시" : `${kindLabel} 이름`
+                              }
+                              className={glitchFieldClass("name", activeGlitchFieldPath, "")}
+                              minHeightClass="min-h-10"
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            한자 이름
+                            <AdminInlineGlitchEditor
+                              value={draft.kanjiName}
+                              onChange={(value) =>
+                                setDraft((current) =>
+                                  updateDraftFieldValue(current, "kanjiName", value),
+                                )
+                              }
+                              glitch={getDraftGlitchConfig(draft, "kanjiName")}
+                              onGlitchChange={(config) =>
+                                setDraft((current) =>
+                                  updateDraftGlitchPath(current, "kanjiName", config),
+                                )
+                              }
+                              glitchBindings={bindGlitchField("kanjiName")}
+                              placeholder="예: 芥川"
+                              className={glitchFieldClass("kanjiName", activeGlitchFieldPath, "")}
+                              minHeightClass="min-h-10"
+                            />
+                          </label>
                         </div>
-                        {section.kind === "story" && (
+                        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            한 줄 소개
+                            <AdminInlineGlitchEditor
+                              value={draft.subtitle}
+                              onChange={(value) =>
+                                setDraft((current) =>
+                                  updateDraftFieldValue(current, "subtitle", value),
+                                )
+                              }
+                              glitch={getDraftGlitchConfig(draft, "subtitle")}
+                              onGlitchChange={(config) =>
+                                setDraft((current) =>
+                                  updateDraftGlitchPath(current, "subtitle", config),
+                                )
+                              }
+                              glitchBindings={bindGlitchField("subtitle")}
+                              placeholder="카드에 보일 짧은 소개"
+                              className={glitchFieldClass("subtitle", activeGlitchFieldPath, "")}
+                              minHeightClass="min-h-10"
+                            />
+                          </label>
+                          <div className="grid gap-2">
+                            <label className="text-sm text-emerald-100/75">색 분위기</label>
+                            <PaletteEditor
+                              palette={draft.palette}
+                              onChange={(palette) =>
+                                setDraft((current) => ({ ...current, palette }))
+                              }
+                              onExtractFromImage={extractCharacterPaletteFromImage}
+                            />
+                          </div>
+                        </div>
+                        <MetaFieldsEditor
+                          fields={draft.metaFields}
+                          onFieldsChange={(metaFields) => {
+                            setDraft((current) => {
+                              const removedField = current.metaFields.find(
+                                (field) => !metaFields.some((next) => next.id === field.id),
+                              );
+                              const nextGlitch = { ...current.textGlitch };
+                              if (removedField) {
+                                delete nextGlitch[metaFieldGlitchPath(removedField.id)];
+                              }
+                              return { ...current, metaFields, textGlitch: nextGlitch };
+                            });
+                          }}
+                          bindGlitchField={bindGlitchField}
+                          activeGlitchFieldPath={activeGlitchFieldPath}
+                          glitchFieldClass={glitchFieldClass}
+                          onBodyChange={(fieldId, value) =>
+                            setDraft((current) =>
+                              updateDraftFieldValue(current, metaFieldGlitchPath(fieldId), value),
+                            )
+                          }
+                          getFieldGlitch={(fieldId) =>
+                            getDraftGlitchConfig(draft, metaFieldGlitchPath(fieldId))
+                          }
+                          onFieldGlitchChange={(fieldId, config) =>
+                            setDraft((current) =>
+                              updateDraftGlitchPath(current, metaFieldGlitchPath(fieldId), config),
+                            )
+                          }
+                        />
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          {isPairDraft ? "페어 대표 대사" : "대표 대사"}
                           <AdminInlineGlitchEditor
-                            value={section.excerpt ?? ""}
+                            value={draft.quote}
                             onChange={(value) =>
-                              setDraft((current) =>
-                                updateDraftFieldValue(
-                                  current,
-                                  settingSectionExcerptGlitchPath(section.id),
-                                  value,
-                                ),
-                              )
+                              setDraft((current) => updateDraftFieldValue(current, "quote", value))
                             }
-                            glitch={getDraftGlitchConfig(
-                              draft,
-                              settingSectionExcerptGlitchPath(section.id),
-                            )}
+                            glitch={getDraftGlitchConfig(draft, "quote")}
                             onGlitchChange={(config) =>
-                              setDraft((current) =>
-                                updateDraftGlitchPath(
-                                  current,
-                                  settingSectionExcerptGlitchPath(section.id),
-                                  config,
-                                ),
-                              )
+                              setDraft((current) => updateDraftGlitchPath(current, "quote", config))
                             }
-                            glitchBindings={bindGlitchField(settingSectionExcerptGlitchPath(section.id))}
-                            placeholder="Record Box에 보일 짧은 소개 (비우면 본문 앞부분이 자동으로 사용됩니다)"
-                            className={glitchFieldClass(
-                              settingSectionExcerptGlitchPath(section.id),
-                              activeGlitchFieldPath,
-                              "",
-                            )}
-                            minHeightClass="min-h-16"
+                            glitchBindings={bindGlitchField("quote")}
+                            placeholder={
+                              isPairDraft
+                                ? "페어 관계를 보여 줄 대표 문장"
+                                : "캐릭터 상세에 보일 대표 문장"
+                            }
+                            className={glitchFieldClass("quote", activeGlitchFieldPath, "")}
+                            minHeightClass="min-h-20"
                           />
+                        </label>
+                        <CaseFileThemeEditor
+                          theme={draft.detailTheme}
+                          onChange={(detailTheme) =>
+                            setDraft((current) => ({
+                              ...current,
+                              detailTheme,
+                            }))
+                          }
+                        />
+                        {!isPairDraft && (
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            상세 보기 BGM
+                            <BgmQuickPicker
+                              value={draft.bgmUrl}
+                              options={bgmCharacterOptions}
+                              disabled={isSaving}
+                              onChange={(bgmUrl) =>
+                                setDraft((current) => ({
+                                  ...current,
+                                  bgmUrl,
+                                }))
+                              }
+                              onQuickUpload={quickAddCharacterBgm}
+                            />
+                          </label>
                         )}
-                        <AdminInlineGlitchEditor
-                          value={section.body}
-                          onChange={(value) =>
+                        <ProfileFieldsEditor
+                          fields={draft.profileFields}
+                          onFieldsChange={(profileFields) =>
+                            setDraft((current) => {
+                              const removedField = current.profileFields.find(
+                                (field) => !profileFields.some((next) => next.id === field.id),
+                              );
+                              const nextGlitch = { ...current.textGlitch };
+                              if (removedField) {
+                                delete nextGlitch[profileFieldGlitchPath(removedField.id)];
+                              }
+                              return { ...current, profileFields, textGlitch: nextGlitch };
+                            })
+                          }
+                          getFieldGlitchPath={profileFieldGlitchPath}
+                          bindGlitchField={bindGlitchField}
+                          activeGlitchFieldPath={activeGlitchFieldPath}
+                          glitchFieldClass={glitchFieldClass}
+                          onValueChange={(fieldId, value) =>
                             setDraft((current) =>
                               updateDraftFieldValue(
                                 current,
-                                settingSectionGlitchPath(section.id),
+                                profileFieldGlitchPath(fieldId),
                                 value,
                               ),
                             )
                           }
-                          glitch={getDraftGlitchConfig(draft, settingSectionGlitchPath(section.id))}
-                          onGlitchChange={(config) =>
+                          getFieldGlitch={(fieldId) =>
+                            getDraftGlitchConfig(draft, profileFieldGlitchPath(fieldId))
+                          }
+                          onFieldGlitchChange={(fieldId, config) =>
                             setDraft((current) =>
                               updateDraftGlitchPath(
                                 current,
-                                settingSectionGlitchPath(section.id),
+                                profileFieldGlitchPath(fieldId),
                                 config,
                               ),
                             )
                           }
-                          glitchBindings={bindGlitchField(settingSectionGlitchPath(section.id))}
-                          placeholder={
-                            section.kind === "story" ? "스토리 본문" : "내용 입력"
-                          }
-                          className={glitchFieldClass(
-                            settingSectionGlitchPath(section.id),
-                            activeGlitchFieldPath,
-                            "",
-                          )}
-                          minHeightClass={section.kind === "story" ? "min-h-40" : "min-h-24"}
                         />
-                      </article>
-                    ))}
-                    {draft.settingSections.length === 0 && (
-                      <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
-                        「레코드 박스 추가」를 누르면 여기에 박스가 생깁니다.
-                      </p>
-                    )}
-                  </div>
-                </section>
 
-                <RelationshipsEditor
-                  entries={draft.relationshipEntries}
-                  onEntriesChange={(relationshipEntries) =>
-                    setDraft((current) => {
-                      const removedEntry = current.relationshipEntries.find(
-                        (entry) => !relationshipEntries.some((next) => next.id === entry.id),
-                      );
-                      const nextGlitch = { ...current.textGlitch };
-                      if (removedEntry) {
-                        delete nextGlitch[relationshipEntryGlitchPath(removedEntry.id)];
-                        delete nextGlitch[relationshipEntryNameGlitchPath(removedEntry.id)];
-                        delete nextGlitch[relationshipEntryLabelGlitchPath(removedEntry.id)];
-                      }
-                      return { ...current, relationshipEntries };
-                    })
-                  }
-                  linkableCharacters={characters}
-                  currentCharacterId={draft.id}
-                  ownSubPages={listNavigableSubPages(
-                    { id: draft.id, subPages: draft.subPages } as Character,
-                    characters,
-                  )}
-                  bindGlitchField={bindGlitchField}
-                  activeGlitchFieldPath={activeGlitchFieldPath}
-                  glitchFieldClass={glitchFieldClass}
-                  onEntryFieldValueChange={(path, value) =>
-                    setDraft((current) => updateDraftFieldValue(current, path, value))
-                  }
-                  getGlitchByPath={(path) => getDraftGlitchConfig(draft, path)}
-                  onGlitchPathChange={(path, config) =>
-                    setDraft((current) => updateDraftGlitchPath(current, path, config))
-                  }
-                />
-                </>
-                )}
-
-                {characterEditSection === "members" && isPairDraft && (
-                <>
-                <div>
-                  <h2 className="board-title">연결 캐릭터</h2>
-                  <p className="mt-1 text-xs leading-5 text-emerald-100/55">
-                    OC 또는 어나더 항목을 선택해 페어에 연결합니다. 공개 페이지에서 각 캐릭터 상세로
-                    이동할 수 있어요.
-                  </p>
-                </div>
-                <PairMemberPicker
-                  pairMemberIds={draft.pairMemberIds}
-                  linkableCharacters={pairLinkableCharacters}
-                  currentPairId={draft.id}
-                  onChange={(pairMemberIds) =>
-                    setDraft((current) => ({
-                      ...current,
-                      pairMemberIds,
-                    }))
-                  }
-                />
-                </>
-                )}
-
-                {characterEditSection === "glitch" && (
-                <div id="admin-glitch-tool">
-                <TextScrambleTool
-                  fieldPickerGroups={glitchFieldPickerGroups}
-                  onFieldSelect={selectGlitchField}
-                  activeFieldPath={activeGlitchFieldPath}
-                  fieldValue={
-                    activeGlitchFieldPath ? getCharacterDraftFieldValue(draft, activeGlitchFieldPath) : ""
-                  }
-                  externalSelection={glitchFieldSelection}
-                  onExternalSelectionClear={() => setGlitchFieldSelection(null)}
-                  onFieldValueChange={(value) => {
-                    if (!activeGlitchFieldPath) {
-                      return;
-                    }
-
-                    setDraft((current) => updateDraftFieldValue(current, activeGlitchFieldPath, value));
-                  }}
-                  glitchConfig={
-                    activeGlitchFieldPath ? getDraftGlitchConfig(draft, activeGlitchFieldPath) : undefined
-                  }
-                  onGlitchChange={(config) => {
-                    if (!activeGlitchFieldPath) {
-                      return;
-                    }
-
-                    setDraft((current) => updateDraftGlitchPath(current, activeGlitchFieldPath, config));
-                  }}
-                  onNotice={setNotice}
-                  allCharacters={characters}
-                  currentCharacterId={draft.id}
-                  currentSection={characterKindToSection(normalizeCharacterKind(draft.kind))}
-                  onZoneApplied={() => {
-                    setGlitchFieldSelection(null);
-                    setGlitchFieldAnchorElement(null);
-                  }}
-                />
-                </div>
-                )}
-
-                {characterEditSection === "subpages" && (
-                <>
-                <div>
-                  <h2 className="board-title">상세 페이지</h2>
-                  <p className="mt-1 text-xs leading-5 text-emerald-100/55">
-                    서브 캐릭터, 물건, 능력, 장소 등을 각각 상세 페이지로 추가할 수 있어요. 자캐 본
-                    페이지와 같은 카드·레코드·그림·BGM·오류 설정을 모두 쓸 수 있습니다.
-                  </p>
-                </div>
-                <SubPageEditor
-                  subPages={draft.subPages}
-                  activeSubPageId={activeSubPageId}
-                  onActiveSubPageChange={setActiveSubPageId}
-                  onSubPagesChange={(subPages) =>
-                    setDraft((current) => ({
-                      ...current,
-                      subPages,
-                    }))
-                  }
-                  linkableCharacters={characters}
-                  parentCharacterId={draft.id}
-                  allCharacters={characters}
-                  onNotice={setNotice}
-                  bgmOptions={bgmCharacterOptions}
-                  onBgmQuickUpload={quickAddCharacterBgm}
-                  bindGlitchField={bindGlitchField}
-                  activeGlitchFieldPath={activeGlitchFieldPath}
-                  glitchFieldClass={glitchFieldClass}
-                  onGlitchFieldValueChange={(path, value) =>
-                    setDraft((current) => updateDraftFieldValue(current, path, value))
-                  }
-                  getFieldGlitch={(path) => getDraftGlitchConfig(draft, path)}
-                  onFieldGlitchChange={(path, config) =>
-                    setDraft((current) => updateDraftGlitchPath(current, path, config))
-                  }
-                  isSaving={isSaving}
-                />
-                </>
-                )}
-
-                {(characterEditSection === "basics" || characterEditSection === "glitch" || characterEditSection === "subpages" || characterEditSection === "members") && (
-                <div className="pointer-events-none sticky bottom-3 z-10 -mx-1 border border-emerald-200/20 bg-black/85 p-3 backdrop-blur-sm [&_button]:pointer-events-auto">
-                  <button disabled={isSaving} className="admin-action-btn w-full px-5 py-3 text-sm disabled:opacity-60 md:ml-auto md:w-auto">
-                    {isSaving ? "저장 중..." : "본 페이지에 저장"}
-                  </button>
-                </div>
-                )}
-              </form>
-              </>
-              )}
-
-              {adminPanel === "characters" && activeCharacter && characterEditSection === "world" && (
-                <section className="glass-card grid gap-4 p-5 md:p-6">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h2 className="board-title">세계관별 자료</h2>
-                      <p className="mt-2 text-xs text-emerald-100/55">World마다 설정, 그림, 로그를 따로 정리합니다.</p>
-                    </div>
-                    <select
-                      value={activeCharacterWorldId}
-                      onChange={(event) => selectCharacterWorld(event.target.value)}
-                      className="auth-input md:max-w-xs"
-                    >
-                      <option value="">세계관 선택</option>
-                      {worlds.map((world) => (
-                        <option key={world.id} value={world.id}>{world.title}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {activeCharacterWorldId ? (
-                    <div className="grid gap-5">
-                      <div className="flex flex-col gap-3 border border-stone-400/15 bg-stone-900/10 p-4 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <h3 className="text-sm font-semibold text-emerald-50">참가 기록 관리</h3>
-                          <p className="mt-1 text-xs text-emerald-100/55">이 자캐를 선택한 세계관에서 제거합니다. 세계관 전용 그림도 R2와 Firestore에서 함께 삭제돼요.</p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={deleteCharacterWorldEntry}
-                          disabled={isSaving || !activeCharacterWorldEntry}
-                          className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                        <section
+                          id="admin-record-boxes"
+                          className="mt-2 grid gap-3 border border-emerald-200/20 bg-emerald-950/15 p-4"
                         >
-                          참가 자캐 삭제
-                        </button>
-                      </div>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        세계관별 설정
-                        <textarea
-                          value={worldSettingsText}
-                          onChange={(event) => setWorldSettingsText(event.target.value)}
-                          placeholder="한 줄에 하나씩 입력"
-                          className="auth-input min-h-32"
-                        />
-                      </label>
-                      <button type="button" onClick={saveCharacterWorldSettings} disabled={isSaving} className="justify-self-end bg-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60">
-                        세계관 설정 저장
-                      </button>
-
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                        {(activeCharacterWorldEntry?.images ?? []).map((image) => (
-                          <article key={image.id} className="gallery-tile">
-                            <div className="aspect-[3/2] overflow-hidden">
-                              <ThumbnailImage image={image} src={image.url} alt={image.name} className="opacity-90" />
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-semibold text-emerald-50">레코드 박스</p>
+                              <p className="mt-1 text-xs text-emerald-100/55">
+                                {isPairDraft
+                                  ? "페어 Record 탭에 나올 관계·특징 박스입니다."
+                                  : "본 페이지 Record 탭에 나오는 상세 설정 박스입니다. ↑↓로 표시 순서를 바꿀 수 있어요."}
+                              </p>
                             </div>
-                            <div className="p-3 text-sm">
-                              <form
-                                className="grid gap-2"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  const formData = new FormData(event.currentTarget);
-                                  updateWorldImageInfo(image.id, {
-                                    name: String(formData.get("name") ?? image.name).trim() || image.name,
-                                    category: String(formData.get("category")) as "illustration" | "standing",
-                                  });
-                                }}
+                            <button
+                              type="button"
+                              onClick={addSettingSection}
+                              className="shrink-0 border border-stone-400/35 px-3 py-2 text-xs text-stone-200"
+                            >
+                              레코드 박스 추가
+                            </button>
+                          </div>
+                          <div className="grid gap-3">
+                            {draft.settingSections.map((section, index) => (
+                              <article
+                                key={section.id}
+                                className="grid gap-2 border border-emerald-100/10 bg-black/35 p-3"
                               >
-                                <input name="name" defaultValue={image.name} className="auth-input text-xs" placeholder="그림 이름" />
-                                <select name="category" defaultValue={image.category ?? "illustration"} className="auth-input text-xs">
-                                  <option value="illustration">일러스트 / 대표 썸네일</option>
-                                  <option value="standing">스탠딩 / 표정 모음</option>
-                                </select>
-                                <button type="submit" disabled={isSaving} className="border border-emerald-100/20 px-3 py-2 text-xs text-emerald-50 disabled:opacity-60">
-                                  정보 저장
-                                </button>
-                              </form>
-                              <button type="button" onClick={() => deleteWorldImage(image.id)} disabled={isSaving} className="mt-3 border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60">
-                                기록 삭제
-                              </button>
-                            </div>
-                          </article>
-                        ))}
-                        {(activeCharacterWorldEntry?.images ?? []).length === 0 && (
-                          <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/60">
-                            이 세계관에 등록된 그림이 없어요. 그림 관리에서 업로드 대상을 이 세계관으로 선택해주세요.
-                          </p>
-                        )}
-                      </div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs tracking-[0.22em] text-emerald-100/45 uppercase">
+                                    레코드 박스 {String(index + 1).padStart(2, "0")}
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <SettingSectionOrderButtons
+                                      index={index}
+                                      total={draft.settingSections.length}
+                                      onMoveUp={() => moveSettingSection(section.id, "up")}
+                                      onMoveDown={() => moveSettingSection(section.id, "down")}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removeSettingSection(section.id)}
+                                      className="text-xs text-stone-300/70"
+                                    >
+                                      삭제
+                                    </button>
+                                  </div>
+                                </div>
+                                <AdminInlineGlitchEditor
+                                  value={section.title}
+                                  onChange={(value) =>
+                                    setDraft((current) =>
+                                      updateDraftFieldValue(
+                                        current,
+                                        settingSectionTitleGlitchPath(section.id),
+                                        value,
+                                      ),
+                                    )
+                                  }
+                                  glitch={getDraftGlitchConfig(
+                                    draft,
+                                    settingSectionTitleGlitchPath(section.id),
+                                  )}
+                                  onGlitchChange={(config) =>
+                                    setDraft((current) =>
+                                      updateDraftGlitchPath(
+                                        current,
+                                        settingSectionTitleGlitchPath(section.id),
+                                        config,
+                                      ),
+                                    )
+                                  }
+                                  glitchBindings={bindGlitchField(
+                                    settingSectionTitleGlitchPath(section.id),
+                                  )}
+                                  placeholder="예: 성격"
+                                  className={glitchFieldClass(
+                                    settingSectionTitleGlitchPath(section.id),
+                                    activeGlitchFieldPath,
+                                    "",
+                                  )}
+                                  minHeightClass="min-h-10"
+                                />
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateSettingSection(section.id, {
+                                        kind: "record",
+                                        excerpt: "",
+                                      })
+                                    }
+                                    className={`border px-3 py-1.5 text-xs ${
+                                      (section.kind ?? "record") === "record"
+                                        ? "border-emerald-200/45 text-emerald-50"
+                                        : "border-stone-400/25 text-stone-300/70"
+                                    }`}
+                                  >
+                                    일반 레코드
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      updateSettingSection(section.id, { kind: "story" })
+                                    }
+                                    className={`border px-3 py-1.5 text-xs ${
+                                      section.kind === "story"
+                                        ? "border-emerald-200/45 text-emerald-50"
+                                        : "border-stone-400/25 text-stone-300/70"
+                                    }`}
+                                  >
+                                    스토리 창
+                                  </button>
+                                </div>
+                                {section.kind === "story" && (
+                                  <AdminInlineGlitchEditor
+                                    value={section.excerpt ?? ""}
+                                    onChange={(value) =>
+                                      setDraft((current) =>
+                                        updateDraftFieldValue(
+                                          current,
+                                          settingSectionExcerptGlitchPath(section.id),
+                                          value,
+                                        ),
+                                      )
+                                    }
+                                    glitch={getDraftGlitchConfig(
+                                      draft,
+                                      settingSectionExcerptGlitchPath(section.id),
+                                    )}
+                                    onGlitchChange={(config) =>
+                                      setDraft((current) =>
+                                        updateDraftGlitchPath(
+                                          current,
+                                          settingSectionExcerptGlitchPath(section.id),
+                                          config,
+                                        ),
+                                      )
+                                    }
+                                    glitchBindings={bindGlitchField(
+                                      settingSectionExcerptGlitchPath(section.id),
+                                    )}
+                                    placeholder="Record Box에 보일 짧은 소개 (비우면 본문 앞부분이 자동으로 사용됩니다)"
+                                    className={glitchFieldClass(
+                                      settingSectionExcerptGlitchPath(section.id),
+                                      activeGlitchFieldPath,
+                                      "",
+                                    )}
+                                    minHeightClass="min-h-16"
+                                  />
+                                )}
+                                <AdminInlineGlitchEditor
+                                  value={section.body}
+                                  onChange={(value) =>
+                                    setDraft((current) =>
+                                      updateDraftFieldValue(
+                                        current,
+                                        settingSectionGlitchPath(section.id),
+                                        value,
+                                      ),
+                                    )
+                                  }
+                                  glitch={getDraftGlitchConfig(
+                                    draft,
+                                    settingSectionGlitchPath(section.id),
+                                  )}
+                                  onGlitchChange={(config) =>
+                                    setDraft((current) =>
+                                      updateDraftGlitchPath(
+                                        current,
+                                        settingSectionGlitchPath(section.id),
+                                        config,
+                                      ),
+                                    )
+                                  }
+                                  glitchBindings={bindGlitchField(
+                                    settingSectionGlitchPath(section.id),
+                                  )}
+                                  placeholder={
+                                    section.kind === "story" ? "스토리 본문" : "내용 입력"
+                                  }
+                                  className={glitchFieldClass(
+                                    settingSectionGlitchPath(section.id),
+                                    activeGlitchFieldPath,
+                                    "",
+                                  )}
+                                  minHeightClass={
+                                    section.kind === "story" ? "min-h-40" : "min-h-24"
+                                  }
+                                />
+                              </article>
+                            ))}
+                            {draft.settingSections.length === 0 && (
+                              <p className="border border-emerald-100/10 bg-black/30 p-3 text-xs text-emerald-100/55">
+                                「레코드 박스 추가」를 누르면 여기에 박스가 생깁니다.
+                              </p>
+                            )}
+                          </div>
+                        </section>
 
-                      <form onSubmit={addWorldWork} className="grid gap-3 border border-emerald-100/10 bg-black/30 p-4">
-                        <h3 className="text-sm font-semibold text-emerald-50">세계관 연성/로그 추가</h3>
-                        <div className="grid gap-3 md:grid-cols-3">
-                          <input value={worldWorkDraft.title} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, title: event.target.value }))} placeholder="제목" className="auth-input" />
-                          <input value={worldWorkDraft.kind} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, kind: event.target.value }))} placeholder="종류" className="auth-input" />
-                          <input value={worldWorkDraft.date} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, date: event.target.value }))} placeholder="날짜" className="auth-input" />
+                        <RelationshipsEditor
+                          entries={draft.relationshipEntries}
+                          onEntriesChange={(relationshipEntries) =>
+                            setDraft((current) => {
+                              const removedEntry = current.relationshipEntries.find(
+                                (entry) =>
+                                  !relationshipEntries.some((next) => next.id === entry.id),
+                              );
+                              const nextGlitch = { ...current.textGlitch };
+                              if (removedEntry) {
+                                delete nextGlitch[relationshipEntryGlitchPath(removedEntry.id)];
+                                delete nextGlitch[relationshipEntryNameGlitchPath(removedEntry.id)];
+                                delete nextGlitch[
+                                  relationshipEntryLabelGlitchPath(removedEntry.id)
+                                ];
+                              }
+                              return { ...current, relationshipEntries };
+                            })
+                          }
+                          linkableCharacters={characters}
+                          currentCharacterId={draft.id}
+                          ownSubPages={listNavigableSubPages(
+                            { id: draft.id, subPages: draft.subPages } as Character,
+                            characters,
+                          )}
+                          bindGlitchField={bindGlitchField}
+                          activeGlitchFieldPath={activeGlitchFieldPath}
+                          glitchFieldClass={glitchFieldClass}
+                          onEntryFieldValueChange={(path, value) =>
+                            setDraft((current) => updateDraftFieldValue(current, path, value))
+                          }
+                          getGlitchByPath={(path) => getDraftGlitchConfig(draft, path)}
+                          onGlitchPathChange={(path, config) =>
+                            setDraft((current) => updateDraftGlitchPath(current, path, config))
+                          }
+                        />
+                      </>
+                    )}
+
+                    {characterEditSection === "members" && isPairDraft && (
+                      <>
+                        <div>
+                          <h2 className="board-title">연결 캐릭터</h2>
+                          <p className="mt-1 text-xs leading-5 text-emerald-100/55">
+                            OC 또는 어나더 항목을 선택해 페어에 연결합니다. 공개 페이지에서 각
+                            캐릭터 상세로 이동할 수 있어요.
+                          </p>
                         </div>
-                        <DocumentTextImport
-                          disabled={isSaving}
-                          onNotice={setNotice}
-                          onImported={({ text, suggestedTitle }) => {
-                            setWorldWorkDraft((current) => ({
+                        <PairMemberPicker
+                          pairMemberIds={draft.pairMemberIds}
+                          linkableCharacters={pairLinkableCharacters}
+                          currentPairId={draft.id}
+                          onChange={(pairMemberIds) =>
+                            setDraft((current) => ({
                               ...current,
-                              title: current.title.trim() || suggestedTitle,
-                              body: text,
-                            }));
+                              pairMemberIds,
+                            }))
+                          }
+                        />
+                      </>
+                    )}
+
+                    {characterEditSection === "glitch" && (
+                      <div id="admin-glitch-tool">
+                        <TextScrambleTool
+                          fieldPickerGroups={glitchFieldPickerGroups}
+                          onFieldSelect={selectGlitchField}
+                          activeFieldPath={activeGlitchFieldPath}
+                          fieldValue={
+                            activeGlitchFieldPath
+                              ? getCharacterDraftFieldValue(draft, activeGlitchFieldPath)
+                              : ""
+                          }
+                          externalSelection={glitchFieldSelection}
+                          onExternalSelectionClear={() => setGlitchFieldSelection(null)}
+                          onFieldValueChange={(value) => {
+                            if (!activeGlitchFieldPath) {
+                              return;
+                            }
+
+                            setDraft((current) =>
+                              updateDraftFieldValue(current, activeGlitchFieldPath, value),
+                            );
+                          }}
+                          glitchConfig={
+                            activeGlitchFieldPath
+                              ? getDraftGlitchConfig(draft, activeGlitchFieldPath)
+                              : undefined
+                          }
+                          onGlitchChange={(config) => {
+                            if (!activeGlitchFieldPath) {
+                              return;
+                            }
+
+                            setDraft((current) =>
+                              updateDraftGlitchPath(current, activeGlitchFieldPath, config),
+                            );
+                          }}
+                          onNotice={setNotice}
+                          allCharacters={characters}
+                          currentCharacterId={draft.id}
+                          currentSection={characterKindToSection(
+                            normalizeCharacterKind(draft.kind),
+                          )}
+                          onZoneApplied={() => {
+                            setGlitchFieldSelection(null);
+                            setGlitchFieldAnchorElement(null);
                           }}
                         />
-                        <textarea value={worldWorkDraft.body} onChange={(event) => setWorldWorkDraft((current) => ({ ...current, body: event.target.value }))} placeholder="세계관 연성/로그 내용" className="auth-input min-h-28" />
-                        <label className="grid gap-2 text-sm text-emerald-100/75">
-                          세계관 연성 첨부 사진
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={(event) => setWorldWorkImageFiles(Array.from(event.target.files ?? []))}
-                            className="auth-input"
-                          />
-                          {worldWorkImageFiles.length > 0 && (
-                            <span className="text-xs text-emerald-100/50">선택된 사진 {worldWorkImageFiles.length}장</span>
-                          )}
-                        </label>
-                        <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60">
-                          세계관 연성/로그 추가
-                        </button>
-                      </form>
-
-                      <div className="grid gap-3">
-                        {(activeCharacterWorldEntry?.works ?? []).map((work, index) => (
-                          <article key={`${work.title}-${work.date}-${index}`} className="border border-emerald-100/10 bg-black/30 p-3 text-sm">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
-                                <h3 className="mt-1 font-semibold">{work.title}</h3>
-                              </div>
-                              <button type="button" onClick={() => deleteWorldWork(index)} disabled={isSaving} className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60">
-                                삭제
-                              </button>
-                            </div>
-                            {(work.images?.length ?? 0) > 0 && (
-                              <div className="mt-3 grid grid-cols-4 gap-2">
-                                {work.images?.map((image) => (
-                                  <div key={image.id} className="aspect-square overflow-hidden border border-stone-400/15 bg-black">
-                                    <ThumbnailImage image={image} src={image.url} alt={image.name} />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </article>
-                        ))}
                       </div>
-                    </div>
-                  ) : (
-                    <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/60">먼저 세계관을 선택해주세요.</p>
-                  )}
-                </section>
+                    )}
+
+                    {characterEditSection === "subpages" && (
+                      <>
+                        <div>
+                          <h2 className="board-title">상세 페이지</h2>
+                          <p className="mt-1 text-xs leading-5 text-emerald-100/55">
+                            서브 캐릭터, 물건, 능력, 장소 등을 각각 상세 페이지로 추가할 수 있어요.
+                            자캐 본 페이지와 같은 카드·레코드·그림·BGM·오류 설정을 모두 쓸 수
+                            있습니다.
+                          </p>
+                        </div>
+                        <SubPageEditor
+                          subPages={draft.subPages}
+                          activeSubPageId={activeSubPageId}
+                          onActiveSubPageChange={setActiveSubPageId}
+                          onSubPagesChange={(subPages) =>
+                            setDraft((current) => ({
+                              ...current,
+                              subPages,
+                            }))
+                          }
+                          linkableCharacters={characters}
+                          parentCharacterId={draft.id}
+                          allCharacters={characters}
+                          onNotice={setNotice}
+                          bgmOptions={bgmCharacterOptions}
+                          onBgmQuickUpload={quickAddCharacterBgm}
+                          bindGlitchField={bindGlitchField}
+                          activeGlitchFieldPath={activeGlitchFieldPath}
+                          glitchFieldClass={glitchFieldClass}
+                          onGlitchFieldValueChange={(path, value) =>
+                            setDraft((current) => updateDraftFieldValue(current, path, value))
+                          }
+                          getFieldGlitch={(path) => getDraftGlitchConfig(draft, path)}
+                          onFieldGlitchChange={(path, config) =>
+                            setDraft((current) => updateDraftGlitchPath(current, path, config))
+                          }
+                          isSaving={isSaving}
+                        />
+                      </>
+                    )}
+
+                    {(characterEditSection === "basics" ||
+                      characterEditSection === "glitch" ||
+                      characterEditSection === "subpages" ||
+                      characterEditSection === "members") && (
+                      <div className="pointer-events-none sticky bottom-3 z-10 -mx-1 border border-emerald-200/20 bg-black/85 p-3 backdrop-blur-sm [&_button]:pointer-events-auto">
+                        <button
+                          disabled={isSaving}
+                          className="admin-action-btn w-full px-5 py-3 text-sm disabled:opacity-60 md:ml-auto md:w-auto"
+                        >
+                          {isSaving ? "저장 중..." : "본 페이지에 저장"}
+                        </button>
+                      </div>
+                    )}
+                  </form>
+                </>
               )}
+
+              {adminPanel === "characters" &&
+                activeCharacter &&
+                characterEditSection === "world" && (
+                  <section className="glass-card grid gap-4 p-5 md:p-6">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h2 className="board-title">세계관별 자료</h2>
+                        <p className="mt-2 text-xs text-emerald-100/55">
+                          World마다 설정, 그림, 로그를 따로 정리합니다.
+                        </p>
+                      </div>
+                      <select
+                        value={activeCharacterWorldId}
+                        onChange={(event) => selectCharacterWorld(event.target.value)}
+                        className="auth-input md:max-w-xs"
+                      >
+                        <option value="">세계관 선택</option>
+                        {worlds.map((world) => (
+                          <option key={world.id} value={world.id}>
+                            {world.title}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {activeCharacterWorldId ? (
+                      <div className="grid gap-5">
+                        <div className="flex flex-col gap-3 border border-stone-400/15 bg-stone-900/10 p-4 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <h3 className="text-sm font-semibold text-emerald-50">
+                              참가 기록 관리
+                            </h3>
+                            <p className="mt-1 text-xs text-emerald-100/55">
+                              이 자캐를 선택한 세계관에서 제거합니다. 세계관 전용 그림도 R2와
+                              Firestore에서 함께 삭제돼요.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={deleteCharacterWorldEntry}
+                            disabled={isSaving || !activeCharacterWorldEntry}
+                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                          >
+                            참가 자캐 삭제
+                          </button>
+                        </div>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          세계관별 설정
+                          <textarea
+                            value={worldSettingsText}
+                            onChange={(event) => setWorldSettingsText(event.target.value)}
+                            placeholder="한 줄에 하나씩 입력"
+                            className="auth-input min-h-32"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={saveCharacterWorldSettings}
+                          disabled={isSaving}
+                          className="justify-self-end bg-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+                        >
+                          세계관 설정 저장
+                        </button>
+
+                        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                          {(activeCharacterWorldEntry?.images ?? []).map((image) => (
+                            <article key={image.id} className="gallery-tile">
+                              <div className="aspect-[3/2] overflow-hidden">
+                                <ThumbnailImage
+                                  image={image}
+                                  src={image.url}
+                                  alt={image.name}
+                                  className="opacity-90"
+                                />
+                              </div>
+                              <div className="p-3 text-sm">
+                                <form
+                                  className="grid gap-2"
+                                  onSubmit={(event) => {
+                                    event.preventDefault();
+                                    const formData = new FormData(event.currentTarget);
+                                    updateWorldImageInfo(image.id, {
+                                      name:
+                                        String(formData.get("name") ?? image.name).trim() ||
+                                        image.name,
+                                      category: String(formData.get("category")) as
+                                        | "illustration"
+                                        | "standing",
+                                    });
+                                  }}
+                                >
+                                  <input
+                                    name="name"
+                                    defaultValue={image.name}
+                                    className="auth-input text-xs"
+                                    placeholder="그림 이름"
+                                  />
+                                  <select
+                                    name="category"
+                                    defaultValue={image.category ?? "illustration"}
+                                    className="auth-input text-xs"
+                                  >
+                                    <option value="illustration">일러스트 / 대표 썸네일</option>
+                                    <option value="standing">스탠딩 / 표정 모음</option>
+                                  </select>
+                                  <button
+                                    type="submit"
+                                    disabled={isSaving}
+                                    className="border border-emerald-100/20 px-3 py-2 text-xs text-emerald-50 disabled:opacity-60"
+                                  >
+                                    정보 저장
+                                  </button>
+                                </form>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteWorldImage(image.id)}
+                                  disabled={isSaving}
+                                  className="mt-3 border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60"
+                                >
+                                  기록 삭제
+                                </button>
+                              </div>
+                            </article>
+                          ))}
+                          {(activeCharacterWorldEntry?.images ?? []).length === 0 && (
+                            <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/60">
+                              이 세계관에 등록된 그림이 없어요. 그림 관리에서 업로드 대상을 이
+                              세계관으로 선택해주세요.
+                            </p>
+                          )}
+                        </div>
+
+                        <form
+                          onSubmit={addWorldWork}
+                          className="grid gap-3 border border-emerald-100/10 bg-black/30 p-4"
+                        >
+                          <h3 className="text-sm font-semibold text-emerald-50">
+                            세계관 연성/로그 추가
+                          </h3>
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <input
+                              value={worldWorkDraft.title}
+                              onChange={(event) =>
+                                setWorldWorkDraft((current) => ({
+                                  ...current,
+                                  title: event.target.value,
+                                }))
+                              }
+                              placeholder="제목"
+                              className="auth-input"
+                            />
+                            <input
+                              value={worldWorkDraft.kind}
+                              onChange={(event) =>
+                                setWorldWorkDraft((current) => ({
+                                  ...current,
+                                  kind: event.target.value,
+                                }))
+                              }
+                              placeholder="종류"
+                              className="auth-input"
+                            />
+                            <input
+                              value={worldWorkDraft.date}
+                              onChange={(event) =>
+                                setWorldWorkDraft((current) => ({
+                                  ...current,
+                                  date: event.target.value,
+                                }))
+                              }
+                              placeholder="날짜"
+                              className="auth-input"
+                            />
+                          </div>
+                          <DocumentTextImport
+                            disabled={isSaving}
+                            onNotice={setNotice}
+                            onImported={({ text, suggestedTitle }) => {
+                              setWorldWorkDraft((current) => ({
+                                ...current,
+                                title: current.title.trim() || suggestedTitle,
+                                body: text,
+                              }));
+                            }}
+                          />
+                          <textarea
+                            value={worldWorkDraft.body}
+                            onChange={(event) =>
+                              setWorldWorkDraft((current) => ({
+                                ...current,
+                                body: event.target.value,
+                              }))
+                            }
+                            placeholder="세계관 연성/로그 내용"
+                            className="auth-input min-h-28"
+                          />
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            세계관 연성 첨부 사진
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(event) =>
+                                setWorldWorkImageFiles(Array.from(event.target.files ?? []))
+                              }
+                              className="auth-input"
+                            />
+                            {worldWorkImageFiles.length > 0 && (
+                              <span className="text-xs text-emerald-100/50">
+                                선택된 사진 {worldWorkImageFiles.length}장
+                              </span>
+                            )}
+                          </label>
+                          <button
+                            disabled={isSaving}
+                            className="justify-self-end bg-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+                          >
+                            세계관 연성/로그 추가
+                          </button>
+                        </form>
+
+                        <div className="grid gap-3">
+                          {(activeCharacterWorldEntry?.works ?? []).map((work, index) => (
+                            <article
+                              key={`${work.title}-${work.date}-${index}`}
+                              className="border border-emerald-100/10 bg-black/30 p-3 text-sm"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs text-emerald-100/45">
+                                    {work.kind} / {work.date}
+                                  </p>
+                                  <h3 className="mt-1 font-semibold">{work.title}</h3>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteWorldWork(index)}
+                                  disabled={isSaving}
+                                  className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60"
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                              {(work.images?.length ?? 0) > 0 && (
+                                <div className="mt-3 grid grid-cols-4 gap-2">
+                                  {work.images?.map((image) => (
+                                    <div
+                                      key={image.id}
+                                      className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
+                                    >
+                                      <ThumbnailImage
+                                        image={image}
+                                        src={image.url}
+                                        alt={image.name}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </article>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/60">
+                        먼저 세계관을 선택해주세요.
+                      </p>
+                    )}
+                  </section>
+                )}
 
               {adminPanel === "characters" && characterEditSection === "images" && (
                 <>
@@ -4217,234 +4785,372 @@ export default function AdminPage() {
                     <section className="glass-card p-5">
                       <h2 className="board-title">그림 관리</h2>
                       <p className="mt-3 border border-amber-400/25 bg-amber-950/20 p-4 text-sm leading-7 text-amber-100/90">
-                        사진을 추가하려면 먼저 <span className="font-semibold">기본 · 레코드</span> 탭에서
-                        이름을 입력하고 <span className="font-semibold">「본 페이지에 저장」</span>을 눌러주세요.
+                        사진을 추가하려면 먼저 <span className="font-semibold">기본 · 레코드</span>{" "}
+                        탭에서 이름을 입력하고{" "}
+                        <span className="font-semibold">「본 페이지에 저장」</span>을 눌러주세요.
                         저장된 뒤 다시 그림 탭으로 오면 업로드할 수 있어요.
                       </p>
                     </section>
                   ) : (
                     <section className="grid gap-6 xl:grid-cols-2">
-                  <div className="glass-card p-5">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <h2 className="board-title">그림 관리</h2>
-                        <p className="mt-2 text-xs text-emerald-100/55">파일 1개당 최대 {formatBytes(MAX_UPLOAD_SIZE)}.</p>
-                      </div>
-                      <div className="grid gap-2 md:min-w-64">
-                        <select value={imageUploadWorldId} onChange={(event) => setImageUploadWorldId(event.target.value)} className="auth-input">
-                          <option value="">기본 자료에 업로드</option>
-                          {worlds.map((world) => (
-                            <option key={world.id} value={world.id}>{world.title}</option>
-                          ))}
-                        </select>
-                        <select value={imageUploadCategory} onChange={(event) => setImageUploadCategory(event.target.value as "illustration" | "standing")} className="auth-input">
-                          <option value="illustration">일러스트 / 대표 썸네일</option>
-                          <option value="standing">스탠딩 / 표정 모음</option>
-                        </select>
-                        <label className="cursor-pointer bg-emerald-200 px-4 py-3 text-center text-sm font-semibold text-emerald-950">
-                          사진 선택
-                          <input type="file" accept="image/*" multiple disabled={isUploading} className="sr-only" onChange={selectPendingImages} />
-                        </label>
-                      </div>
-                    </div>
-                    {pendingUploads.length > 0 && (
-                      <div className="mt-4 border border-emerald-100/10 bg-black/30 p-3">
+                      <div className="glass-card p-5">
                         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                           <div>
-                            <h3 className="text-sm font-semibold text-emerald-50">선택한 사진 썸네일 설정</h3>
-                            <p className="mt-1 text-xs text-emerald-100/55">사진을 드래그해서 위치를 맞추고, 마우스 휠로 확대/축소할 수 있어요.</p>
+                            <h2 className="board-title">그림 관리</h2>
+                            <p className="mt-2 text-xs text-emerald-100/55">
+                              파일 1개당 최대 {formatBytes(MAX_UPLOAD_SIZE)}.
+                            </p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={uploadImages}
-                            disabled={isUploading}
-                            className="bg-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60"
-                          >
-                            {isUploading ? "업로드 중..." : "선택한 사진 저장"}
-                          </button>
+                          <div className="grid gap-2 md:min-w-64">
+                            <select
+                              value={imageUploadWorldId}
+                              onChange={(event) => setImageUploadWorldId(event.target.value)}
+                              className="auth-input"
+                            >
+                              <option value="">기본 자료에 업로드</option>
+                              {worlds.map((world) => (
+                                <option key={world.id} value={world.id}>
+                                  {world.title}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={imageUploadCategory}
+                              onChange={(event) =>
+                                setImageUploadCategory(
+                                  event.target.value as "illustration" | "standing",
+                                )
+                              }
+                              className="auth-input"
+                            >
+                              <option value="illustration">일러스트 / 대표 썸네일</option>
+                              <option value="standing">스탠딩 / 표정 모음</option>
+                            </select>
+                            <label className="cursor-pointer bg-emerald-200 px-4 py-3 text-center text-sm font-semibold text-emerald-950">
+                              사진 선택
+                              <input
+                                type="file"
+                                accept="image/*"
+                                multiple
+                                disabled={isUploading}
+                                className="sr-only"
+                                onChange={selectPendingImages}
+                              />
+                            </label>
+                          </div>
                         </div>
-                        <div className="mt-4 grid gap-4">
-                          {pendingUploads.map((upload) => (
-                            <article key={upload.id} className="grid gap-4 border border-emerald-100/10 bg-black/40 p-4">
-                              <div
-                                className="aspect-[3/2] cursor-move touch-none overflow-hidden border border-stone-400/25 bg-black"
-                                onPointerDown={(event) => startThumbnailDrag(upload, event)}
-                                onPointerMove={(event) => moveThumbnailDrag(upload.id, event)}
-                                onPointerUp={stopThumbnailDrag}
-                                onPointerCancel={stopThumbnailDrag}
-                                onWheel={(event) => zoomThumbnail(upload, event)}
-                                title="드래그로 위치 조정, 휠로 확대/축소"
+                        {pendingUploads.length > 0 && (
+                          <div className="mt-4 border border-emerald-100/10 bg-black/30 p-3">
+                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                              <div>
+                                <h3 className="text-sm font-semibold text-emerald-50">
+                                  선택한 사진 썸네일 설정
+                                </h3>
+                                <p className="mt-1 text-xs text-emerald-100/55">
+                                  사진을 드래그해서 위치를 맞추고, 마우스 휠로 확대/축소할 수
+                                  있어요.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={uploadImages}
+                                disabled={isUploading}
+                                className="bg-emerald-200 px-4 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60"
                               >
+                                {isUploading ? "업로드 중..." : "선택한 사진 저장"}
+                              </button>
+                            </div>
+                            <div className="mt-4 grid gap-4">
+                              {pendingUploads.map((upload) => (
+                                <article
+                                  key={upload.id}
+                                  className="grid gap-4 border border-emerald-100/10 bg-black/40 p-4"
+                                >
+                                  <div
+                                    className="aspect-[3/2] cursor-move touch-none overflow-hidden border border-stone-400/25 bg-black"
+                                    onPointerDown={(event) => startThumbnailDrag(upload, event)}
+                                    onPointerMove={(event) => moveThumbnailDrag(upload.id, event)}
+                                    onPointerUp={stopThumbnailDrag}
+                                    onPointerCancel={stopThumbnailDrag}
+                                    onWheel={(event) => zoomThumbnail(upload, event)}
+                                    title="드래그로 위치 조정, 휠로 확대/축소"
+                                  >
+                                    <ThumbnailImage
+                                      image={upload}
+                                      src={upload.previewUrl}
+                                      alt={upload.file.name}
+                                      className="opacity-90 select-none"
+                                      draggable={false}
+                                    />
+                                  </div>
+                                  <div className="grid content-start gap-4">
+                                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+                                      <label className="grid gap-2 text-sm font-semibold text-emerald-100/80">
+                                        사이트에 표시할 이름
+                                        <input
+                                          value={upload.displayName}
+                                          onChange={(event) =>
+                                            updatePendingUpload(upload.id, {
+                                              displayName: event.target.value,
+                                            })
+                                          }
+                                          placeholder="예: 신 정장 전신"
+                                          className="auth-input"
+                                        />
+                                      </label>
+                                      <button
+                                        type="button"
+                                        onClick={() => removePendingUpload(upload.id)}
+                                        className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200"
+                                      >
+                                        선택 취소
+                                      </button>
+                                    </div>
+                                    <label className="grid gap-2 text-xs text-emerald-100/70">
+                                      크기 {Math.round(upload.thumbScale * 100)}%
+                                      <input
+                                        type="range"
+                                        min="1"
+                                        max="2.5"
+                                        step="0.05"
+                                        value={upload.thumbScale}
+                                        onChange={(event) =>
+                                          updatePendingUpload(upload.id, {
+                                            thumbScale: Number(event.target.value),
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                    <label className="grid gap-2 text-xs text-emerald-100/70">
+                                      가로 위치 {upload.thumbX}%
+                                      <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        value={upload.thumbX}
+                                        onChange={(event) =>
+                                          updatePendingUpload(upload.id, {
+                                            thumbX: Number(event.target.value),
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                    <label className="grid gap-2 text-xs text-emerald-100/70">
+                                      세로 위치 {upload.thumbY}%
+                                      <input
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        value={upload.thumbY}
+                                        onChange={(event) =>
+                                          updatePendingUpload(upload.id, {
+                                            thumbY: Number(event.target.value),
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {(activeCharacter.images ?? []).map((image) => (
+                            <article key={image.id} className="gallery-tile">
+                              <div className="aspect-[3/2] overflow-hidden">
                                 <ThumbnailImage
-                                  image={upload}
-                                  src={upload.previewUrl}
-                                  alt={upload.file.name}
-                                  className="select-none opacity-90"
-                                  draggable={false}
+                                  image={image}
+                                  src={image.url}
+                                  alt={image.name}
+                                  className="opacity-90"
                                 />
                               </div>
-                              <div className="grid content-start gap-4">
-                                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                                  <label className="grid gap-2 text-sm font-semibold text-emerald-100/80">
-                                    사이트에 표시할 이름
-                                    <input
-                                      value={upload.displayName}
-                                      onChange={(event) => updatePendingUpload(upload.id, { displayName: event.target.value })}
-                                      placeholder="예: 신 정장 전신"
-                                      className="auth-input"
-                                    />
-                                  </label>
-                                  <button
-                                    type="button"
-                                    onClick={() => removePendingUpload(upload.id)}
-                                    className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200"
+                              <div className="p-3 text-sm">
+                                <form
+                                  className="grid gap-2"
+                                  onSubmit={(event) => {
+                                    event.preventDefault();
+                                    const formData = new FormData(event.currentTarget);
+                                    updateImageInfo(image.id, {
+                                      name:
+                                        String(formData.get("name") ?? image.name).trim() ||
+                                        image.name,
+                                      category: String(formData.get("category")) as
+                                        | "illustration"
+                                        | "standing",
+                                    });
+                                  }}
+                                >
+                                  <input
+                                    name="name"
+                                    defaultValue={image.name}
+                                    className="auth-input text-xs"
+                                    placeholder="그림 이름"
+                                  />
+                                  <select
+                                    name="category"
+                                    defaultValue={image.category ?? "illustration"}
+                                    className="auth-input text-xs"
                                   >
-                                    선택 취소
+                                    <option value="illustration">일러스트 / 대표 썸네일</option>
+                                    <option value="standing">스탠딩 / 표정 모음</option>
+                                  </select>
+                                  <button
+                                    type="submit"
+                                    disabled={isSaving}
+                                    className="border border-emerald-100/20 px-3 py-2 text-xs text-emerald-50 disabled:opacity-60"
+                                  >
+                                    정보 저장
                                   </button>
-                                </div>
-                                <label className="grid gap-2 text-xs text-emerald-100/70">
-                                  크기 {Math.round(upload.thumbScale * 100)}%
-                                  <input
-                                    type="range"
-                                    min="1"
-                                    max="2.5"
-                                    step="0.05"
-                                    value={upload.thumbScale}
-                                    onChange={(event) => updatePendingUpload(upload.id, { thumbScale: Number(event.target.value) })}
-                                  />
-                                </label>
-                                <label className="grid gap-2 text-xs text-emerald-100/70">
-                                  가로 위치 {upload.thumbX}%
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    step="1"
-                                    value={upload.thumbX}
-                                    onChange={(event) => updatePendingUpload(upload.id, { thumbX: Number(event.target.value) })}
-                                  />
-                                </label>
-                                <label className="grid gap-2 text-xs text-emerald-100/70">
-                                  세로 위치 {upload.thumbY}%
-                                  <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    step="1"
-                                    value={upload.thumbY}
-                                    onChange={(event) => updatePendingUpload(upload.id, { thumbY: Number(event.target.value) })}
-                                  />
-                                </label>
+                                </form>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteImage(image.id)}
+                                  disabled={isSaving}
+                                  className="mt-3 border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60"
+                                >
+                                  기록 삭제
+                                </button>
                               </div>
                             </article>
                           ))}
                         </div>
                       </div>
-                    )}
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      {(activeCharacter.images ?? []).map((image) => (
-                        <article key={image.id} className="gallery-tile">
-                          <div className="aspect-[3/2] overflow-hidden">
-                            <ThumbnailImage image={image} src={image.url} alt={image.name} className="opacity-90" />
-                          </div>
-                          <div className="p-3 text-sm">
-                            <form
-                              className="grid gap-2"
-                              onSubmit={(event) => {
-                                event.preventDefault();
-                                const formData = new FormData(event.currentTarget);
-                                updateImageInfo(image.id, {
-                                  name: String(formData.get("name") ?? image.name).trim() || image.name,
-                                  category: String(formData.get("category")) as "illustration" | "standing",
-                                });
-                              }}
-                            >
-                              <input name="name" defaultValue={image.name} className="auth-input text-xs" placeholder="그림 이름" />
-                              <select name="category" defaultValue={image.category ?? "illustration"} className="auth-input text-xs">
-                                <option value="illustration">일러스트 / 대표 썸네일</option>
-                                <option value="standing">스탠딩 / 표정 모음</option>
-                              </select>
-                              <button type="submit" disabled={isSaving} className="border border-emerald-100/20 px-3 py-2 text-xs text-emerald-50 disabled:opacity-60">
-                                정보 저장
-                              </button>
-                            </form>
-                            <button type="button" onClick={() => deleteImage(image.id)} disabled={isSaving} className="mt-3 border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60">
-                              기록 삭제
-                            </button>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
 
-                  <div className="glass-card p-5">
-                    <h2 className="board-title">글 관리</h2>
-                    <form onSubmit={addWork} className="mt-4 grid gap-3">
-                      <div className="grid gap-3 md:grid-cols-3">
-                        <input value={workDraft.title} onChange={(event) => setWorkDraft((current) => ({ ...current, title: event.target.value }))} placeholder="제목" className="auth-input" />
-                        <input value={workDraft.kind} onChange={(event) => setWorkDraft((current) => ({ ...current, kind: event.target.value }))} placeholder="종류" className="auth-input" />
-                        <input value={workDraft.date} onChange={(event) => setWorkDraft((current) => ({ ...current, date: event.target.value }))} placeholder="날짜" className="auth-input" />
-                      </div>
-                      <DocumentTextImport
-                        disabled={isSaving}
-                        onNotice={setNotice}
-                        onImported={({ text, suggestedTitle }) => {
-                          setWorkDraft((current) => ({
-                            ...current,
-                            title: current.title.trim() || suggestedTitle,
-                            body: text,
-                          }));
-                        }}
-                      />
-                      <textarea value={workDraft.body} onChange={(event) => setWorkDraft((current) => ({ ...current, body: event.target.value }))} placeholder="글/연성 내용" className="auth-input min-h-28" />
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        글 첨부 사진
-                        <input
-                          type="file"
-                          accept="image/*"
-                          multiple
-                          onChange={(event) => setWorkImageFiles(Array.from(event.target.files ?? []))}
-                          className="auth-input"
-                        />
-                        {workImageFiles.length > 0 && (
-                          <span className="text-xs text-emerald-100/50">선택된 사진 {workImageFiles.length}장</span>
-                        )}
-                      </label>
-                      <button disabled={isSaving} className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60">
-                        글 추가
-                      </button>
-                    </form>
-                    <div className="mt-4 grid gap-3">
-                      {activeCharacter.works.map((work, index) => (
-                        <article key={`${work.title}-${work.date}-${index}`} className="border border-emerald-100/10 bg-black/30 p-3 text-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-xs text-emerald-100/45">{work.kind} / {work.date}</p>
-                              <h3 className="mt-1 font-semibold">{work.title}</h3>
-                            </div>
-                            <button type="button" onClick={() => deleteWork(index)} disabled={isSaving} className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60">
-                              삭제
-                            </button>
+                      <div className="glass-card p-5">
+                        <h2 className="board-title">글 관리</h2>
+                        <form onSubmit={addWork} className="mt-4 grid gap-3">
+                          <div className="grid gap-3 md:grid-cols-3">
+                            <input
+                              value={workDraft.title}
+                              onChange={(event) =>
+                                setWorkDraft((current) => ({
+                                  ...current,
+                                  title: event.target.value,
+                                }))
+                              }
+                              placeholder="제목"
+                              className="auth-input"
+                            />
+                            <input
+                              value={workDraft.kind}
+                              onChange={(event) =>
+                                setWorkDraft((current) => ({
+                                  ...current,
+                                  kind: event.target.value,
+                                }))
+                              }
+                              placeholder="종류"
+                              className="auth-input"
+                            />
+                            <input
+                              value={workDraft.date}
+                              onChange={(event) =>
+                                setWorkDraft((current) => ({
+                                  ...current,
+                                  date: event.target.value,
+                                }))
+                              }
+                              placeholder="날짜"
+                              className="auth-input"
+                            />
                           </div>
-                          {(work.images?.length ?? 0) > 0 && (
-                            <div className="mt-3 grid grid-cols-4 gap-2">
-                              {work.images?.map((image) => (
-                                <div key={image.id} className="aspect-square overflow-hidden border border-stone-400/15 bg-black">
-                                  <ThumbnailImage image={image} src={image.url} alt={image.name} />
+                          <DocumentTextImport
+                            disabled={isSaving}
+                            onNotice={setNotice}
+                            onImported={({ text, suggestedTitle }) => {
+                              setWorkDraft((current) => ({
+                                ...current,
+                                title: current.title.trim() || suggestedTitle,
+                                body: text,
+                              }));
+                            }}
+                          />
+                          <textarea
+                            value={workDraft.body}
+                            onChange={(event) =>
+                              setWorkDraft((current) => ({ ...current, body: event.target.value }))
+                            }
+                            placeholder="글/연성 내용"
+                            className="auth-input min-h-28"
+                          />
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            글 첨부 사진
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={(event) =>
+                                setWorkImageFiles(Array.from(event.target.files ?? []))
+                              }
+                              className="auth-input"
+                            />
+                            {workImageFiles.length > 0 && (
+                              <span className="text-xs text-emerald-100/50">
+                                선택된 사진 {workImageFiles.length}장
+                              </span>
+                            )}
+                          </label>
+                          <button
+                            disabled={isSaving}
+                            className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+                          >
+                            글 추가
+                          </button>
+                        </form>
+                        <div className="mt-4 grid gap-3">
+                          {activeCharacter.works.map((work, index) => (
+                            <article
+                              key={`${work.title}-${work.date}-${index}`}
+                              className="border border-emerald-100/10 bg-black/30 p-3 text-sm"
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs text-emerald-100/45">
+                                    {work.kind} / {work.date}
+                                  </p>
+                                  <h3 className="mt-1 font-semibold">{work.title}</h3>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </article>
-                      ))}
-                    </div>
-                  </div>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteWork(index)}
+                                  disabled={isSaving}
+                                  className="border border-stone-400/30 px-3 py-2 text-xs text-stone-200 disabled:opacity-60"
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                              {(work.images?.length ?? 0) > 0 && (
+                                <div className="mt-3 grid grid-cols-4 gap-2">
+                                  {work.images?.map((image) => (
+                                    <div
+                                      key={image.id}
+                                      className="aspect-square overflow-hidden border border-stone-400/15 bg-black"
+                                    >
+                                      <ThumbnailImage
+                                        image={image}
+                                        src={image.url}
+                                        alt={image.name}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </article>
+                          ))}
+                        </div>
+                      </div>
                     </section>
                   )}
                 </>
               )}
 
-              {notice && <p className="glass-card p-4 text-sm leading-6 text-stone-200">{notice}</p>}
+              {notice && (
+                <p className="glass-card p-4 text-sm leading-6 text-stone-200">{notice}</p>
+              )}
             </section>
           </div>
         )}

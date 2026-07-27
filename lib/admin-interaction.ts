@@ -55,8 +55,22 @@ export function preserveAdminGlitchToolPointerDown(event: MouseEvent | globalThi
   event.preventDefault();
 }
 
+/** 플로팅 툴바에서 select·range 등 네이티브 컨트롤은 그대로 두고, 버튼만 선택 유지 처리 */
+export function shouldPreserveGlitchToolbarPointerDown(event: MouseEvent | globalThis.MouseEvent) {
+  const element = resolvePointerElement(event.target);
+  if (!element) {
+    return false;
+  }
+
+  return Boolean(element.closest("input, select, textarea, option"));
+}
+
 /** 플로팅 툴바 클릭 시 원본 필드의 텍스트 선택이 풀리지 않게 합니다. */
 export function preserveGlitchToolbarSourceSelection(event: MouseEvent | globalThis.MouseEvent) {
+  if (shouldPreserveGlitchToolbarPointerDown(event)) {
+    return;
+  }
+
   event.preventDefault();
 }
 
