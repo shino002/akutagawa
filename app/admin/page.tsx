@@ -25,6 +25,7 @@ import {
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminUploads } from "@/hooks/useAdminUploads";
 import { useBgmTrackAdmin } from "@/hooks/useBgmTrackAdmin";
+import { useCharacterDraft } from "@/hooks/useCharacterDraft";
 import { useDiaryAdmin } from "@/hooks/useDiaryAdmin";
 import { useExtractBannerAdmin } from "@/hooks/useExtractBannerAdmin";
 import { useGlitchFieldEditing } from "@/hooks/useGlitchFieldEditing";
@@ -81,17 +82,7 @@ import type {
   UploadedImage,
   Work,
 } from "@/lib/types";
-import {
-  characterToDraft,
-  createBlankDraft,
-  draftBasicsHaveContent,
-  draftBasicsLookEmpty,
-  draftToCharacter,
-  getLegacyRelationshipsMigrationNotice,
-  getLegacySettingsMigrationNotice,
-  mergeDraftForKindMigration,
-  type CharacterDraft,
-} from "@/lib/character-draft";
+import { characterToDraft, createBlankDraft, type CharacterDraft } from "@/lib/character-draft";
 import {
   buildGlitchFieldOptionGroups,
   countDraftGlitchFields,
@@ -138,8 +129,6 @@ import {
 import {
   CHARACTER_KINDS,
   CHARACTER_KIND_ADMIN_LABELS,
-  filterCharactersByKind,
-  filterPairLinkableCharacters,
   normalizeCharacterKind,
 } from "@/lib/character-kind";
 import { characterKindToSection } from "@/lib/zone-links";
@@ -157,10 +146,6 @@ import {
   normalizeSettingSections,
   moveSettingSection as reorderSettingSection,
 } from "@/lib/setting-sections";
-import {
-  canRecoverFromLegacyPairMembers,
-  recoverCharacterFromLegacyPairMember,
-} from "@/lib/legacy-pair-member-recovery";
 
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
 
@@ -178,10 +163,7 @@ export default function AdminPage() {
   // 로그인, 관리자 패널, 선택된 자캐/세계관, 업로드 대기 목록 등 편집 화면 상태입니다.
   const { loginDraft, setLoginDraft, authNotice, isAuthLoading, signIn, signOut, isAdmin } =
     useAdminAuth();
-  const [characters, setCharacters] = useState<Character[]>([]);
-  const [activeCharacterId, setActiveCharacterId] = useState("");
   const [activeCharacterWorldId, setActiveCharacterWorldId] = useState("");
-  const [draft, setDraft] = useState<CharacterDraft>(() => createBlankDraft());
   const [worldSettingsText, setWorldSettingsText] = useState("");
   const [worldWorkDraft, setWorldWorkDraft] = useState({
     title: "",
@@ -189,9 +171,50 @@ export default function AdminPage() {
     date: "",
     body: "",
   });
-  const [workDraft, setWorkDraft] = useState({ title: "", kind: "새 연성", date: "", body: "" });
   const [notice, setNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [characterEditSection, setCharacterEditSection] = useState<CharacterEditSection>("basics");
+  const clearPendingUploadsRef = useRef(() => {});
+  const {
+    characters,
+    charactersRef,
+    activeCharacterId,
+    setActiveCharacterId,
+    activeCharacterKind,
+    setActiveCharacterKind,
+    activeSubPageId,
+    setActiveSubPageId,
+    draft,
+    setDraft,
+    workDraft,
+    setWorkDraft,
+    activeCharacter,
+    filteredCharacters,
+    pairLinkableCharacters,
+    canRecoverLegacyPairMember,
+    kindLabel,
+    isPairDraft,
+    selectCharacterFromList,
+    startNewCharacter,
+    handleActiveKindChange,
+    reloadCharacterFromServer,
+    saveCharacter,
+    recoverLegacyPairMemberData,
+    deleteCharacter,
+  } = useCharacterDraft({
+    isAdmin,
+    onNotice: setNotice,
+    setIsSaving,
+    clearPendingUploads: () => {
+      clearPendingUploadsRef.current();
+    },
+    onCharacterNavigation: () => {
+      setCharacterEditSection("basics");
+      setActiveCharacterWorldId("");
+      setWorldSettingsText("");
+      setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
+    },
+  });
   const {
     worldWorkImageFiles,
     setWorldWorkImageFiles,
@@ -221,6 +244,7 @@ export default function AdminPage() {
       setDraft((current) => ({ ...current, palette }));
     },
   });
+  clearPendingUploadsRef.current = clearPendingUploads;
   const {
     diaryEntries,
     diaryEntriesRef,
@@ -300,9 +324,6 @@ export default function AdminPage() {
   const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>([]);
   const [guestbookReplyDrafts, setGuestbookReplyDrafts] = useState<Record<string, string>>({});
   const [adminPanel, setAdminPanel] = useState<AdminPanel>("categories");
-  const [characterEditSection, setCharacterEditSection] = useState<CharacterEditSection>("basics");
-  const [activeCharacterKind, setActiveCharacterKind] = useState<CharacterKind>("oc");
-  const [activeSubPageId, setActiveSubPageId] = useState("");
   const characterGlitch = useGlitchFieldEditing();
   const worldGlitch = useGlitchFieldEditing();
   const {
@@ -331,16 +352,7 @@ export default function AdminPage() {
   } = worldGlitch;
   const [activeCategory, setActiveCategory] = useState<AdminCategory>("home");
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
-  const charactersRef = useRef(characters);
-  charactersRef.current = characters;
 
-  const activeCharacter = useMemo(
-    () =>
-      activeCharacterId
-        ? characters.find((character) => character.id === activeCharacterId)
-        : undefined,
-    [activeCharacterId, characters],
-  );
   const glitchFieldOptionGroups = useMemo(
     () => buildGlitchFieldOptionGroups(draft, draft.textGlitch),
     [draft],
@@ -380,20 +392,6 @@ export default function AdminPage() {
     ? getWorldGlitchFieldLabel(activeWorldGlitchFieldPath)
     : null;
   const worldGlitchFieldCount = countWorldDraftGlitchFields(worldDraft);
-  const kindLabel = CHARACTER_KIND_ADMIN_LABELS[normalizeCharacterKind(draft.kind)];
-  const isPairDraft = normalizeCharacterKind(draft.kind) === "pair";
-  const filteredCharacters = useMemo(
-    () => filterCharactersByKind(characters, activeCharacterKind),
-    [activeCharacterKind, characters],
-  );
-  const pairLinkableCharacters = useMemo(
-    () => filterPairLinkableCharacters(characters),
-    [characters],
-  );
-  const canRecoverLegacyPairMember = useMemo(
-    () => (activeCharacter ? canRecoverFromLegacyPairMembers(activeCharacter) : false),
-    [activeCharacter],
-  );
   const activeCharacterWorldEntry = useMemo(
     () =>
       normalizeWorldEntries(activeCharacter?.worldEntries).find(
@@ -786,56 +784,6 @@ export default function AdminPage() {
   useEffect(() => {
     const db = getFirebaseDb();
     return onSnapshot(
-      collection(db, "characters"),
-      (snapshot) => {
-        const nextCharacters = snapshot.docs.map((characterDoc) => {
-          const data = characterDoc.data() as Character & {
-            profile?: { age?: string; height?: string; role?: string; keyword?: string };
-          };
-          const resolvedBgmUrl = resolveCharacterBgmUrl(data.bgmUrl);
-          const normalizedDetailTheme = normalizeCaseFileDetailTheme(data.detailTheme);
-          const {
-            bgmUrl: _bgmUrl,
-            profile: legacyProfile,
-            detailTheme: _detailTheme,
-            ...rest
-          } = data;
-          return {
-            ...rest,
-            id: data.id || characterDoc.id,
-            kanjiName: data.kanjiName ?? "",
-            metaFields: resolveMetaFields(data),
-            statusTags: Array.isArray(data.statusTags) ? data.statusTags : [],
-            classification: data.classification ?? "",
-            profileFields: normalizeProfileFields(data.profileFields, legacyProfile),
-            works: normalizeWorks(data.works),
-            settings: Array.isArray(data.settings) ? data.settings : [],
-            settingSections: normalizeSettingSections(data.settingSections),
-            relationships: Array.isArray(data.relationships) ? data.relationships : [],
-            relationshipEntries: normalizeRelationshipEntries(
-              data.relationshipEntries,
-              data.relationships,
-            ),
-            images: Array.isArray(data.images) ? data.images : [],
-            worldEntries: normalizeWorldEntries(data.worldEntries),
-            kind: normalizeCharacterKind(data.kind),
-            subPages: normalizeSubPages(data.subPages),
-            pairMemberIds: normalizePairMemberIds(data.pairMemberIds),
-            textGlitch: normalizeTextGlitch(data.textGlitch),
-            ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : {}),
-            ...(normalizedDetailTheme ? { detailTheme: normalizedDetailTheme } : {}),
-          };
-        });
-
-        setCharacters(nextCharacters);
-      },
-      (error) => setNotice(`Firestore 불러오기 실패: ${error.message}`),
-    );
-  }, []);
-
-  useEffect(() => {
-    const db = getFirebaseDb();
-    return onSnapshot(
       doc(db, "site", "home"),
       (snapshot) => {
         const data = snapshot.data() as Partial<HomeContent> | undefined;
@@ -1036,11 +984,6 @@ export default function AdminPage() {
         }),
         { merge: true },
       );
-      setCharacters((current) =>
-        current.map((character) =>
-          character.id === activeCharacter.id ? nextCharacter : character,
-        ),
-      );
       setActiveCharacterWorldId("");
       setWorldSettingsText("");
       setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
@@ -1053,119 +996,6 @@ export default function AdminPage() {
   }
 
   // 자캐 기본 정보와 사이트 문구, 다이어리, 방명록, 세계관 카테고리를 저장/삭제합니다.
-  async function saveCharacter(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setNotice("");
-
-    if (!isAdmin) {
-      setNotice("관리자만 저장할 수 있어요.");
-      return;
-    }
-
-    const existingCharacter = characters.find((character) => character.id === draft.id);
-    const migratedDraft = existingCharacter
-      ? mergeDraftForKindMigration(draft, existingCharacter)
-      : draft;
-    const prunedDraft: CharacterDraft = {
-      ...migratedDraft,
-      textGlitch: pruneDraftTextGlitch(migratedDraft.textGlitch, migratedDraft),
-      subPages: migratedDraft.subPages.map((subPage) => ({
-        ...subPage,
-        textGlitch: pruneSubPageTextGlitch(subPage.textGlitch, subPage),
-      })),
-    };
-    const preservedBasicsFromExisting =
-      existingCharacter &&
-      migratedDraft !== draft &&
-      draftBasicsLookEmpty(draft) &&
-      draftBasicsHaveContent(characterToDraft(existingCharacter));
-    const character = draftToCharacter(
-      prunedDraft,
-      existingCharacter?.works,
-      existingCharacter?.images,
-      normalizeWorldEntries(existingCharacter?.worldEntries),
-      existingCharacter,
-      characters,
-    );
-
-    const isPair = normalizeCharacterKind(character.kind) === "pair";
-    const resolvedName = isPair
-      ? character.name.trim() || formatPairDisplayName(character)
-      : character.name;
-
-    if (!character.id || (!isPair && !resolvedName) || (isPair && !resolvedName)) {
-      setNotice(
-        isPair
-          ? "페어 이름 또는 멤버 이름 중 하나는 꼭 입력해주세요."
-          : `${kindLabel} 이름은 꼭 입력해주세요.`,
-      );
-      return;
-    }
-
-    if (isPair && !character.name.trim()) {
-      character.name = resolvedName;
-    }
-
-    const storedGlitch = existingCharacter?.textGlitch;
-    const textGlitchPatch = buildTextGlitchFirestorePatch(character.textGlitch, storedGlitch);
-    const removedGlitchPathCount = countRemovedGlitchPaths(character.textGlitch, storedGlitch);
-    const hadGlitchDraft = Object.keys(prunedDraft.textGlitch).length > 0;
-    const hadStoredGlitch = Boolean(storedGlitch && Object.keys(storedGlitch).length > 0);
-    const resolvedBgmUrl = resolveCharacterBgmUrl(prunedDraft.bgmUrl);
-    const compactedDetailTheme = compactCaseFileDetailTheme(character.detailTheme);
-    const { textGlitch: _textGlitch, confidential, ...characterBody } = character;
-
-    try {
-      setIsSaving(true);
-      await setDoc(
-        doc(getFirebaseDb(), "characters", character.id),
-        omitUndefined({
-          ...characterBody,
-          ...textGlitchPatch,
-          ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
-          ...(confidential ? { confidential: true } : { confidential: deleteField() }),
-          ...(compactedDetailTheme
-            ? { detailTheme: compactedDetailTheme }
-            : { detailTheme: deleteField() }),
-          ...(normalizeCharacterKind(character.kind) !== "pair"
-            ? { pairMemberIds: deleteField() }
-            : {}),
-          updatedAt: serverTimestamp(),
-        }),
-        { merge: true },
-      );
-      setActiveCharacterId(character.id);
-      setActiveCharacterKind(normalizeCharacterKind(character.kind));
-      setDraft({
-        ...characterToDraft(character),
-        textGlitch: character.textGlitch ?? prunedDraft.textGlitch,
-      });
-      if (hadGlitchDraft && !character.textGlitch) {
-        setNotice(
-          "자캐는 저장됐지만, 오류 구간이 텍스트와 맞지 않아 오류 설정은 빠졌어요. 구간을 다시 지정해주세요.",
-        );
-      } else if (!character.textGlitch && hadStoredGlitch) {
-        setNotice("본 페이지에 반영되도록 저장했어요. 오류 구간은 모두 제거됐습니다.");
-      } else if (character.textGlitch && removedGlitchPathCount > 0) {
-        setNotice("본 페이지에 반영되도록 저장했어요. 제거한 오류 구간도 반영됐습니다.");
-      } else if (preservedBasicsFromExisting) {
-        setNotice(
-          `분류만 바꿨는데 카드·레코드 칸이 비어 있어서, 기존 내용을 유지한 채 「${CHARACTER_KIND_ADMIN_LABELS[normalizeCharacterKind(character.kind)]}」로 저장했어요.`,
-        );
-      } else {
-        setNotice(
-          character.textGlitch
-            ? "본 페이지에 반영되도록 저장했어요. 오류 구간도 함께 저장됐습니다."
-            : `본 페이지에 반영되도록 저장했어요. 왼쪽 「${CHARACTER_KIND_ADMIN_LABELS[normalizeCharacterKind(character.kind)]}」 목록에서 확인할 수 있어요.`,
-        );
-      }
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : `${kindLabel} 저장에 실패했어요.`);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   function addSettingSection() {
     setDraft((current) => ({
       ...current,
@@ -1204,155 +1034,6 @@ export default function AdminPage() {
       ...current,
       settingSections: reorderSettingSection(current.settingSections, id, direction),
     }));
-  }
-
-  function reloadCharacterFromServer() {
-    if (!activeCharacter) {
-      setNotice("목록에서 항목을 먼저 선택해주세요.");
-      return;
-    }
-
-    loadCharacterDraft(activeCharacter);
-    setNotice(
-      "서버에 저장된 내용을 다시 불러왔어요. 카드·레코드가 비어 보이면 이 버튼을 눌러보세요.",
-    );
-  }
-
-  async function recoverLegacyPairMemberData() {
-    if (!isAdmin) {
-      setNotice("관리자만 복구할 수 있어요.");
-      return;
-    }
-
-    if (!activeCharacter) {
-      setNotice("목록에서 항목을 먼저 선택해주세요.");
-      return;
-    }
-
-    const recovered = recoverCharacterFromLegacyPairMember(activeCharacter);
-    if (!recovered) {
-      setNotice("복구할 예전 페어 멤버 데이터가 없어요.");
-      return;
-    }
-
-    const recoveredDraft = characterToDraft(recovered);
-    const prunedDraft: CharacterDraft = {
-      ...recoveredDraft,
-      textGlitch: pruneDraftTextGlitch(recoveredDraft.textGlitch, recoveredDraft),
-      subPages: recoveredDraft.subPages.map((subPage) => ({
-        ...subPage,
-        textGlitch: pruneSubPageTextGlitch(subPage.textGlitch, subPage),
-      })),
-    };
-    const character = draftToCharacter(
-      prunedDraft,
-      recovered.works,
-      recovered.images,
-      normalizeWorldEntries(recovered.worldEntries),
-      activeCharacter,
-      characters,
-    );
-    const storedGlitch = activeCharacter.textGlitch;
-    const textGlitchPatch = buildTextGlitchFirestorePatch(character.textGlitch, storedGlitch);
-    const resolvedBgmUrl = resolveCharacterBgmUrl(prunedDraft.bgmUrl);
-    const compactedDetailTheme = compactCaseFileDetailTheme(character.detailTheme);
-    const { textGlitch: _textGlitch, confidential, ...characterBody } = character;
-
-    try {
-      setIsSaving(true);
-      await setDoc(
-        doc(getFirebaseDb(), "characters", character.id),
-        omitUndefined({
-          ...characterBody,
-          ...textGlitchPatch,
-          ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : { bgmUrl: deleteField() }),
-          ...(confidential ? { confidential: true } : { confidential: deleteField() }),
-          ...(compactedDetailTheme
-            ? { detailTheme: compactedDetailTheme }
-            : { detailTheme: deleteField() }),
-          ...(normalizeCharacterKind(character.kind) !== "pair"
-            ? { pairMemberIds: deleteField() }
-            : {}),
-          updatedAt: serverTimestamp(),
-        }),
-        { merge: true },
-      );
-      setActiveCharacterId(character.id);
-      setActiveCharacterKind(normalizeCharacterKind(character.kind));
-      setDraft({
-        ...characterToDraft(character),
-        textGlitch: character.textGlitch ?? prunedDraft.textGlitch,
-      });
-      setNotice(
-        "예전 페어 멤버 칸에 남아 있던 카드·레코드(대사, 프로필, 레코드 박스, 오류)를 복구해 저장했어요.",
-      );
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "페어 멤버 데이터 복구에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function loadCharacterDraft(character: Character) {
-    const nextDraft = characterToDraft(character);
-    setDraft(nextDraft);
-    setActiveSubPageId(nextDraft.subPages[0]?.id ?? "");
-    setActiveCharacterKind(normalizeCharacterKind(character.kind));
-    const settingsMigrationNotice = getLegacySettingsMigrationNotice(character);
-    const relationshipsMigrationNotice = getLegacyRelationshipsMigrationNotice(character);
-    if (settingsMigrationNotice) {
-      setNotice(settingsMigrationNotice);
-    } else if (relationshipsMigrationNotice) {
-      setNotice(relationshipsMigrationNotice);
-    }
-  }
-
-  function selectCharacterFromList(character: Character) {
-    setActiveCharacterId(character.id);
-    setActiveCharacterKind(normalizeCharacterKind(character.kind));
-    setCharacterEditSection("basics");
-    loadCharacterDraft(character);
-    setActiveCharacterWorldId("");
-    setWorldSettingsText("");
-    setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
-  }
-
-  function handleActiveKindChange(kind: CharacterKind) {
-    setActiveCharacterKind(kind);
-
-    if (activeCharacterId) {
-      const editingCurrent = characters.find((character) => character.id === activeCharacterId);
-      if (editingCurrent && draft.id === editingCurrent.id) {
-        return;
-      }
-    }
-
-    const current = activeCharacterId
-      ? characters.find((character) => character.id === activeCharacterId)
-      : undefined;
-
-    if (current && normalizeCharacterKind(current.kind) === kind) {
-      return;
-    }
-
-    const firstInKind = filterCharactersByKind(characters, kind)[0];
-    if (firstInKind) {
-      selectCharacterFromList(firstInKind);
-      return;
-    }
-
-    startNewCharacter(kind);
-  }
-
-  function startNewCharacter(kind: CharacterKind = activeCharacterKind) {
-    setActiveCharacterId("");
-    setActiveCharacterWorldId("");
-    setActiveSubPageId("");
-    setCharacterEditSection("basics");
-    setDraft(createBlankDraft(kind));
-    setWorkDraft({ title: "", kind: "새 연성", date: "", body: "" });
-    clearPendingUploads();
-    setNotice(`새 ${CHARACTER_KIND_ADMIN_LABELS[kind]} 정보를 입력해주세요.`);
   }
 
   async function saveHomeContent(event: FormEvent<HTMLFormElement>) {
@@ -1443,38 +1124,6 @@ export default function AdminPage() {
     }
   }
 
-  async function deleteCharacter(character: Character) {
-    if (!isAdmin) {
-      setNotice("관리자만 삭제할 수 있어요.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      const worldImages = normalizeWorldEntries(character.worldEntries).flatMap(
-        (entry) => entry.images,
-      );
-      const workImages = normalizeWorks(character.works).flatMap((work) => work.images ?? []);
-      const worldWorkImages = normalizeWorldEntries(character.worldEntries).flatMap((entry) =>
-        normalizeWorks(entry.works).flatMap((work) => work.images ?? []),
-      );
-      await deleteR2Images([
-        ...(character.images ?? []),
-        ...worldImages,
-        ...workImages,
-        ...worldWorkImages,
-      ]);
-      await deleteDoc(doc(getFirebaseDb(), "characters", character.id));
-      setActiveCharacterId("");
-      setDraft(createBlankDraft(activeCharacterKind));
-      setNotice(`${character.name} 데이터를 Cloudflare R2와 Firestore에서 삭제했어요.`);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "자캐 삭제에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   // 이미지 업로드 후 Firestore 반영. R2/대기열은 useAdminUploads가 담당합니다.
   async function uploadImages() {
     if (!activeCharacter) {
@@ -1539,11 +1188,6 @@ export default function AdminPage() {
         }),
         { merge: true },
       );
-      setCharacters((current) =>
-        current.map((character) =>
-          character.id === activeCharacter.id ? nextCharacter : character,
-        ),
-      );
       setNotice("이미지를 Cloudflare R2와 Firestore 기록에서 삭제했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "이미지 삭제에 실패했어요.");
@@ -1574,11 +1218,6 @@ export default function AdminPage() {
           updatedAt: serverTimestamp(),
         }),
         { merge: true },
-      );
-      setCharacters((current) =>
-        current.map((character) =>
-          character.id === activeCharacter.id ? nextCharacter : character,
-        ),
       );
       setNotice("그림 정보를 수정했어요.");
     } catch (error) {
@@ -1617,11 +1256,6 @@ export default function AdminPage() {
         }),
         { merge: true },
       );
-      setCharacters((current) =>
-        current.map((character) =>
-          character.id === activeCharacter.id ? nextCharacter : character,
-        ),
-      );
       setNotice("세계관 이미지를 Cloudflare R2와 Firestore 기록에서 삭제했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "세계관 이미지 삭제에 실패했어요.");
@@ -1655,11 +1289,6 @@ export default function AdminPage() {
           updatedAt: serverTimestamp(),
         }),
         { merge: true },
-      );
-      setCharacters((current) =>
-        current.map((character) =>
-          character.id === activeCharacter.id ? nextCharacter : character,
-        ),
       );
       setNotice("세계관 그림 정보를 수정했어요.");
     } catch (error) {
