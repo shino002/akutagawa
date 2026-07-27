@@ -33,11 +33,7 @@ import {
 } from "@/lib/auth-helpers";
 import { normalizeBgmTracks, resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
-import {
-  DEFAULT_CHARACTER_PALETTE,
-  extractCharacterPaletteFromImage,
-  normalizeCharacterPaletteInput,
-} from "@/lib/character-palette";
+import { extractCharacterPaletteFromImage } from "@/lib/character-palette";
 import { PaletteEditor } from "@/components/admin/PaletteEditor";
 import { compactCaseFileDetailTheme, normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { CaseFileThemeEditor } from "@/components/admin/CaseFileThemeEditor";
@@ -60,16 +56,9 @@ import { glitchFieldClass } from "@/utils/glitchFieldClass";
 import { linesToList } from "@/utils/linesToList";
 import { normalizeWorks, normalizeWorldEntries } from "@/utils/normalizers";
 import { slugifyId } from "@/utils/slugifyId";
-import {
-  createDefaultProfileFields,
-  normalizeProfileFields,
-  profileFieldsHaveContent,
-} from "@/lib/profile-fields";
+import { normalizeProfileFields } from "@/lib/profile-fields";
 import {
   normalizeRelationshipEntries,
-  relationshipEntriesHaveContent,
-  relationshipEntriesToLegacyLines,
-  resolveRelationshipEntries,
   relationshipEntryGlitchPath,
   relationshipEntryLabelGlitchPath,
   relationshipEntryNameGlitchPath,
@@ -91,10 +80,18 @@ import type {
   Work,
   World,
 } from "@/lib/types";
-import type { CharacterDraft } from "@/lib/character-draft";
 import {
-  compactDraftTextGlitch,
-  compactSubPageTextGlitch,
+  characterToDraft,
+  createBlankDraft,
+  draftBasicsHaveContent,
+  draftBasicsLookEmpty,
+  draftToCharacter,
+  getLegacyRelationshipsMigrationNotice,
+  getLegacySettingsMigrationNotice,
+  mergeDraftForKindMigration,
+  type CharacterDraft,
+} from "@/lib/character-draft";
+import {
   buildGlitchFieldOptionGroups,
   countDraftGlitchFields,
   getCharacterDraftFieldValue,
@@ -119,13 +116,7 @@ import {
   CharacterEditSectionNav,
   type CharacterEditSection,
 } from "@/components/admin/CharacterEditSectionNav";
-import {
-  metaFieldGlitchPath,
-  metaFieldsHaveContent,
-  migrateLegacyMetaFieldGlitch,
-  normalizeMetaFields,
-  resolveMetaFields,
-} from "@/lib/meta-fields";
+import { metaFieldGlitchPath, resolveMetaFields } from "@/lib/meta-fields";
 import { characterFirestorePayload, omitUndefined } from "@/lib/firestore-helpers";
 import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
 import {
@@ -151,16 +142,8 @@ import {
   normalizeCharacterKind,
 } from "@/lib/character-kind";
 import { characterKindToSection } from "@/lib/zone-links";
-import {
-  compactSubPageForStorage,
-  listNavigableSubPages,
-  normalizeSubPages,
-} from "@/lib/sub-pages";
-import {
-  formatPairDisplayName,
-  normalizePairMemberIds,
-  resolvePairMemberIds,
-} from "@/lib/pair-members";
+import { listNavigableSubPages, normalizeSubPages } from "@/lib/sub-pages";
+import { formatPairDisplayName, normalizePairMemberIds } from "@/lib/pair-members";
 import {
   buildWorldGlitchFieldOptions,
   compactWorldDraftTextGlitch,
@@ -177,7 +160,6 @@ import {
 import {
   normalizeSettingSections,
   moveSettingSection as reorderSettingSection,
-  resolveDraftSettingSections,
 } from "@/lib/setting-sections";
 import {
   canRecoverFromLegacyPairMembers,
@@ -216,207 +198,6 @@ const emptyHomeContent: HomeContent = {
   body: "",
   notice: "",
 };
-
-function characterToDraft(character: Character): CharacterDraft {
-  const { settingSections } = resolveDraftSettingSections(
-    character.settingSections,
-    character.settings,
-  );
-  const { relationshipEntries } = resolveRelationshipEntries(
-    character.relationshipEntries,
-    character.relationships,
-  );
-
-  return {
-    id: character.id,
-    kind: normalizeCharacterKind(character.kind),
-    name: character.name,
-    kanjiName: character.kanjiName ?? "",
-    metaFields: resolveMetaFields(character),
-    subtitle: character.subtitle,
-    quote: character.quote,
-    palette: character.palette,
-    detailTheme: character.detailTheme,
-    profileFields: character.profileFields,
-    settingSections,
-    relationshipEntries,
-    textGlitch: migrateLegacyMetaFieldGlitch(
-      normalizeTextGlitch(character.textGlitch),
-      resolveMetaFields(character),
-    ),
-    subPages: normalizeSubPages(character.subPages),
-    pairMemberIds: resolvePairMemberIds(character),
-    bgmUrl: character.bgmUrl ?? "",
-    confidential: Boolean(character.confidential),
-  };
-}
-
-function getLegacyRelationshipsMigrationNotice(character: Character) {
-  const resolved = resolveRelationshipEntries(
-    character.relationshipEntries,
-    character.relationships,
-  );
-  return resolved.migratedFromLegacy
-    ? "예전 관계 목록을 관계 카드로 불러왔어요. 아래 내용을 확인한 뒤 「본 페이지에 저장」을 눌러주세요."
-    : null;
-}
-
-function getLegacySettingsMigrationNotice(character: Character) {
-  const resolved = resolveDraftSettingSections(character.settingSections, character.settings);
-  return resolved.migratedFromLegacy
-    ? "예전 상세 설정을 레코드 박스로 불러왔어요. 아래 내용을 확인한 뒤 「본 페이지에 저장」을 눌러주세요."
-    : null;
-}
-
-function draftBasicsLookEmpty(draft: CharacterDraft) {
-  return (
-    !draft.quote.trim() &&
-    !draft.subtitle.trim() &&
-    !profileFieldsHaveContent(draft.profileFields) &&
-    !draft.kanjiName.trim() &&
-    !metaFieldsHaveContent(draft.metaFields) &&
-    !relationshipEntriesHaveContent(draft.relationshipEntries) &&
-    normalizeSettingSections(draft.settingSections).length === 0
-  );
-}
-
-function draftBasicsHaveContent(draft: CharacterDraft) {
-  return !draftBasicsLookEmpty(draft);
-}
-
-/** 분류만 바꾸다 빈 폼이 저장되며 카드·레코드가 지워지는 실수를 막습니다. */
-function mergeDraftForKindMigration(draft: CharacterDraft, existing: Character): CharacterDraft {
-  const existingDraft = characterToDraft(existing);
-  const kindChanged = normalizeCharacterKind(draft.kind) !== normalizeCharacterKind(existing.kind);
-
-  if (!kindChanged || !draftBasicsLookEmpty(draft) || !draftBasicsHaveContent(existingDraft)) {
-    return draft;
-  }
-
-  return {
-    ...existingDraft,
-    kind: draft.kind,
-    id: draft.id.trim() || existingDraft.id,
-    name: draft.name.trim() || existingDraft.name,
-    pairMemberIds: draft.kind === "pair" ? existingDraft.pairMemberIds : ["", ""],
-    textGlitch:
-      Object.keys(draft.textGlitch).length > 0 ? draft.textGlitch : existingDraft.textGlitch,
-    subPages: draft.subPages.length > 0 ? draft.subPages : existingDraft.subPages,
-    bgmUrl: draft.bgmUrl.trim() ? draft.bgmUrl : existingDraft.bgmUrl,
-  };
-}
-
-// Firestore 문서와 관리자 입력 폼 사이를 오가는 변환 함수들입니다.
-function createBlankDraft(kind: CharacterKind = "oc"): CharacterDraft {
-  return {
-    id: "",
-    kind,
-    name: "",
-    kanjiName: "",
-    metaFields: [],
-    subtitle: "",
-    quote: "",
-    palette: DEFAULT_CHARACTER_PALETTE,
-    profileFields: createDefaultProfileFields(),
-    settingSections: [],
-    relationshipEntries: [],
-    textGlitch: {},
-    subPages: [],
-    pairMemberIds: ["", ""],
-    bgmUrl: "",
-    confidential: false,
-  };
-}
-
-function draftToCharacter(
-  draft: CharacterDraft,
-  currentWorks: Work[] = [],
-  currentImages: UploadedImage[] = [],
-  currentWorldEntries: CharacterWorldEntry[] = [],
-  existingCharacter?: Character,
-  allCharacters: Character[] = [],
-): Character {
-  const name = draft.name.trim();
-  const id = slugifyId(draft.id || name);
-  const kind = normalizeCharacterKind(draft.kind);
-
-  const textGlitch = compactDraftTextGlitch(draft.textGlitch, draft);
-  const bgmUrl = resolveCharacterBgmUrl(draft.bgmUrl);
-
-  const characterBase: Character = {
-    id,
-    kind,
-    name,
-    kanjiName: draft.kanjiName.trim(),
-    metaFields: normalizeMetaFields(draft.metaFields),
-    subtitle: draft.subtitle.trim(),
-    quote: draft.quote.trim(),
-    palette: normalizeCharacterPaletteInput(draft.palette),
-    profileFields: draft.profileFields.map((field) => ({
-      id: field.id,
-      label: field.label.trim(),
-      value: field.value.trim(),
-    })),
-    settings: [],
-    settingSections: normalizeSettingSections(draft.settingSections),
-    relationships: relationshipEntriesToLegacyLines(draft.relationshipEntries),
-    relationshipEntries: normalizeRelationshipEntries(draft.relationshipEntries),
-    images: currentImages,
-    works: currentWorks,
-    worldEntries: currentWorldEntries,
-    subPages: normalizeSubPages(draft.subPages).map((subPage) => {
-      const compacted = compactSubPageForStorage(subPage);
-      const subPageGlitch = compactSubPageTextGlitch(compacted);
-      const subPageBgmUrl = resolveCharacterBgmUrl(compacted.bgmUrl);
-      const nextSubPage = {
-        ...compacted,
-        relationshipEntries: normalizeRelationshipEntries(
-          compacted.relationshipEntries,
-          compacted.relationships,
-        ),
-        relationships: relationshipEntriesToLegacyLines(
-          normalizeRelationshipEntries(compacted.relationshipEntries, compacted.relationships),
-        ),
-        ...(compactCaseFileDetailTheme(compacted.detailTheme)
-          ? { detailTheme: compactCaseFileDetailTheme(compacted.detailTheme) }
-          : {}),
-        ...(subPageBgmUrl ? { bgmUrl: subPageBgmUrl } : {}),
-      };
-      return subPageGlitch ? { ...nextSubPage, textGlitch: subPageGlitch } : nextSubPage;
-    }),
-  };
-
-  if (kind === "pair") {
-    const pairMemberIds = normalizePairMemberIds(draft.pairMemberIds);
-    const pairCharacter: Character = {
-      ...characterBase,
-      name: name || formatPairDisplayName({ ...characterBase, pairMemberIds }, allCharacters),
-      pairMemberIds,
-    };
-
-    return {
-      ...pairCharacter,
-      ...(bgmUrl ? { bgmUrl } : {}),
-      ...(draft.confidential ? { confidential: true } : {}),
-      ...(textGlitch ? { textGlitch } : {}),
-      ...(compactCaseFileDetailTheme(draft.detailTheme)
-        ? { detailTheme: compactCaseFileDetailTheme(draft.detailTheme) }
-        : {}),
-    };
-  }
-
-  const character: Character = {
-    ...characterBase,
-    ...(bgmUrl ? { bgmUrl } : {}),
-    ...(draft.confidential ? { confidential: true } : {}),
-    ...(textGlitch ? { textGlitch } : {}),
-    ...(compactCaseFileDetailTheme(draft.detailTheme)
-      ? { detailTheme: compactCaseFileDetailTheme(draft.detailTheme) }
-      : {}),
-  };
-
-  return character;
-}
 
 function createBlankDiaryEntry(): DiaryEntry {
   return {
