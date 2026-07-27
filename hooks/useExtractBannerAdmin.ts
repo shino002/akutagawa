@@ -1,8 +1,18 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useExtractContent } from "@/hooks/useExtractContent";
+import { createAdminDraftStore } from "@/lib/admin-draft-store";
 import { getFirebaseDb } from "@/lib/firebase";
 import {
   createBlankExtractBannerDraft,
@@ -14,65 +24,120 @@ import { deleteR2Images } from "@/lib/r2-upload-client";
 import type { PersonalHomeBanner, UploadedImage } from "@/lib/types";
 import { slugifyId } from "@/utils/slugifyId";
 
+type ExtractBannerAdminState = {
+  activeId: string;
+  draft: ExtractBannerDraft;
+  imageFile: File | null;
+  isSaving: boolean;
+  notice: string;
+};
+
+const extractBannerStore = createAdminDraftStore<ExtractBannerAdminState>({
+  activeId: "",
+  draft: createBlankExtractBannerDraft(),
+  imageFile: null,
+  isSaving: false,
+  notice: "",
+});
+
+/**
+ * 업로드 훅 등 외부에서 배너 admin notice 스토어에 메시지를 넣습니다.
+ */
+export const setExtractBannerAdminNotice = (message: string) => {
+  extractBannerStore.setState((current) => ({ ...current, notice: message }));
+};
+
 type UseExtractBannerAdminOptions = {
-  isAdmin: boolean;
-  onNotice: (message: string) => void;
-  setIsSaving: (value: boolean) => void;
+  isAdmin?: boolean;
+  onNotice?: (message: string) => void;
+  setIsSaving?: (value: boolean) => void;
   /**
-   * useAdminUploads.uploadSingleImage 를 넘깁니다.
+   * useAdminUploads.uploadSingleImage 를 넘깁니다. 저장 시에만 필요합니다.
    */
-  uploadSingleImage: (file: File, characterId: string) => Promise<UploadedImage>;
+  uploadSingleImage?: (file: File, characterId: string) => Promise<UploadedImage>;
 };
 
 /**
  * 관리자 갠홈 배너 편집 상태입니다.
- * 목록 읽기는 useExtractContent 싱글톤을 재사용합니다.
+ * 목록 읽기는 useExtractContent 싱글톤을 재사용하고,
+ * activeId/draft/imageFile/isSaving/notice 는 createAdminDraftStore 로 공유합니다.
  */
-export const useExtractBannerAdmin = ({
-  isAdmin,
-  onNotice,
-  setIsSaving,
-  uploadSingleImage,
-}: UseExtractBannerAdminOptions) => {
+export const useExtractBannerAdmin = (options: UseExtractBannerAdminOptions = {}) => {
+  const { isAdmin: authIsAdmin } = useAdminAuth();
+  const isAdmin = options.isAdmin ?? authIsAdmin;
   const { content, error: extractError } = useExtractContent();
   const extractBanners = content.banners;
-  const [activeExtractBannerId, setActiveExtractBannerId] = useState("");
-  const [extractBannerDraft, setExtractBannerDraft] = useState<ExtractBannerDraft>(() =>
-    createBlankExtractBannerDraft(),
+  const state = useSyncExternalStore(
+    extractBannerStore.subscribe,
+    extractBannerStore.getSnapshot,
+    extractBannerStore.getSnapshot,
   );
-  const [extractBannerImageFile, setExtractBannerImageFile] = useState<File | null>(null);
   const extractBannersRef = useRef(extractBanners);
-  extractBannersRef.current = extractBanners;
+  useEffect(() => {
+    extractBannersRef.current = extractBanners;
+  }, [extractBanners]);
+
+  const emitNotice = (message: string) => {
+    extractBannerStore.setState((current) => ({ ...current, notice: message }));
+    options.onNotice?.(message);
+  };
+
+  const setSaving = (value: boolean) => {
+    extractBannerStore.setState((current) => ({ ...current, isSaving: value }));
+    options.setIsSaving?.(value);
+  };
 
   useEffect(() => {
-    if (extractError) {
-      onNotice(extractError);
-    }
-  }, [extractError, onNotice]);
-
-  useEffect(() => {
-    setActiveExtractBannerId((current) => {
-      if (current) return current;
-      const firstBanner = extractBanners[0];
-      if (firstBanner) {
-        setExtractBannerDraft(extractBannerDraftFromBanner(firstBanner));
-        return firstBanner.id;
-      }
-      return "";
+    const current = extractBannerStore.getSnapshot();
+    if (current.activeId) return;
+    const firstBanner = extractBanners[0];
+    if (!firstBanner) return;
+    extractBannerStore.setState({
+      ...current,
+      activeId: firstBanner.id,
+      draft: extractBannerDraftFromBanner(firstBanner),
     });
   }, [extractBanners]);
 
+  const setActiveExtractBannerId: Dispatch<SetStateAction<string>> = (updater) => {
+    extractBannerStore.setState((current) => ({
+      ...current,
+      activeId: typeof updater === "function" ? updater(current.activeId) : updater,
+    }));
+  };
+
+  const setExtractBannerDraft: Dispatch<SetStateAction<ExtractBannerDraft>> = (updater) => {
+    extractBannerStore.setState((current) => ({
+      ...current,
+      draft: typeof updater === "function" ? updater(current.draft) : updater,
+    }));
+  };
+
+  const setExtractBannerImageFile: Dispatch<SetStateAction<File | null>> = (updater) => {
+    extractBannerStore.setState((current) => ({
+      ...current,
+      imageFile: typeof updater === "function" ? updater(current.imageFile) : updater,
+    }));
+  };
+
   const startNewExtractBanner = () => {
-    setActiveExtractBannerId("");
-    setExtractBannerDraft(createBlankExtractBannerDraft());
-    setExtractBannerImageFile(null);
-    onNotice("새 갠홈 배너를 추가해주세요.");
+    extractBannerStore.setState((current) => ({
+      ...current,
+      activeId: "",
+      draft: createBlankExtractBannerDraft(),
+      imageFile: null,
+      notice: "새 갠홈 배너를 추가해주세요.",
+    }));
+    options.onNotice?.("새 갠홈 배너를 추가해주세요.");
   };
 
   const selectExtractBanner = (banner: PersonalHomeBanner) => {
-    setActiveExtractBannerId(banner.id);
-    setExtractBannerDraft(extractBannerDraftFromBanner(banner));
-    setExtractBannerImageFile(null);
+    extractBannerStore.setState((current) => ({
+      ...current,
+      activeId: banner.id,
+      draft: extractBannerDraftFromBanner(banner),
+      imageFile: null,
+    }));
   };
 
   const handleExtractBannerImageChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -83,7 +148,7 @@ export const useExtractBannerAdmin = ({
     }
 
     if (!file.type.startsWith("image/")) {
-      onNotice("이미지 파일만 업로드할 수 있어요.");
+      emitNotice("이미지 파일만 업로드할 수 있어요.");
       return;
     }
 
@@ -105,33 +170,37 @@ export const useExtractBannerAdmin = ({
     event.preventDefault();
 
     if (!isAdmin) {
-      onNotice("관리자만 갠홈 배너를 저장할 수 있어요.");
+      emitNotice("관리자만 갠홈 배너를 저장할 수 있어요.");
       return;
     }
 
-    const label = extractBannerDraft.label.trim();
-    const linkUrl = extractBannerDraft.linkUrl.trim();
+    const label = state.draft.label.trim();
+    const linkUrl = state.draft.linkUrl.trim();
 
     if (!isAllowedBannerLinkUrl(linkUrl)) {
-      onNotice(
+      emitNotice(
         "http:// 또는 https:// 로 시작하는 링크, 또는 / 로 시작하는 내부 경로를 입력해주세요.",
       );
       return;
     }
 
     try {
-      setIsSaving(true);
-      let image = extractBannerDraft.image;
-      if (extractBannerImageFile) {
-        image = await uploadSingleImage(extractBannerImageFile, "site-extract");
+      setSaving(true);
+      let image = state.draft.image;
+      if (state.imageFile) {
+        if (!options.uploadSingleImage) {
+          emitNotice("이미지 업로드 준비가 되지 않았어요.");
+          return;
+        }
+        image = await options.uploadSingleImage(state.imageFile, "site-extract");
       }
 
       if (!image) {
-        onNotice("배너 이미지를 업로드해주세요.");
+        emitNotice("배너 이미지를 업로드해주세요.");
         return;
       }
 
-      const id = slugifyId(extractBannerDraft.id || label || image.id) || crypto.randomUUID();
+      const id = slugifyId(state.draft.id || label || image.id) || crypto.randomUUID();
       const nextBanner: PersonalHomeBanner = {
         id,
         label,
@@ -143,53 +212,64 @@ export const useExtractBannerAdmin = ({
         : [...extractBanners, nextBanner];
 
       await persistExtractBanners(nextBanners);
-      setActiveExtractBannerId(id);
-      setExtractBannerDraft(extractBannerDraftFromBanner(nextBanner));
-      setExtractBannerImageFile(null);
-      onNotice("갠홈 배너를 저장했어요.");
+      extractBannerStore.setState((current) => ({
+        ...current,
+        activeId: id,
+        draft: extractBannerDraftFromBanner(nextBanner),
+        imageFile: null,
+        notice: "갠홈 배너를 저장했어요.",
+      }));
+      options.onNotice?.("갠홈 배너를 저장했어요.");
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "갠홈 배너 저장에 실패했어요.");
+      emitNotice(error instanceof Error ? error.message : "갠홈 배너 저장에 실패했어요.");
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
   const deleteExtractBanner = async (banner: PersonalHomeBanner) => {
     if (!isAdmin) {
-      onNotice("관리자만 갠홈 배너를 삭제할 수 있어요.");
+      emitNotice("관리자만 갠홈 배너를 삭제할 수 있어요.");
       return;
     }
 
     if (!banner.id) {
-      onNotice("삭제할 배너를 찾지 못했어요.");
+      emitNotice("삭제할 배너를 찾지 못했어요.");
       return;
     }
 
     try {
-      setIsSaving(true);
+      setSaving(true);
       await deleteR2Images([banner.image]);
       const nextBanners = extractBanners.filter((entry) => entry.id !== banner.id);
       await persistExtractBanners(nextBanners);
-      setActiveExtractBannerId("");
-      setExtractBannerDraft(createBlankExtractBannerDraft());
-      setExtractBannerImageFile(null);
-      onNotice("갠홈 배너를 삭제했어요.");
+      extractBannerStore.setState((current) => ({
+        ...current,
+        activeId: "",
+        draft: createBlankExtractBannerDraft(),
+        imageFile: null,
+        notice: "갠홈 배너를 삭제했어요.",
+      }));
+      options.onNotice?.("갠홈 배너를 삭제했어요.");
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "갠홈 배너 삭제에 실패했어요.");
+      emitNotice(error instanceof Error ? error.message : "갠홈 배너 삭제에 실패했어요.");
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
   return {
     extractBanners,
     extractBannersRef,
-    activeExtractBannerId,
+    activeExtractBannerId: state.activeId,
     setActiveExtractBannerId,
-    extractBannerDraft,
+    extractBannerDraft: state.draft,
     setExtractBannerDraft,
-    extractBannerImageFile,
+    extractBannerImageFile: state.imageFile,
     setExtractBannerImageFile,
+    isSaving: state.isSaving,
+    notice: extractError || state.notice,
+    setNotice: emitNotice,
     startNewExtractBanner,
     selectExtractBanner,
     handleExtractBannerImageChange,

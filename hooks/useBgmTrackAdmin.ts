@@ -1,67 +1,130 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import {
+  type ChangeEvent,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { MAX_AUDIO_UPLOAD_SIZE } from "@/constants/upload";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import {
   bgmTrackDraftFromTrack,
   createBlankBgmTrackDraft,
   type BgmTrackDraft,
 } from "@/lib/bgm-catalog";
+import { createAdminDraftStore } from "@/lib/admin-draft-store";
 import { getFirebaseDb } from "@/lib/firebase";
 import type { BgmTrack } from "@/lib/types";
 import { slugifyId } from "@/utils/slugifyId";
 
+type BgmTrackAdminState = {
+  activeId: string;
+  draft: BgmTrackDraft;
+  audioFile: File | null;
+  isSaving: boolean;
+  notice: string;
+};
+
+const bgmTrackStore = createAdminDraftStore<BgmTrackAdminState>({
+  activeId: "",
+  draft: createBlankBgmTrackDraft(),
+  audioFile: null,
+  isSaving: false,
+  notice: "",
+});
+
 type UseBgmTrackAdminOptions = {
-  isAdmin: boolean;
-  onNotice: (message: string) => void;
-  setIsSaving: (value: boolean) => void;
+  isAdmin?: boolean;
+  onNotice?: (message: string) => void;
+  setIsSaving?: (value: boolean) => void;
 };
 
 /**
  * 관리자 BGM 트랙 편집 상태입니다.
- * 목록 읽기는 useBgmCatalog(읽기 전용 싱글톤)를 재사용하고, draft만 로컬로 둡니다.
+ * 목록 읽기는 useBgmCatalog 싱글톤을 재사용하고,
+ * activeId/draft/audioFile/isSaving/notice 는 createAdminDraftStore 로 공유합니다.
  */
-export const useBgmTrackAdmin = ({ isAdmin, onNotice, setIsSaving }: UseBgmTrackAdminOptions) => {
+export const useBgmTrackAdmin = (options: UseBgmTrackAdminOptions = {}) => {
+  const { isAdmin: authIsAdmin } = useAdminAuth();
+  const isAdmin = options.isAdmin ?? authIsAdmin;
   const { tracks: bgmTracks, error: bgmError } = useBgmCatalog();
-  const [activeBgmTrackId, setActiveBgmTrackId] = useState("");
-  const [bgmTrackDraft, setBgmTrackDraft] = useState<BgmTrackDraft>(() =>
-    createBlankBgmTrackDraft(),
+  const state = useSyncExternalStore(
+    bgmTrackStore.subscribe,
+    bgmTrackStore.getSnapshot,
+    bgmTrackStore.getSnapshot,
   );
-  const [bgmAudioFile, setBgmAudioFile] = useState<File | null>(null);
   const bgmTracksRef = useRef(bgmTracks);
-  bgmTracksRef.current = bgmTracks;
+  useEffect(() => {
+    bgmTracksRef.current = bgmTracks;
+  }, [bgmTracks]);
+
+  const emitNotice = (message: string) => {
+    bgmTrackStore.setState((current) => ({ ...current, notice: message }));
+    options.onNotice?.(message);
+  };
+
+  const setSaving = (value: boolean) => {
+    bgmTrackStore.setState((current) => ({ ...current, isSaving: value }));
+    options.setIsSaving?.(value);
+  };
 
   useEffect(() => {
-    if (bgmError) {
-      onNotice(bgmError);
-    }
-  }, [bgmError, onNotice]);
-
-  useEffect(() => {
-    setActiveBgmTrackId((current) => {
-      if (current) return current;
-      const firstTrack = bgmTracks[0];
-      if (firstTrack) {
-        setBgmTrackDraft(bgmTrackDraftFromTrack(firstTrack));
-        return firstTrack.id;
-      }
-      return "";
+    const current = bgmTrackStore.getSnapshot();
+    if (current.activeId) return;
+    const firstTrack = bgmTracks[0];
+    if (!firstTrack) return;
+    bgmTrackStore.setState({
+      ...current,
+      activeId: firstTrack.id,
+      draft: bgmTrackDraftFromTrack(firstTrack),
     });
   }, [bgmTracks]);
 
+  const setActiveBgmTrackId: Dispatch<SetStateAction<string>> = (updater) => {
+    bgmTrackStore.setState((current) => ({
+      ...current,
+      activeId: typeof updater === "function" ? updater(current.activeId) : updater,
+    }));
+  };
+
+  const setBgmTrackDraft: Dispatch<SetStateAction<BgmTrackDraft>> = (updater) => {
+    bgmTrackStore.setState((current) => ({
+      ...current,
+      draft: typeof updater === "function" ? updater(current.draft) : updater,
+    }));
+  };
+
+  const setBgmAudioFile: Dispatch<SetStateAction<File | null>> = (updater) => {
+    bgmTrackStore.setState((current) => ({
+      ...current,
+      audioFile: typeof updater === "function" ? updater(current.audioFile) : updater,
+    }));
+  };
+
   const startNewBgmTrack = () => {
-    setActiveBgmTrackId("");
-    setBgmTrackDraft(createBlankBgmTrackDraft());
-    setBgmAudioFile(null);
-    onNotice("새 BGM을 추가해주세요.");
+    bgmTrackStore.setState((current) => ({
+      ...current,
+      activeId: "",
+      draft: createBlankBgmTrackDraft(),
+      audioFile: null,
+      notice: "새 BGM을 추가해주세요.",
+    }));
+    options.onNotice?.("새 BGM을 추가해주세요.");
   };
 
   const selectBgmTrack = (track: BgmTrack) => {
-    setActiveBgmTrackId(track.id);
-    setBgmTrackDraft(bgmTrackDraftFromTrack(track));
-    setBgmAudioFile(null);
+    bgmTrackStore.setState((current) => ({
+      ...current,
+      activeId: track.id,
+      draft: bgmTrackDraftFromTrack(track),
+      audioFile: null,
+    }));
   };
 
   const uploadBgmAudio = async (file: File, displayName = "") => {
@@ -104,66 +167,70 @@ export const useBgmTrackAdmin = ({ isAdmin, onNotice, setIsSaving }: UseBgmTrack
     event.preventDefault();
 
     if (!isAdmin) {
-      onNotice("관리자만 BGM을 저장할 수 있어요.");
+      emitNotice("관리자만 BGM을 저장할 수 있어요.");
       return;
     }
 
-    const label = bgmTrackDraft.label.trim();
+    const label = state.draft.label.trim();
 
     if (!label) {
-      onNotice("BGM 이름을 입력해주세요.");
+      emitNotice("BGM 이름을 입력해주세요.");
       return;
     }
 
     try {
-      setIsSaving(true);
-      let url = bgmTrackDraft.url.trim();
+      setSaving(true);
+      let url = state.draft.url.trim();
 
-      if (bgmAudioFile) {
-        url = await uploadBgmAudio(bgmAudioFile, label);
+      if (state.audioFile) {
+        url = await uploadBgmAudio(state.audioFile, label);
       }
 
       if (!url) {
-        onNotice("BGM 파일을 업로드해주세요.");
+        emitNotice("BGM 파일을 업로드해주세요.");
         return;
       }
 
-      const id = slugifyId(bgmTrackDraft.id || label) || crypto.randomUUID();
+      const id = slugifyId(state.draft.id || label) || crypto.randomUUID();
       const nextTrack: BgmTrack = {
         id,
         label,
         url,
-        scope: bgmTrackDraft.scope,
+        scope: state.draft.scope,
       };
       const nextTracks = bgmTracks.some((track) => track.id === id)
         ? bgmTracks.map((track) => (track.id === id ? nextTrack : track))
         : [...bgmTracks, nextTrack];
 
       await persistBgmTracks(nextTracks);
-      setActiveBgmTrackId(id);
-      setBgmTrackDraft(bgmTrackDraftFromTrack(nextTrack));
-      setBgmAudioFile(null);
-      onNotice("BGM을 저장했어요.");
+      bgmTrackStore.setState((current) => ({
+        ...current,
+        activeId: id,
+        draft: bgmTrackDraftFromTrack(nextTrack),
+        audioFile: null,
+        notice: "BGM을 저장했어요.",
+      }));
+      options.onNotice?.("BGM을 저장했어요.");
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "BGM 저장에 실패했어요.");
+      emitNotice(error instanceof Error ? error.message : "BGM 저장에 실패했어요.");
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
   const deleteBgmTrack = async (track: BgmTrack) => {
     if (!isAdmin) {
-      onNotice("관리자만 BGM을 삭제할 수 있어요.");
+      emitNotice("관리자만 BGM을 삭제할 수 있어요.");
       return;
     }
 
     if (!track.id) {
-      onNotice("삭제할 BGM을 찾지 못했어요.");
+      emitNotice("삭제할 BGM을 찾지 못했어요.");
       return;
     }
 
     try {
-      setIsSaving(true);
+      setSaving(true);
       if (track.url.startsWith("http")) {
         const response = await fetch("/api/r2-delete", {
           method: "POST",
@@ -178,14 +245,18 @@ export const useBgmTrackAdmin = ({ isAdmin, onNotice, setIsSaving }: UseBgmTrack
 
       const nextTracks = bgmTracks.filter((entry) => entry.id !== track.id);
       await persistBgmTracks(nextTracks);
-      setActiveBgmTrackId("");
-      setBgmTrackDraft(createBlankBgmTrackDraft());
-      setBgmAudioFile(null);
-      onNotice("BGM을 삭제했어요.");
+      bgmTrackStore.setState((current) => ({
+        ...current,
+        activeId: "",
+        draft: createBlankBgmTrackDraft(),
+        audioFile: null,
+        notice: "BGM을 삭제했어요.",
+      }));
+      options.onNotice?.("BGM을 삭제했어요.");
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : "BGM 삭제에 실패했어요.");
+      emitNotice(error instanceof Error ? error.message : "BGM 삭제에 실패했어요.");
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
   };
 
@@ -197,12 +268,12 @@ export const useBgmTrackAdmin = ({ isAdmin, onNotice, setIsSaving }: UseBgmTrack
     }
 
     if (!/\.(mp3|mpeg|ogg|wav|m4a|aac)$/i.test(file.name) && !file.type.startsWith("audio/")) {
-      onNotice("mp3, ogg, wav, m4a, aac 오디오만 업로드할 수 있어요.");
+      emitNotice("mp3, ogg, wav, m4a, aac 오디오만 업로드할 수 있어요.");
       return;
     }
 
     setBgmAudioFile(file);
-    if (!bgmTrackDraft.label.trim()) {
+    if (!state.draft.label.trim()) {
       setBgmTrackDraft((current) => ({
         ...current,
         label: file.name.replace(/\.[^/.]+$/, ""),
@@ -227,19 +298,21 @@ export const useBgmTrackAdmin = ({ isAdmin, onNotice, setIsSaving }: UseBgmTrack
         : [...bgmTracks, nextTrack];
 
     await persistBgmTracks(nextTracks);
-    onNotice(`「${label}」을(를) 캐릭터 BGM으로 추가했어요.`);
+    emitNotice(`「${label}」을(를) 캐릭터 BGM으로 추가했어요.`);
     return url;
   };
 
   return {
     bgmTracks,
     bgmTracksRef,
-    activeBgmTrackId,
+    activeBgmTrackId: state.activeId,
     setActiveBgmTrackId,
-    bgmTrackDraft,
+    bgmTrackDraft: state.draft,
     setBgmTrackDraft,
-    bgmAudioFile,
+    bgmAudioFile: state.audioFile,
     setBgmAudioFile,
+    isSaving: state.isSaving,
+    notice: bgmError || state.notice,
     startNewBgmTrack,
     selectBgmTrack,
     saveBgmTrack,
