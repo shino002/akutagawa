@@ -15,7 +15,6 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from "firebase/auth";
 import {
   collection,
   deleteDoc,
@@ -25,12 +24,7 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
-import {
-  ADMIN_AUTH_EMAIL,
-  friendlyAuthError,
-  resolveLoginEmail,
-  validateLoginId,
-} from "@/lib/auth-helpers";
+import { useAdminAuth } from "@/hooks/useAdminAuth";
 import {
   bgmTrackDraftFromTrack,
   createBlankBgmTrackDraft,
@@ -39,7 +33,7 @@ import {
   type BgmTrackDraft,
 } from "@/lib/bgm-catalog";
 import { createBlankDiaryEntry } from "@/lib/diary-draft";
-import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import { getFirebaseDb } from "@/lib/firebase";
 import { extractCharacterPaletteFromImage } from "@/lib/character-palette";
 import { PaletteEditor } from "@/components/admin/PaletteEditor";
 import { compactCaseFileDetailTheme, normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
@@ -215,10 +209,8 @@ const emptyHomeContent: HomeContent = {
 
 export default function AdminPage() {
   // 로그인, 관리자 패널, 선택된 자캐/세계관, 업로드 대기 목록 등 편집 화면 상태입니다.
-  const [authUser, setAuthUser] = useState<User | null>(null);
-  const [loginDraft, setLoginDraft] = useState({ loginId: "", password: "" });
-  const [authNotice, setAuthNotice] = useState("");
-  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const { loginDraft, setLoginDraft, authNotice, isAuthLoading, signIn, signOut, isAdmin } =
+    useAdminAuth();
   const [characters, setCharacters] = useState<Character[]>([]);
   const [worlds, setWorlds] = useState<World[]>([]);
   const [activeCharacterId, setActiveCharacterId] = useState("");
@@ -301,7 +293,6 @@ export default function AdminPage() {
   const worldsRef = useRef(worlds);
   worldsRef.current = worlds;
 
-  const isAdmin = authUser?.email === ADMIN_AUTH_EMAIL;
   const activeCharacter = useMemo(
     () =>
       activeCharacterId
@@ -486,11 +477,6 @@ export default function AdminPage() {
   });
 
   // Auth, 썸네일 드래그, Firestore 컬렉션 구독을 담당하는 효과들입니다.
-  useEffect(() => {
-    const auth = getFirebaseAuth();
-    return onAuthStateChanged(auth, (user) => setAuthUser(user));
-  }, []);
-
   useEffect(() => {
     if (!thumbnailDrag) return;
 
@@ -1013,38 +999,6 @@ export default function AdminPage() {
   }, []);
 
   // 관리자 로그인과 자캐/세계관 선택처럼 폼 저장 전의 화면 조작을 처리합니다.
-  async function submitLogin(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setAuthNotice("");
-
-    const loginIdError = validateLoginId(loginDraft.loginId);
-
-    if (loginIdError) {
-      setAuthNotice(loginIdError);
-      return;
-    }
-
-    if (!loginDraft.password) {
-      setAuthNotice("아이디와 비밀번호를 입력해주세요.");
-      return;
-    }
-
-    try {
-      setIsAuthLoading(true);
-      await signInWithEmailAndPassword(
-        getFirebaseAuth(),
-        resolveLoginEmail(loginDraft.loginId),
-        loginDraft.password,
-      );
-      setLoginDraft({ loginId: "", password: "" });
-      setAuthNotice("로그인 완료.");
-    } catch (error) {
-      setAuthNotice(friendlyAuthError(error));
-    } finally {
-      setIsAuthLoading(false);
-    }
-  }
-
   function selectCharacterWorld(worldId: string) {
     const entry = normalizeWorldEntries(activeCharacter?.worldEntries).find(
       (worldEntry) => worldEntry.worldId === worldId,
@@ -2583,7 +2537,7 @@ export default function AdminPage() {
         {!isAdmin ? (
           <section className="glass-card max-w-xl p-6">
             <h2 className="board-title">관리자 로그인</h2>
-            <form onSubmit={submitLogin} className="mt-5 grid gap-3">
+            <form onSubmit={signIn} className="mt-5 grid gap-3">
               <input
                 value={loginDraft.loginId}
                 onChange={(event) =>
@@ -2896,7 +2850,9 @@ export default function AdminPage() {
               )}
               <button
                 type="button"
-                onClick={() => signOut(getFirebaseAuth())}
+                onClick={() => {
+                  void signOut();
+                }}
                 className="mt-5 w-full border border-emerald-100/20 px-4 py-3 text-sm text-emerald-50"
               >
                 로그아웃
