@@ -24,6 +24,7 @@ import {
 } from "firebase/firestore";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminUploads } from "@/hooks/useAdminUploads";
+import { useDiaryAdmin } from "@/hooks/useDiaryAdmin";
 import { useGlitchFieldEditing } from "@/hooks/useGlitchFieldEditing";
 import {
   bgmTrackDraftFromTrack,
@@ -32,7 +33,6 @@ import {
   resolveCharacterBgmUrl,
   type BgmTrackDraft,
 } from "@/lib/bgm-catalog";
-import { createBlankDiaryEntry } from "@/lib/diary-draft";
 import { getFirebaseDb } from "@/lib/firebase";
 import { extractCharacterPaletteFromImage } from "@/lib/character-palette";
 import { PaletteEditor } from "@/components/admin/PaletteEditor";
@@ -77,7 +77,6 @@ import type {
   Character,
   CharacterKind,
   CharacterWorldEntry,
-  DiaryEntry,
   ExtractContent,
   GuestbookEntry,
   HomeContent,
@@ -236,13 +235,26 @@ export default function AdminPage() {
       setDraft((current) => ({ ...current, palette }));
     },
   });
+  const {
+    diaryEntries,
+    diaryEntriesRef,
+    activeDiaryId,
+    setActiveDiaryId,
+    diaryDraft,
+    setDiaryDraft,
+    startNewDiaryEntry,
+    selectDiaryEntry,
+    saveDiaryEntry,
+    deleteDiaryEntry,
+  } = useDiaryAdmin({
+    isAdmin,
+    onNotice: setNotice,
+    setIsSaving,
+  });
   const [homeContent, setHomeContent] = useState<HomeContent>(emptyHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
-  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>([]);
   const [guestbookReplyDrafts, setGuestbookReplyDrafts] = useState<Record<string, string>>({});
-  const [activeDiaryId, setActiveDiaryId] = useState("");
-  const [diaryDraft, setDiaryDraft] = useState<DiaryEntry>(() => createBlankDiaryEntry());
   const [extractBanners, setExtractBanners] = useState<PersonalHomeBanner[]>([]);
   const [activeExtractBannerId, setActiveExtractBannerId] = useState("");
   const [extractBannerDraft, setExtractBannerDraft] = useState<ExtractBannerDraft>(() =>
@@ -289,8 +301,6 @@ export default function AdminPage() {
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
   const charactersRef = useRef(characters);
   charactersRef.current = characters;
-  const diaryEntriesRef = useRef(diaryEntries);
-  diaryEntriesRef.current = diaryEntries;
   const extractBannersRef = useRef(extractBanners);
   extractBannersRef.current = extractBanners;
   const bgmTracksRef = useRef(bgmTracks);
@@ -366,82 +376,87 @@ export default function AdminPage() {
     [activeCharacter, activeCharacterWorldId],
   );
 
-  const applyAdminHistoryState = useCallback((snapshot: AdminHistoryState) => {
-    setAdminPanel(snapshot.panel);
-    setActiveCategory(snapshot.category);
-    setActiveCharacterKind(snapshot.characterKind);
-    setCharacterEditSection(snapshot.editSection);
-    setActiveDiaryId(snapshot.diaryId);
-    setActiveExtractBannerId(snapshot.extractBannerId);
-    setActiveBgmTrackId(snapshot.bgmTrackId);
-    setActiveWorldId(snapshot.worldId);
-    resetCharacterGlitch();
-    resetWorldGlitch();
+  const applyAdminHistoryState = useCallback(
+    (snapshot: AdminHistoryState) => {
+      setAdminPanel(snapshot.panel);
+      setActiveCategory(snapshot.category);
+      setActiveCharacterKind(snapshot.characterKind);
+      setCharacterEditSection(snapshot.editSection);
+      setActiveDiaryId(snapshot.diaryId);
+      setActiveExtractBannerId(snapshot.extractBannerId);
+      setActiveBgmTrackId(snapshot.bgmTrackId);
+      setActiveWorldId(snapshot.worldId);
+      resetCharacterGlitch();
+      resetWorldGlitch();
 
-    if (snapshot.characterId) {
-      const character = charactersRef.current.find((entry) => entry.id === snapshot.characterId);
-      setActiveCharacterId(snapshot.characterId);
-      if (character) {
-        const nextDraft = characterToDraft(character);
-        setDraft(nextDraft);
-        setActiveSubPageId(snapshot.subPageId || nextDraft.subPages[0]?.id || "");
-        setActiveCharacterKind(normalizeCharacterKind(character.kind));
+      if (snapshot.characterId) {
+        const character = charactersRef.current.find((entry) => entry.id === snapshot.characterId);
+        setActiveCharacterId(snapshot.characterId);
+        if (character) {
+          const nextDraft = characterToDraft(character);
+          setDraft(nextDraft);
+          setActiveSubPageId(snapshot.subPageId || nextDraft.subPages[0]?.id || "");
+          setActiveCharacterKind(normalizeCharacterKind(character.kind));
+        } else {
+          setActiveSubPageId(snapshot.subPageId);
+        }
       } else {
+        setActiveCharacterId("");
         setActiveSubPageId(snapshot.subPageId);
+        if (snapshot.panel === "characters") {
+          setDraft(createBlankDraft(snapshot.characterKind));
+        }
       }
-    } else {
-      setActiveCharacterId("");
-      setActiveSubPageId(snapshot.subPageId);
-      if (snapshot.panel === "characters") {
-        setDraft(createBlankDraft(snapshot.characterKind));
-      }
-    }
 
-    if (snapshot.diaryId) {
-      const entry = diaryEntriesRef.current.find((item) => item.id === snapshot.diaryId);
-      if (entry) {
-        setDiaryDraft(entry);
+      if (snapshot.diaryId) {
+        const entry = diaryEntriesRef.current.find((item) => item.id === snapshot.diaryId);
+        if (entry) {
+          setDiaryDraft(entry);
+        }
       }
-    }
 
-    if (snapshot.extractBannerId) {
-      const banner = extractBannersRef.current.find((item) => item.id === snapshot.extractBannerId);
-      if (banner) {
-        setExtractBannerDraft(extractBannerDraftFromBanner(banner));
+      if (snapshot.extractBannerId) {
+        const banner = extractBannersRef.current.find(
+          (item) => item.id === snapshot.extractBannerId,
+        );
+        if (banner) {
+          setExtractBannerDraft(extractBannerDraftFromBanner(banner));
+        }
       }
-    }
 
-    if (snapshot.bgmTrackId) {
-      const track = bgmTracksRef.current.find((item) => item.id === snapshot.bgmTrackId);
-      if (track) {
-        setBgmTrackDraft(bgmTrackDraftFromTrack(track));
+      if (snapshot.bgmTrackId) {
+        const track = bgmTracksRef.current.find((item) => item.id === snapshot.bgmTrackId);
+        if (track) {
+          setBgmTrackDraft(bgmTrackDraftFromTrack(track));
+        }
       }
-    }
 
-    if (snapshot.worldId) {
-      const world = worldsRef.current.find((item) => item.id === snapshot.worldId);
-      if (world) {
-        setWorldDraft(worldToDraft(world));
+      if (snapshot.worldId) {
+        const world = worldsRef.current.find((item) => item.id === snapshot.worldId);
+        if (world) {
+          setWorldDraft(worldToDraft(world));
+        }
       }
-    }
 
-    if (snapshot.characterWorldId && snapshot.characterId) {
-      const character = charactersRef.current.find((entry) => entry.id === snapshot.characterId);
-      const worldEntry = character
-        ? normalizeWorldEntries(character.worldEntries).find(
-            (entry) => entry.worldId === snapshot.characterWorldId,
-          )
-        : undefined;
-      setActiveCharacterWorldId(snapshot.characterWorldId);
-      setWorldSettingsText(worldEntry?.settings.join("\n") ?? "");
-      setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
-    } else {
-      setActiveCharacterWorldId(snapshot.characterWorldId);
-      if (!snapshot.characterWorldId) {
-        setWorldSettingsText("");
+      if (snapshot.characterWorldId && snapshot.characterId) {
+        const character = charactersRef.current.find((entry) => entry.id === snapshot.characterId);
+        const worldEntry = character
+          ? normalizeWorldEntries(character.worldEntries).find(
+              (entry) => entry.worldId === snapshot.characterWorldId,
+            )
+          : undefined;
+        setActiveCharacterWorldId(snapshot.characterWorldId);
+        setWorldSettingsText(worldEntry?.settings.join("\n") ?? "");
+        setWorldWorkDraft({ title: "", kind: "세계관 연성", date: "", body: "" });
+      } else {
+        setActiveCharacterWorldId(snapshot.characterWorldId);
+        if (!snapshot.characterWorldId) {
+          setWorldSettingsText("");
+        }
       }
-    }
-  }, [resetCharacterGlitch, resetWorldGlitch]);
+    },
+    [resetCharacterGlitch, resetWorldGlitch],
+  );
 
   const adminHistoryState = useMemo(
     () =>
@@ -897,37 +912,6 @@ export default function AdminPage() {
         });
       },
       (error) => setNotice(`BGM 목록 불러오기 실패: ${error.message}`),
-    );
-  }, []);
-
-  useEffect(() => {
-    const db = getFirebaseDb();
-    return onSnapshot(
-      collection(db, "diaryEntries"),
-      (snapshot) => {
-        const nextEntries = snapshot.docs
-          .map((diaryDoc) => {
-            const data = diaryDoc.data() as Partial<DiaryEntry>;
-            return {
-              id: data.id || diaryDoc.id,
-              title: data.title || "",
-              date: data.date || "",
-              body: data.body || "",
-            };
-          })
-          .sort((a, b) => b.date.localeCompare(a.date));
-
-        setDiaryEntries(nextEntries);
-        setActiveDiaryId((current) => {
-          if (current) return current;
-          const firstEntry = nextEntries[0];
-          if (firstEntry) {
-            setDiaryDraft(firstEntry);
-          }
-          return firstEntry?.id || "";
-        });
-      },
-      (error) => setNotice(`다이어리 불러오기 실패: ${error.message}`),
     );
   }, []);
 
@@ -1454,78 +1438,6 @@ export default function AdminPage() {
       setNotice("카테고리 문구를 저장했어요.");
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "홈 문구 저장에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function startNewDiaryEntry() {
-    setActiveDiaryId("");
-    setDiaryDraft(createBlankDiaryEntry());
-    setNotice("새 일기를 작성해주세요.");
-  }
-
-  async function saveDiaryEntry(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!isAdmin) {
-      setNotice("관리자만 일기를 저장할 수 있어요.");
-      return;
-    }
-
-    const title = diaryDraft.title.trim();
-    const date = diaryDraft.date.trim();
-    const body = diaryDraft.body.trim();
-
-    if (!title || !body) {
-      setNotice("일기 제목과 내용을 입력해주세요.");
-      return;
-    }
-
-    const id = slugifyId(diaryDraft.id || `${date}-${title}`) || crypto.randomUUID();
-
-    try {
-      setIsSaving(true);
-      await setDoc(
-        doc(getFirebaseDb(), "diaryEntries", id),
-        {
-          id,
-          title,
-          date: date || new Date().toISOString().slice(0, 10),
-          body,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
-      setActiveDiaryId(id);
-      setDiaryDraft({ id, title, date: date || new Date().toISOString().slice(0, 10), body });
-      setNotice("일기를 저장했어요.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "일기 저장에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function deleteDiaryEntry(entry: DiaryEntry) {
-    if (!isAdmin) {
-      setNotice("관리자만 일기를 삭제할 수 있어요.");
-      return;
-    }
-
-    if (!entry.id) {
-      setNotice("삭제할 일기를 찾지 못했어요.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      await deleteDoc(doc(getFirebaseDb(), "diaryEntries", entry.id));
-      setActiveDiaryId("");
-      setDiaryDraft(createBlankDiaryEntry());
-      setNotice("일기를 삭제했어요.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "일기 삭제에 실패했어요.");
     } finally {
       setIsSaving(false);
     }
@@ -2455,8 +2367,7 @@ export default function AdminPage() {
                             key={entry.id}
                             type="button"
                             onClick={() => {
-                              setActiveDiaryId(entry.id);
-                              setDiaryDraft(entry);
+                              selectDiaryEntry(entry);
                             }}
                             className={`border p-3 text-left text-sm ${
                               activeDiaryId === entry.id
