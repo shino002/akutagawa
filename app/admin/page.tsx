@@ -55,7 +55,11 @@ import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import { createAdminHistoryState } from "@/lib/admin-history";
 import type { AdminCategory, AdminHistoryState, AdminPanel } from "@/types/admin.types";
 import { defaultArchiveContent } from "@/constants/home";
+import { formatBytes } from "@/utils/formatBytes";
+import { glitchFieldClass } from "@/utils/glitchFieldClass";
+import { linesToList } from "@/utils/linesToList";
 import { normalizeWorks, normalizeWorldEntries } from "@/utils/normalizers";
+import { slugifyId } from "@/utils/slugifyId";
 import {
   createDefaultProfileFields,
   normalizeProfileFields,
@@ -212,34 +216,6 @@ const emptyHomeContent: HomeContent = {
   body: "",
   notice: "",
 };
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes}B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}KB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
-}
-
-function glitchFieldClass(path: string, activePath: string | null, baseClass = "auth-input") {
-  return activePath === path
-    ? `${baseClass} border-amber-300/50 ring-1 ring-amber-300/40`
-    : baseClass;
-}
-
-function slugifyId(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9가-힣_-]/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-function linesToList(value: string) {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
 
 function characterToDraft(character: Character): CharacterDraft {
   const { settingSections } = resolveDraftSettingSections(
