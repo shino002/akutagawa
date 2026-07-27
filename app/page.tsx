@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import "dayjs/locale/ko";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
@@ -30,6 +30,7 @@ import { useGuestbook } from "@/hooks/useGuestbook";
 import { useHomeModals } from "@/hooks/useHomeModals";
 import { useWorldUnlock } from "@/hooks/useWorldUnlock";
 import { useAppHistoryNavigation } from "@/hooks/useAppHistoryNavigation";
+import { useSectionTransition } from "@/hooks/useSectionTransition";
 import { createAppHistoryState } from "@/lib/app-history";
 import {
   defaultArchiveContent,
@@ -45,8 +46,14 @@ import type { CharacterKind } from "@/lib/types";
 import type { ZoneLinkTarget } from "@/lib/types";
 import { resolveSubPage, subPageToDisplayCharacter } from "@/lib/sub-pages";
 import { characterSectionForId, type CharacterDetailSection } from "@/lib/zone-links";
+import { cn } from "@/utils/cn";
 
 dayjs.locale("ko");
+
+const SECTION_IDS = new Set<string>(["home", "archive", "worlds", "diary", "guest", "extract"]);
+
+const asSectionId = (value: string): SectionId =>
+  SECTION_IDS.has(value) ? (value as SectionId) : "home";
 
 export default function Home() {
   const [activeSection, setActiveSection] = useState<SectionId>("home");
@@ -57,12 +64,14 @@ export default function Home() {
   const [activeSubPageId, setActiveSubPageId] = useState("");
   const [activeTab, setActiveTab] = useState<CharacterDetailTab>("settings");
   const [menuOpen, setMenuOpen] = useState(true);
+  const isBackRef = useRef(false);
 
   useEffect(() => {
     if (!window.matchMedia("(min-width: 768px)").matches) {
       setMenuOpen(false);
     }
   }, []);
+
   const [authNotice, setAuthNotice] = useState("");
   const [guestDraft, setGuestDraft] = useState({ name: "", body: "" });
   const [pendingConfidential, setPendingConfidential] = useState<{
@@ -121,6 +130,10 @@ export default function Home() {
     guestbookError;
   const displayedNotice = authNotice || subscriptionError || "";
 
+  const markBackNavigation = useCallback(() => {
+    isBackRef.current = true;
+  }, []);
+
   const applyAppHistoryState = useCallback((snapshot: AppHistoryState) => {
     setActiveSection(snapshot.section);
     setActiveArchiveSub(snapshot.archiveSub);
@@ -134,6 +147,17 @@ export default function Home() {
     }
   }, []);
 
+  /**
+   * browser history 복원 전용 — applyState 진입 전에 뒤로가기 방향을 표시합니다.
+   * (초기 URL hydrate 는 onBackNavigate 없이 applyState 만 호출합니다)
+   */
+  const applyHistoryRestore = useCallback(
+    (snapshot: AppHistoryState) => {
+      isBackRef.current = true;
+      applyAppHistoryState(snapshot);
+    },
+    [applyAppHistoryState],
+  );
   const appHistoryState = useMemo(
     () =>
       createAppHistoryState({
@@ -159,8 +183,21 @@ export default function Home() {
   const { canGoBack, goBack } = useAppHistoryNavigation({
     state: appHistoryState,
     applyState: applyAppHistoryState,
+    applyHistoryRestore,
+    onBackNavigate: markBackNavigation,
   });
 
+  const transitionKey = `${activeSection}|${activeCharacterId}|${activeSubPageId}`;
+  const turn = useSectionTransition({ key: transitionKey, isBackRef });
+
+  const displayedSection = asSectionId(turn.displayedSection);
+  const displayedCharacterId = turn.displayedCharacterId;
+  const displayedSubPageId = turn.displayedSubPageId;
+
+  const displayedCharacterParent =
+    displayedSection === "archive"
+      ? characters.find((character) => character.id === displayedCharacterId)
+      : undefined;
   const openCharacterDirect = useCallback(
     (
       characterId: string,
@@ -309,11 +346,11 @@ export default function Home() {
       allCharacters={characters}
       sectionIndexTitle={sectionIndexTitle}
       emptyListMessage={emptyListMessage}
-      activeCharacterId={activeCharacterId}
+      activeCharacterId={displayedCharacterId}
       setActiveCharacterId={handleSelectCharacter}
-      activeSubPageId={activeSubPageId}
+      activeSubPageId={displayedSubPageId}
       setActiveSubPageId={setActiveSubPageId}
-      parentCharacter={activeCharacterParent}
+      parentCharacter={displayedCharacterParent}
       detailSection={sectionId}
       onNavigateToLinkedCharacter={navigateToLinkedCharacter}
       onZoneLinkNavigate={navigateToZoneLink}
@@ -407,69 +444,71 @@ export default function Home() {
       />
 
       <section className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1500px] flex-col gap-4 px-5 pt-5 pb-12 md:px-8 md:pl-64 xl:grid xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="space-y-4">
-          {activeSection === "home" && <HomeSection homeContent={homeContent} />}
+        <div className="page-stage space-y-4">
+          <div className={cn("page-sheet", turn.className)}>
+            {displayedSection === "home" && <HomeSection homeContent={homeContent} />}
 
-          {activeSection === "archive" &&
-            activeArchiveSub === "characters" &&
-            renderArchiveSection(
-              "oc",
-              "characters",
-              "OC Files",
-              "아직 등록된 자캐가 없어요. 관리자 로그인 후 OC에서 첫 카드를 추가해주세요.",
+            {displayedSection === "archive" &&
+              activeArchiveSub === "characters" &&
+              renderArchiveSection(
+                "oc",
+                "characters",
+                "OC Files",
+                "아직 등록된 자캐가 없어요. 관리자 로그인 후 OC에서 첫 카드를 추가해주세요.",
+              )}
+
+            {displayedSection === "archive" &&
+              activeArchiveSub === "pairs" &&
+              renderArchiveSection(
+                "pair",
+                "pairs",
+                "Pair Files",
+                "아직 등록된 페어가 없어요. 관리자 로그인 후 Pair에서 첫 카드를 추가해주세요.",
+              )}
+
+            {displayedSection === "archive" &&
+              activeArchiveSub === "others" &&
+              renderArchiveSection(
+                "other",
+                "others",
+                "Another Files",
+                "아직 등록된 어나더 항목이 없어요. 관리자 로그인 후 어나더에서 첫 카드를 추가해주세요.",
+              )}
+
+            {displayedSection === "worlds" && (
+              <WorldsSection
+                worlds={worlds}
+                activeWorldId={effectiveActiveWorldId}
+                setActiveWorldId={setActiveWorldId}
+                characters={characters}
+                worldPasswordDrafts={worldUnlock.worldPasswordDrafts}
+                onWorldPasswordChange={handleWorldPasswordChange}
+                unlockedWorldIds={worldUnlock.unlockedWorldIds}
+                canUnlockWorlds={Boolean(auth.authUser)}
+                onUnlockWorld={handleUnlockActiveWorld}
+                onRequireAuth={openAuthForWorldUnlock}
+                onViewParticipant={viewParticipantInCharacterTab}
+                onOpenGallery={modals.openGalleryModal}
+                onOpenExpression={modals.setExpressionModalItem}
+                onOpenReader={modals.setReaderModalItem}
+                onZoneLinkNavigate={navigateToZoneLink}
+              />
             )}
 
-          {activeSection === "archive" &&
-            activeArchiveSub === "pairs" &&
-            renderArchiveSection(
-              "pair",
-              "pairs",
-              "Pair Files",
-              "아직 등록된 페어가 없어요. 관리자 로그인 후 Pair에서 첫 카드를 추가해주세요.",
+            {displayedSection === "diary" && <DiarySection entries={diaryEntries} />}
+
+            {displayedSection === "guest" && (
+              <GuestSection
+                guestbook={guestbook}
+                guestDraft={guestDraft}
+                onDraftChange={setGuestDraft}
+                authUser={auth.authUser}
+                onSubmit={submitGuest}
+              />
             )}
 
-          {activeSection === "archive" &&
-            activeArchiveSub === "others" &&
-            renderArchiveSection(
-              "other",
-              "others",
-              "Another Files",
-              "아직 등록된 어나더 항목이 없어요. 관리자 로그인 후 어나더에서 첫 카드를 추가해주세요.",
-            )}
-
-          {activeSection === "worlds" && (
-            <WorldsSection
-              worlds={worlds}
-              activeWorldId={effectiveActiveWorldId}
-              setActiveWorldId={setActiveWorldId}
-              characters={characters}
-              worldPasswordDrafts={worldUnlock.worldPasswordDrafts}
-              onWorldPasswordChange={handleWorldPasswordChange}
-              unlockedWorldIds={worldUnlock.unlockedWorldIds}
-              canUnlockWorlds={Boolean(auth.authUser)}
-              onUnlockWorld={handleUnlockActiveWorld}
-              onRequireAuth={openAuthForWorldUnlock}
-              onViewParticipant={viewParticipantInCharacterTab}
-              onOpenGallery={modals.openGalleryModal}
-              onOpenExpression={modals.setExpressionModalItem}
-              onOpenReader={modals.setReaderModalItem}
-              onZoneLinkNavigate={navigateToZoneLink}
-            />
-          )}
-
-          {activeSection === "diary" && <DiarySection entries={diaryEntries} />}
-
-          {activeSection === "guest" && (
-            <GuestSection
-              guestbook={guestbook}
-              guestDraft={guestDraft}
-              onDraftChange={setGuestDraft}
-              authUser={auth.authUser}
-              onSubmit={submitGuest}
-            />
-          )}
-
-          {activeSection === "extract" && <ExtractSection banners={extractContent.banners} />}
+            {displayedSection === "extract" && <ExtractSection banners={extractContent.banners} />}
+          </div>
         </div>
 
         <aside className="space-y-3">

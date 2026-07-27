@@ -1,0 +1,184 @@
+/* components/page-turn.css — 서류 넘김 전환 (full / soft / slide) */
+:root {
+  --turn-full: 300ms;
+  --turn-soft: 150ms;
+  --turn-slide: 130ms;
+}
+
+.page-stage {
+  perspective: 1400px;
+  perspective-origin: 0% 50%;
+}
+
+.page-sheet {
+  transform-origin: left center;
+  backface-visibility: hidden;
+}
+
+.page-sheet.is-turning {
+  will-change: transform, opacity;
+}
+
+/* 전체 넘김 */
+@keyframes page-full-out {
+  to {
+    transform: rotateY(-92deg);
+  }
+}
+
+@keyframes page-full-in {
+  from {
+    transform: rotateY(88deg);
+  }
+  to {
+    transform: rotateY(0);
+  }
+}
+
+/* 살짝 넘김 */
+@keyframes page-soft-out {
+  to {
+    transform: rotateY(-13deg) translateX(-8px);
+    opacity: 0;
+  }
+}
+
+@keyframes page-soft-in {
+  from {
+    transform: rotateY(11deg) translateX(10px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* 문서 교체 */
+@keyframes page-slide-out {
+  to {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+}
+
+@keyframes page-slide-in {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* 뒤로가기 — rotateY 부호만 반전 */
+@keyframes page-full-out-back {
+  to {
+    transform: rotateY(92deg);
+  }
+}
+
+@keyframes page-full-in-back {
+  from {
+    transform: rotateY(-88deg);
+  }
+  to {
+    transform: rotateY(0);
+  }
+}
+
+@keyframes page-soft-out-back {
+  to {
+    transform: rotateY(13deg) translateX(8px);
+    opacity: 0;
+  }
+}
+
+@keyframes page-soft-in-back {
+  from {
+    transform: rotateY(-11deg) translateX(-10px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes page-slide-out-back {
+  to {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+
+@keyframes page-slide-in-back {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.turn-full-out {
+  animation: page-full-out var(--turn-full) cubic-bezier(0.4, 0, 0.9, 0.5) forwards;
+}
+
+.turn-full-in {
+  animation: page-full-in var(--turn-full) cubic-bezier(0.1, 0.5, 0.6, 1) forwards;
+}
+
+.turn-soft-out {
+  animation: page-soft-out var(--turn-soft) ease-in forwards;
+}
+
+.turn-soft-in {
+  animation: page-soft-in 190ms cubic-bezier(0.1, 0.6, 0.4, 1) forwards;
+}
+
+.turn-slide-out {
+  animation: page-slide-out var(--turn-slide) ease-in forwards;
+}
+
+.turn-slide-in {
+  animation: page-slide-in 170ms ease-out forwards;
+}
+
+.turn-full-out-back {
+  animation: page-full-out-back var(--turn-full) cubic-bezier(0.4, 0, 0.9, 0.5) forwards;
+}
+
+.turn-full-in-back {
+  animation: page-full-in-back var(--turn-full) cubic-bezier(0.1, 0.5, 0.6, 1) forwards;
+}
+
+.turn-soft-out-back {
+  animation: page-soft-out-back var(--turn-soft) ease-in forwards;
+}
+
+.turn-soft-in-back {
+  animation: page-soft-in-back 190ms cubic-bezier(0.1, 0.6, 0.4, 1) forwards;
+}
+
+.turn-slide-out-back {
+  animation: page-slide-out-back var(--turn-slide) ease-in forwards;
+}
+
+.turn-slide-in-back {
+  animation: page-slide-in-back 170ms ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-stage {
+    perspective: none;
+  }
+
+  .page-sheet[class*="turn-"] {
+    animation: none !important;
+  }
+}
