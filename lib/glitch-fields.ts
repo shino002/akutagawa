@@ -1,7 +1,7 @@
 import { normalizeCharacterPaletteInput } from "@/lib/character-palette";
 import type { Character, CharacterSubPage } from "@/lib/types";
 import type { FieldGlitchConfig, GlitchZone } from "@/lib/types";
-import type { CharacterDraft } from "@/lib/character-draft";
+import type { CharacterDraft } from "@/types/character-draft.types";
 import {
   getMetaFieldBody,
   metaFieldGlitchPath,

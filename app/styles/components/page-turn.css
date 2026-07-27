@@ -1,8 +1,9 @@
 /* components/page-turn.css — 서류 넘김 전환 (full / soft / slide) */
 :root {
-  --turn-full: 300ms;
-  --turn-soft: 150ms;
-  --turn-slide: 130ms;
+  /* 결정: 전체 넘김 600 / 살짝 넘김 340 / 문서 교체 300 */
+  --turn-full: 600ms;
+  --turn-soft: 340ms;
+  --turn-slide: 300ms;
 }
 
 .page-stage {
@@ -138,7 +139,7 @@
 }
 
 .turn-soft-in {
-  animation: page-soft-in 190ms cubic-bezier(0.1, 0.6, 0.4, 1) forwards;
+  animation: page-soft-in var(--turn-soft) cubic-bezier(0.1, 0.6, 0.4, 1) forwards;
 }
 
 .turn-slide-out {
@@ -146,7 +147,7 @@
 }
 
 .turn-slide-in {
-  animation: page-slide-in 170ms ease-out forwards;
+  animation: page-slide-in var(--turn-slide) ease-out forwards;
 }
 
 .turn-full-out-back {
@@ -162,7 +163,7 @@
 }
 
 .turn-soft-in-back {
-  animation: page-soft-in-back 190ms cubic-bezier(0.1, 0.6, 0.4, 1) forwards;
+  animation: page-soft-in-back var(--turn-soft) cubic-bezier(0.1, 0.6, 0.4, 1) forwards;
 }
 
 .turn-slide-out-back {
@@ -170,7 +171,7 @@
 }
 
 .turn-slide-in-back {
-  animation: page-slide-in-back 170ms ease-out forwards;
+  animation: page-slide-in-back var(--turn-slide) ease-out forwards;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -25,40 +25,16 @@ import {
 import { normalizeSettingSections, resolveDraftSettingSections } from "@/lib/setting-sections";
 import { compactSubPageForStorage, normalizeSubPages } from "@/lib/sub-pages";
 import type {
-  CaseFileDetailTheme,
-  CaseMetaField,
   Character,
   CharacterKind,
-  CharacterSubPage,
   CharacterWorldEntry,
-  FieldGlitchConfig,
-  ProfileField,
-  RelationshipEntry,
-  SettingSection,
   UploadedImage,
   Work,
 } from "@/lib/types";
+import type { CharacterDraft } from "@/types/character-draft.types";
 import { slugifyId } from "@/utils/slugifyId";
 
-export type CharacterDraft = {
-  id: string;
-  kind: CharacterKind;
-  name: string;
-  kanjiName: string;
-  metaFields: CaseMetaField[];
-  subtitle: string;
-  quote: string;
-  palette: string;
-  detailTheme?: CaseFileDetailTheme;
-  profileFields: ProfileField[];
-  settingSections: SettingSection[];
-  relationshipEntries: RelationshipEntry[];
-  textGlitch: Record<string, FieldGlitchConfig>;
-  subPages: CharacterSubPage[];
-  pairMemberIds: string[];
-  bgmUrl: string;
-  confidential: boolean;
-};
+export type { CharacterDraft };
 
 /**
  * Firestore 자캐 문서를 관리자 편집 폼용 draft로 변환합니다.

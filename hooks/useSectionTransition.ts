@@ -28,19 +28,18 @@ type SectionTransitionState = {
 };
 
 /**
- * page-turn.css 의 out / in 지속시간과 맞춰야 합니다.
- * soft/slide 의 in 은 CSS에 하드코딩되어 있습니다.
+ * page-turn.css 의 --turn-* 와 맞춰야 합니다.
  */
 const OUT_MS: Record<SectionTransitionVariant, number> = {
-  full: 300,
-  soft: 150,
-  slide: 130,
+  full: 600,
+  soft: 340,
+  slide: 300,
 };
 
 const IN_MS: Record<SectionTransitionVariant, number> = {
-  full: 300,
-  soft: 190,
-  slide: 170,
+  full: 600,
+  soft: 340,
+  slide: 300,
 };
 
 const parseTransitionKey = (key: string): ParsedTransitionKey => {

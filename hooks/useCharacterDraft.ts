@@ -73,7 +73,9 @@ export const useCharacterDraft = ({
     body: "",
   });
   const charactersRef = useRef(characters);
-  charactersRef.current = characters;
+  useEffect(() => {
+    charactersRef.current = characters;
+  }, [characters]);
 
   useEffect(() => {
     if (charactersError) {
