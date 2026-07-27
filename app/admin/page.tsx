@@ -442,6 +442,8 @@ export default function AdminPage() {
       }
     }
   }, [resetCharacterGlitch, resetWorldGlitch]);
+
+  const adminHistoryState = useMemo(
     () =>
       createAdminHistoryState({
         panel: adminPanel,
