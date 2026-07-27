@@ -22,6 +22,7 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
+import { HomeContentEditor } from "@/components/admin/sections/HomeContentEditor";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminUploads } from "@/hooks/useAdminUploads";
 import { useBgmTrackAdmin } from "@/hooks/useBgmTrackAdmin";
@@ -148,16 +149,6 @@ import {
 } from "@/lib/setting-sections";
 
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
-
-/**
- * 관리자 폼 초기값 — 공개 페이지용 `defaultHomeContent`(constants/home)와 달리 전부 빈 문자열입니다.
- */
-const emptyHomeContent: HomeContent = {
-  eyebrow: "",
-  title: "",
-  body: "",
-  notice: "",
-};
 
 export default function AdminPage() {
   // 로그인, 관리자 패널, 선택된 자캐/세계관, 업로드 대기 목록 등 편집 화면 상태입니다.
@@ -319,7 +310,6 @@ export default function AdminPage() {
   useEffect(() => {
     setActiveCharacterWorldId((current) => current || worlds[0]?.id || "");
   }, [worlds]);
-  const [homeContent, setHomeContent] = useState<HomeContent>(emptyHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
   const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>([]);
   const [guestbookReplyDrafts, setGuestbookReplyDrafts] = useState<Record<string, string>>({});
@@ -784,23 +774,6 @@ export default function AdminPage() {
   useEffect(() => {
     const db = getFirebaseDb();
     return onSnapshot(
-      doc(db, "site", "home"),
-      (snapshot) => {
-        const data = snapshot.data() as Partial<HomeContent> | undefined;
-        setHomeContent({
-          eyebrow: data?.eyebrow || emptyHomeContent.eyebrow,
-          title: data?.title || emptyHomeContent.title,
-          body: data?.body || emptyHomeContent.body,
-          notice: typeof data?.notice === "string" ? data.notice : emptyHomeContent.notice,
-        });
-      },
-      (error) => setNotice(`홈 문구 불러오기 실패: ${error.message}`),
-    );
-  }, []);
-
-  useEffect(() => {
-    const db = getFirebaseDb();
-    return onSnapshot(
       doc(db, "site", "archive"),
       (snapshot) => {
         const data = snapshot.data() as Partial<HomeContent> | undefined;
@@ -1036,28 +1009,16 @@ export default function AdminPage() {
     }));
   }
 
-  async function saveHomeContent(event: FormEvent<HTMLFormElement>) {
+  async function saveArchiveContent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!isAdmin) {
-      setNotice("관리자만 홈 문구를 저장할 수 있어요.");
+      setNotice("관리자만 보관소 문구를 저장할 수 있어요.");
       return;
     }
 
     try {
       setIsSaving(true);
-      const notice = homeContent.notice.trim().slice(0, 1000);
-      await setDoc(
-        doc(getFirebaseDb(), "site", "home"),
-        {
-          eyebrow: homeContent.eyebrow.trim() || emptyHomeContent.eyebrow,
-          title: homeContent.title.trim() || emptyHomeContent.title,
-          body: homeContent.body.trim() || emptyHomeContent.body,
-          notice,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
       await setDoc(
         doc(getFirebaseDb(), "site", "archive"),
         {
@@ -1068,9 +1029,9 @@ export default function AdminPage() {
         },
         { merge: true },
       );
-      setNotice("카테고리 문구를 저장했어요.");
+      setNotice("보관소 문구를 저장했어요.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "홈 문구 저장에 실패했어요.");
+      setNotice(error instanceof Error ? error.message : "보관소 문구 저장에 실패했어요.");
     } finally {
       setIsSaving(false);
     }
@@ -1704,7 +1665,8 @@ export default function AdminPage() {
             </aside>
 
             <section className="grid min-w-0 gap-6">
-              {adminPanel === "categories" && (
+              {adminPanel === "categories" && activeCategory === "home" && <HomeContentEditor />}
+              {adminPanel === "categories" && activeCategory !== "home" && (
                 <form
                   onSubmit={(event) => {
                     if (activeCategory === "diary") return saveDiaryEntry(event);
@@ -1713,67 +1675,10 @@ export default function AdminPage() {
                     if (activeCategory === "worlds") return saveWorld(event);
                     event.preventDefault();
                     if (activeCategory === "guestbook") return;
-                    return saveHomeContent(event);
+                    return saveArchiveContent(event);
                   }}
                   className="glass-card grid gap-6 p-5 md:p-6"
                 >
-                  {activeCategory === "home" && (
-                    <section className="grid gap-4">
-                      <h2 className="board-title">홈 상단 문구</h2>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        작은 문구
-                        <input
-                          value={homeContent.eyebrow}
-                          onChange={(event) =>
-                            setHomeContent((current) => ({
-                              ...current,
-                              eyebrow: event.target.value,
-                            }))
-                          }
-                          placeholder="상단 작은 문구"
-                          className="auth-input"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        큰 제목
-                        <input
-                          value={homeContent.title}
-                          onChange={(event) =>
-                            setHomeContent((current) => ({ ...current, title: event.target.value }))
-                          }
-                          placeholder="상단 제목"
-                          className="auth-input"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        본문 문구
-                        <textarea
-                          value={homeContent.body}
-                          onChange={(event) =>
-                            setHomeContent((current) => ({ ...current, body: event.target.value }))
-                          }
-                          placeholder="홈에 보일 소개 문구"
-                          className="auth-input min-h-36"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        공지 / 메모
-                        <textarea
-                          value={homeContent.notice}
-                          onChange={(event) =>
-                            setHomeContent((current) => ({
-                              ...current,
-                              notice: event.target.value.slice(0, 1000),
-                            }))
-                          }
-                          maxLength={1000}
-                          placeholder="비우면 홈에 표시되지 않아요"
-                          className="auth-input min-h-28"
-                        />
-                      </label>
-                    </section>
-                  )}
-
                   {activeCategory === "archive" && (
                     <section className="grid gap-4">
                       <h2 className="board-title">왼쪽 보관소 문구</h2>
