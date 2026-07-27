@@ -22,6 +22,7 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
+import { ArchiveContentEditor } from "@/components/admin/sections/ArchiveContentEditor";
 import { HomeContentEditor } from "@/components/admin/sections/HomeContentEditor";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminUploads } from "@/hooks/useAdminUploads";
@@ -53,7 +54,6 @@ import { useAdminHistoryNavigation } from "@/hooks/useAdminHistoryNavigation";
 import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import { createAdminHistoryState } from "@/lib/admin-history";
 import type { AdminCategory, AdminHistoryState, AdminPanel } from "@/types/admin.types";
-import { defaultArchiveContent } from "@/constants/home";
 import { MAX_UPLOAD_SIZE } from "@/constants/upload";
 import { formatBytes } from "@/utils/formatBytes";
 import { glitchFieldClass } from "@/utils/glitchFieldClass";
@@ -75,7 +75,6 @@ import type {
   CharacterKind,
   CharacterWorldEntry,
   GuestbookEntry,
-  HomeContent,
   BgmTrack,
   BgmTrackScope,
   PersonalHomeBanner,
@@ -310,7 +309,6 @@ export default function AdminPage() {
   useEffect(() => {
     setActiveCharacterWorldId((current) => current || worlds[0]?.id || "");
   }, [worlds]);
-  const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
   const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>([]);
   const [guestbookReplyDrafts, setGuestbookReplyDrafts] = useState<Record<string, string>>({});
   const [adminPanel, setAdminPanel] = useState<AdminPanel>("categories");
@@ -774,23 +772,6 @@ export default function AdminPage() {
   useEffect(() => {
     const db = getFirebaseDb();
     return onSnapshot(
-      doc(db, "site", "archive"),
-      (snapshot) => {
-        const data = snapshot.data() as Partial<HomeContent> | undefined;
-        setArchiveContent({
-          eyebrow: data?.eyebrow || defaultArchiveContent.eyebrow,
-          title: data?.title || defaultArchiveContent.title,
-          body: data?.body || defaultArchiveContent.body,
-          notice: typeof data?.notice === "string" ? data.notice : defaultArchiveContent.notice,
-        });
-      },
-      (error) => setNotice(`보관소 문구 불러오기 실패: ${error.message}`),
-    );
-  }, []);
-
-  useEffect(() => {
-    const db = getFirebaseDb();
-    return onSnapshot(
       collection(db, "guestbook"),
       (snapshot) => {
         const nextEntries = snapshot.docs
@@ -1007,34 +988,6 @@ export default function AdminPage() {
       ...current,
       settingSections: reorderSettingSection(current.settingSections, id, direction),
     }));
-  }
-
-  async function saveArchiveContent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!isAdmin) {
-      setNotice("관리자만 보관소 문구를 저장할 수 있어요.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      await setDoc(
-        doc(getFirebaseDb(), "site", "archive"),
-        {
-          eyebrow: archiveContent.eyebrow.trim() || defaultArchiveContent.eyebrow,
-          title: archiveContent.title.trim() || defaultArchiveContent.title,
-          body: archiveContent.body.trim() || defaultArchiveContent.body,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
-      setNotice("보관소 문구를 저장했어요.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "보관소 문구 저장에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
   }
 
   async function saveGuestbookReply(entry: GuestbookEntry) {
@@ -1666,549 +1619,507 @@ export default function AdminPage() {
 
             <section className="grid min-w-0 gap-6">
               {adminPanel === "categories" && activeCategory === "home" && <HomeContentEditor />}
-              {adminPanel === "categories" && activeCategory !== "home" && (
-                <form
-                  onSubmit={(event) => {
-                    if (activeCategory === "diary") return saveDiaryEntry(event);
-                    if (activeCategory === "extract") return saveExtractBanner(event);
-                    if (activeCategory === "bgm") return saveBgmTrack(event);
-                    if (activeCategory === "worlds") return saveWorld(event);
-                    event.preventDefault();
-                    if (activeCategory === "guestbook") return;
-                    return saveArchiveContent(event);
-                  }}
-                  className="glass-card grid gap-6 p-5 md:p-6"
-                >
-                  {activeCategory === "archive" && (
-                    <section className="grid gap-4">
-                      <h2 className="board-title">왼쪽 보관소 문구</h2>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        작은 문구
-                        <input
-                          value={archiveContent.eyebrow}
-                          onChange={(event) =>
-                            setArchiveContent((current) => ({
-                              ...current,
-                              eyebrow: event.target.value,
-                            }))
-                          }
-                          placeholder="Archive"
-                          className="auth-input"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        제목
-                        <input
-                          value={archiveContent.title}
-                          onChange={(event) =>
-                            setArchiveContent((current) => ({
-                              ...current,
-                              title: event.target.value,
-                            }))
-                          }
-                          placeholder="보관소 제목"
-                          className="auth-input"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        소개 문구
-                        <textarea
-                          value={archiveContent.body}
-                          onChange={(event) =>
-                            setArchiveContent((current) => ({
-                              ...current,
-                              body: event.target.value,
-                            }))
-                          }
-                          placeholder="왼쪽 보관소 영역에 보일 문구"
-                          className="auth-input min-h-32"
-                        />
-                      </label>
-                    </section>
-                  )}
-
-                  {activeCategory === "diary" && (
-                    <section className="grid gap-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <h2 className="board-title">다이어리</h2>
-                        {diaryDraft.id && (
-                          <button
-                            type="button"
-                            onClick={() => deleteDiaryEntry(diaryDraft)}
-                            disabled={isSaving}
-                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                          >
-                            현재 일기 삭제
-                          </button>
-                        )}
-                      </div>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        일기 제목
-                        <input
-                          value={diaryDraft.title}
-                          onChange={(event) =>
-                            setDiaryDraft((current) => ({ ...current, title: event.target.value }))
-                          }
-                          placeholder="다이어리 제목"
-                          className="auth-input"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        날짜
-                        <input
-                          value={diaryDraft.date}
-                          onChange={(event) =>
-                            setDiaryDraft((current) => ({ ...current, date: event.target.value }))
-                          }
-                          placeholder="2026-06-15"
-                          className="auth-input"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        일기 내용
-                        <textarea
-                          value={diaryDraft.body}
-                          onChange={(event) =>
-                            setDiaryDraft((current) => ({ ...current, body: event.target.value }))
-                          }
-                          placeholder="오늘의 기록을 적어주세요."
-                          className="auth-input min-h-56"
-                        />
-                      </label>
-                    </section>
-                  )}
-
-                  {activeCategory === "extract" && (
-                    <section className="grid gap-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <h2 className="board-title">Banner</h2>
-                        {extractBannerDraft.id && extractBannerDraft.image && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              deleteExtractBanner({
-                                id: extractBannerDraft.id,
-                                label: extractBannerDraft.label,
-                                linkUrl: extractBannerDraft.linkUrl,
-                                image: extractBannerDraft.image!,
-                              })
-                            }
-                            disabled={isSaving}
-                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                          >
-                            현재 배너 삭제
-                          </button>
-                        )}
-                      </div>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        배너 라벨 (선택)
-                        <input
-                          value={extractBannerDraft.label}
-                          onChange={(event) =>
-                            setExtractBannerDraft((current) => ({
-                              ...current,
-                              label: event.target.value,
-                            }))
-                          }
-                          placeholder="배너에 표시할 짧은 문구"
-                          className="auth-input"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        이동 링크
-                        <input
-                          value={extractBannerDraft.linkUrl}
-                          onChange={(event) =>
-                            setExtractBannerDraft((current) => ({
-                              ...current,
-                              linkUrl: event.target.value,
-                            }))
-                          }
-                          placeholder="https://example.com 또는 /guest"
-                          className="auth-input"
-                        />
-                      </label>
-                      <div className="grid gap-2 text-sm text-emerald-100/75">
-                        배너 이미지
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleExtractBannerImageChange}
-                          className="text-xs"
-                        />
-                        {(extractBannerImageFile || extractBannerDraft.image) && (
-                          <div className="extract-banner-link overflow-hidden">
-                            {extractBannerDraft.image ? (
-                              <ThumbnailImage
-                                image={extractBannerDraft.image}
-                                src={
-                                  extractBannerImageFile
-                                    ? URL.createObjectURL(extractBannerImageFile)
-                                    : extractBannerDraft.image.url
-                                }
-                                alt="Banner 미리보기"
-                                className="extract-banner-image"
-                              />
-                            ) : (
-                              /* eslint-disable-next-line @next/next/no-img-element -- Local preview URL for banner upload. */
-                              <img
-                                src={
-                                  extractBannerImageFile
-                                    ? URL.createObjectURL(extractBannerImageFile)
-                                    : ""
-                                }
-                                alt="Banner 미리보기"
-                                className="extract-banner-image"
-                              />
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </section>
-                  )}
-
-                  {activeCategory === "bgm" && (
-                    <section className="grid gap-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <h2 className="board-title">BGM</h2>
-                        {bgmTrackDraft.id && bgmTrackDraft.url && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              deleteBgmTrack({
-                                id: bgmTrackDraft.id,
-                                label: bgmTrackDraft.label,
-                                url: bgmTrackDraft.url,
-                                scope: bgmTrackDraft.scope,
-                              })
-                            }
-                            disabled={isSaving}
-                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                          >
-                            현재 BGM 삭제
-                          </button>
-                        )}
-                      </div>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        곡 이름
-                        <input
-                          value={bgmTrackDraft.label}
-                          onChange={(event) =>
-                            setBgmTrackDraft((current) => ({
-                              ...current,
-                              label: event.target.value,
-                            }))
-                          }
-                          placeholder="플레이어·선택 목록에 보일 이름"
-                          className="auth-input"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        사용 범위
-                        <select
-                          value={bgmTrackDraft.scope}
-                          onChange={(event) =>
-                            setBgmTrackDraft((current) => ({
-                              ...current,
-                              scope: event.target.value as BgmTrackScope,
-                            }))
-                          }
-                          className="auth-input"
-                        >
-                          <option value="site">사이트 기본 (플레이어 순환 + 캐릭터 선택)</option>
-                          <option value="character-only">캐릭터 전용 (상세에서만)</option>
-                        </select>
-                      </label>
-                      <div className="grid gap-2 text-sm text-emerald-100/75">
-                        오디오 파일
-                        <input
-                          type="file"
-                          accept="audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/mp4,audio/aac,.mp3,.ogg,.wav,.m4a,.aac"
-                          onChange={handleBgmAudioChange}
-                          className="text-xs"
-                        />
-                        <p className="text-xs text-emerald-100/55">
-                          mp3·ogg·wav 등, 파일 1개당 최대 15MB
-                        </p>
-                        {(bgmAudioFile || bgmTrackDraft.url) && (
-                          <audio
-                            controls
-                            preload="none"
-                            src={
-                              bgmAudioFile ? URL.createObjectURL(bgmAudioFile) : bgmTrackDraft.url
-                            }
-                            className="w-full"
-                          />
-                        )}
-                      </div>
-                    </section>
-                  )}
-
-                  {activeCategory === "guestbook" && (
-                    <section className="grid gap-4">
-                      <div>
-                        <h2 className="board-title">방명록 관리</h2>
-                        <p className="mt-2 text-sm text-emerald-100/55">
-                          본 페이지에 남겨진 방명록에 관리자 답글을 달 수 있어요.
-                        </p>
-                      </div>
-                      <div className="grid gap-4">
-                        {guestbookEntries.map((entry, index) => (
-                          <article
-                            key={entry.id}
-                            className="border border-emerald-100/10 bg-black/30 p-4"
-                          >
-                            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                              <div>
-                                <p className="font-semibold text-emerald-50">
-                                  No.{guestbookEntries.length - index} {entry.name}
-                                </p>
-                                <p className="mt-2 text-sm leading-7 whitespace-pre-wrap text-emerald-50/70">
-                                  {entry.body}
-                                </p>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => deleteGuestbookEntry(entry)}
-                                disabled={isSaving}
-                                className="shrink-0 border border-stone-400/35 px-3 py-2 text-xs text-stone-200 disabled:opacity-60"
-                              >
-                                삭제
-                              </button>
-                            </div>
-                            <label className="mt-4 grid gap-2 text-sm text-emerald-100/75">
-                              관리자 답글
-                              <textarea
-                                value={guestbookReplyDrafts[entry.id] ?? ""}
-                                onChange={(event) =>
-                                  setGuestbookReplyDrafts((current) => ({
-                                    ...current,
-                                    [entry.id]: event.target.value,
-                                  }))
-                                }
-                                placeholder="답글을 입력해주세요."
-                                className="auth-input min-h-28"
-                              />
-                            </label>
+              {adminPanel === "categories" && activeCategory === "archive" && (
+                <ArchiveContentEditor />
+              )}
+              {adminPanel === "categories" &&
+                activeCategory !== "home" &&
+                activeCategory !== "archive" && (
+                  <form
+                    onSubmit={(event) => {
+                      if (activeCategory === "diary") return saveDiaryEntry(event);
+                      if (activeCategory === "extract") return saveExtractBanner(event);
+                      if (activeCategory === "bgm") return saveBgmTrack(event);
+                      if (activeCategory === "worlds") return saveWorld(event);
+                      event.preventDefault();
+                    }}
+                    className="glass-card grid gap-6 p-5 md:p-6"
+                  >
+                    {activeCategory === "diary" && (
+                      <section className="grid gap-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <h2 className="board-title">다이어리</h2>
+                          {diaryDraft.id && (
                             <button
                               type="button"
-                              onClick={() => saveGuestbookReply(entry)}
+                              onClick={() => deleteDiaryEntry(diaryDraft)}
                               disabled={isSaving}
-                              className="mt-3 justify-self-end bg-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+                              className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
                             >
-                              답글 저장
+                              현재 일기 삭제
                             </button>
-                          </article>
-                        ))}
-                        {guestbookEntries.length === 0 && (
-                          <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/55">
-                            아직 남겨진 방명록이 없어요.
-                          </p>
-                        )}
-                      </div>
-                    </section>
-                  )}
-
-                  {activeCategory === "worlds" && (
-                    <section className="grid gap-4">
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <h2 className="board-title">World 관리</h2>
-                          {activeWorldGlitchLabel ? (
-                            <p className="mt-2 border border-amber-300/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
-                              오류 대상:{" "}
-                              <span className="font-semibold">{activeWorldGlitchLabel}</span>
-                            </p>
-                          ) : null}
+                          )}
                         </div>
-                        {worldDraft.id && (
-                          <button
-                            type="button"
-                            onClick={() => deleteWorld(worldDraft.id)}
-                            disabled={isSaving}
-                            className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
-                          >
-                            현재 세계관 삭제
-                          </button>
-                        )}
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
                         <label className="grid gap-2 text-sm text-emerald-100/75">
-                          고유 ID
+                          일기 제목
                           <input
-                            value={worldDraft.id}
+                            value={diaryDraft.title}
                             onChange={(event) =>
-                              setWorldDraft((current) => ({ ...current, id: event.target.value }))
+                              setDiaryDraft((current) => ({
+                                ...current,
+                                title: event.target.value,
+                              }))
                             }
-                            placeholder="예: coc-1920"
+                            placeholder="다이어리 제목"
                             className="auth-input"
                           />
                         </label>
                         <label className="grid gap-2 text-sm text-emerald-100/75">
-                          세계관 이름
+                          날짜
+                          <input
+                            value={diaryDraft.date}
+                            onChange={(event) =>
+                              setDiaryDraft((current) => ({ ...current, date: event.target.value }))
+                            }
+                            placeholder="2026-06-15"
+                            className="auth-input"
+                          />
+                        </label>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          일기 내용
+                          <textarea
+                            value={diaryDraft.body}
+                            onChange={(event) =>
+                              setDiaryDraft((current) => ({ ...current, body: event.target.value }))
+                            }
+                            placeholder="오늘의 기록을 적어주세요."
+                            className="auth-input min-h-56"
+                          />
+                        </label>
+                      </section>
+                    )}
+
+                    {activeCategory === "extract" && (
+                      <section className="grid gap-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <h2 className="board-title">Banner</h2>
+                          {extractBannerDraft.id && extractBannerDraft.image && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                deleteExtractBanner({
+                                  id: extractBannerDraft.id,
+                                  label: extractBannerDraft.label,
+                                  linkUrl: extractBannerDraft.linkUrl,
+                                  image: extractBannerDraft.image!,
+                                })
+                              }
+                              disabled={isSaving}
+                              className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                            >
+                              현재 배너 삭제
+                            </button>
+                          )}
+                        </div>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          배너 라벨 (선택)
+                          <input
+                            value={extractBannerDraft.label}
+                            onChange={(event) =>
+                              setExtractBannerDraft((current) => ({
+                                ...current,
+                                label: event.target.value,
+                              }))
+                            }
+                            placeholder="배너에 표시할 짧은 문구"
+                            className="auth-input"
+                          />
+                        </label>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          이동 링크
+                          <input
+                            value={extractBannerDraft.linkUrl}
+                            onChange={(event) =>
+                              setExtractBannerDraft((current) => ({
+                                ...current,
+                                linkUrl: event.target.value,
+                              }))
+                            }
+                            placeholder="https://example.com 또는 /guest"
+                            className="auth-input"
+                          />
+                        </label>
+                        <div className="grid gap-2 text-sm text-emerald-100/75">
+                          배너 이미지
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleExtractBannerImageChange}
+                            className="text-xs"
+                          />
+                          {(extractBannerImageFile || extractBannerDraft.image) && (
+                            <div className="extract-banner-link overflow-hidden">
+                              {extractBannerDraft.image ? (
+                                <ThumbnailImage
+                                  image={extractBannerDraft.image}
+                                  src={
+                                    extractBannerImageFile
+                                      ? URL.createObjectURL(extractBannerImageFile)
+                                      : extractBannerDraft.image.url
+                                  }
+                                  alt="Banner 미리보기"
+                                  className="extract-banner-image"
+                                />
+                              ) : (
+                                /* eslint-disable-next-line @next/next/no-img-element -- Local preview URL for banner upload. */
+                                <img
+                                  src={
+                                    extractBannerImageFile
+                                      ? URL.createObjectURL(extractBannerImageFile)
+                                      : ""
+                                  }
+                                  alt="Banner 미리보기"
+                                  className="extract-banner-image"
+                                />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </section>
+                    )}
+
+                    {activeCategory === "bgm" && (
+                      <section className="grid gap-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <h2 className="board-title">BGM</h2>
+                          {bgmTrackDraft.id && bgmTrackDraft.url && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                deleteBgmTrack({
+                                  id: bgmTrackDraft.id,
+                                  label: bgmTrackDraft.label,
+                                  url: bgmTrackDraft.url,
+                                  scope: bgmTrackDraft.scope,
+                                })
+                              }
+                              disabled={isSaving}
+                              className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                            >
+                              현재 BGM 삭제
+                            </button>
+                          )}
+                        </div>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          곡 이름
+                          <input
+                            value={bgmTrackDraft.label}
+                            onChange={(event) =>
+                              setBgmTrackDraft((current) => ({
+                                ...current,
+                                label: event.target.value,
+                              }))
+                            }
+                            placeholder="플레이어·선택 목록에 보일 이름"
+                            className="auth-input"
+                          />
+                        </label>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          사용 범위
+                          <select
+                            value={bgmTrackDraft.scope}
+                            onChange={(event) =>
+                              setBgmTrackDraft((current) => ({
+                                ...current,
+                                scope: event.target.value as BgmTrackScope,
+                              }))
+                            }
+                            className="auth-input"
+                          >
+                            <option value="site">사이트 기본 (플레이어 순환 + 캐릭터 선택)</option>
+                            <option value="character-only">캐릭터 전용 (상세에서만)</option>
+                          </select>
+                        </label>
+                        <div className="grid gap-2 text-sm text-emerald-100/75">
+                          오디오 파일
+                          <input
+                            type="file"
+                            accept="audio/mpeg,audio/mp3,audio/ogg,audio/wav,audio/mp4,audio/aac,.mp3,.ogg,.wav,.m4a,.aac"
+                            onChange={handleBgmAudioChange}
+                            className="text-xs"
+                          />
+                          <p className="text-xs text-emerald-100/55">
+                            mp3·ogg·wav 등, 파일 1개당 최대 15MB
+                          </p>
+                          {(bgmAudioFile || bgmTrackDraft.url) && (
+                            <audio
+                              controls
+                              preload="none"
+                              src={
+                                bgmAudioFile ? URL.createObjectURL(bgmAudioFile) : bgmTrackDraft.url
+                              }
+                              className="w-full"
+                            />
+                          )}
+                        </div>
+                      </section>
+                    )}
+
+                    {activeCategory === "guestbook" && (
+                      <section className="grid gap-4">
+                        <div>
+                          <h2 className="board-title">방명록 관리</h2>
+                          <p className="mt-2 text-sm text-emerald-100/55">
+                            본 페이지에 남겨진 방명록에 관리자 답글을 달 수 있어요.
+                          </p>
+                        </div>
+                        <div className="grid gap-4">
+                          {guestbookEntries.map((entry, index) => (
+                            <article
+                              key={entry.id}
+                              className="border border-emerald-100/10 bg-black/30 p-4"
+                            >
+                              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                  <p className="font-semibold text-emerald-50">
+                                    No.{guestbookEntries.length - index} {entry.name}
+                                  </p>
+                                  <p className="mt-2 text-sm leading-7 whitespace-pre-wrap text-emerald-50/70">
+                                    {entry.body}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => deleteGuestbookEntry(entry)}
+                                  disabled={isSaving}
+                                  className="shrink-0 border border-stone-400/35 px-3 py-2 text-xs text-stone-200 disabled:opacity-60"
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                              <label className="mt-4 grid gap-2 text-sm text-emerald-100/75">
+                                관리자 답글
+                                <textarea
+                                  value={guestbookReplyDrafts[entry.id] ?? ""}
+                                  onChange={(event) =>
+                                    setGuestbookReplyDrafts((current) => ({
+                                      ...current,
+                                      [entry.id]: event.target.value,
+                                    }))
+                                  }
+                                  placeholder="답글을 입력해주세요."
+                                  className="auth-input min-h-28"
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => saveGuestbookReply(entry)}
+                                disabled={isSaving}
+                                className="mt-3 justify-self-end bg-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+                              >
+                                답글 저장
+                              </button>
+                            </article>
+                          ))}
+                          {guestbookEntries.length === 0 && (
+                            <p className="border border-emerald-100/10 bg-black/30 p-4 text-sm text-emerald-100/55">
+                              아직 남겨진 방명록이 없어요.
+                            </p>
+                          )}
+                        </div>
+                      </section>
+                    )}
+
+                    {activeCategory === "worlds" && (
+                      <section className="grid gap-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <h2 className="board-title">World 관리</h2>
+                            {activeWorldGlitchLabel ? (
+                              <p className="mt-2 border border-amber-300/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
+                                오류 대상:{" "}
+                                <span className="font-semibold">{activeWorldGlitchLabel}</span>
+                              </p>
+                            ) : null}
+                          </div>
+                          {worldDraft.id && (
+                            <button
+                              type="button"
+                              onClick={() => deleteWorld(worldDraft.id)}
+                              disabled={isSaving}
+                              className="border border-stone-400/35 px-4 py-2 text-sm text-stone-200 disabled:opacity-60"
+                            >
+                              현재 세계관 삭제
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            고유 ID
+                            <input
+                              value={worldDraft.id}
+                              onChange={(event) =>
+                                setWorldDraft((current) => ({ ...current, id: event.target.value }))
+                              }
+                              placeholder="예: coc-1920"
+                              className="auth-input"
+                            />
+                          </label>
+                          <label className="grid gap-2 text-sm text-emerald-100/75">
+                            세계관 이름
+                            <AdminInlineGlitchEditor
+                              value={worldDraft.title}
+                              onChange={(value) =>
+                                setWorldDraft((current) =>
+                                  updateWorldDraftFieldValue(current, "title", value),
+                                )
+                              }
+                              glitch={worldDraft.textGlitch.title}
+                              onGlitchChange={(config) =>
+                                setWorldDraft((current) =>
+                                  updateWorldDraftGlitchPath(current, "title", config),
+                                )
+                              }
+                              glitchBindings={bindWorldGlitchField("title")}
+                              placeholder="예: 크툴루 1920"
+                              className={glitchFieldClass("title", activeWorldGlitchFieldPath, "")}
+                              minHeightClass="min-h-10"
+                            />
+                          </label>
+                        </div>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          한 줄 설명
                           <AdminInlineGlitchEditor
-                            value={worldDraft.title}
+                            value={worldDraft.subtitle}
                             onChange={(value) =>
                               setWorldDraft((current) =>
-                                updateWorldDraftFieldValue(current, "title", value),
+                                updateWorldDraftFieldValue(current, "subtitle", value),
                               )
                             }
-                            glitch={worldDraft.textGlitch.title}
+                            glitch={worldDraft.textGlitch.subtitle}
                             onGlitchChange={(config) =>
                               setWorldDraft((current) =>
-                                updateWorldDraftGlitchPath(current, "title", config),
+                                updateWorldDraftGlitchPath(current, "subtitle", config),
                               )
                             }
-                            glitchBindings={bindWorldGlitchField("title")}
-                            placeholder="예: 크툴루 1920"
-                            className={glitchFieldClass("title", activeWorldGlitchFieldPath, "")}
+                            glitchBindings={bindWorldGlitchField("subtitle")}
+                            placeholder="세계관을 짧게 설명해주세요."
+                            className={glitchFieldClass("subtitle", activeWorldGlitchFieldPath, "")}
                             minHeightClass="min-h-10"
                           />
                         </label>
-                      </div>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        한 줄 설명
-                        <AdminInlineGlitchEditor
-                          value={worldDraft.subtitle}
-                          onChange={(value) =>
-                            setWorldDraft((current) =>
-                              updateWorldDraftFieldValue(current, "subtitle", value),
-                            )
-                          }
-                          glitch={worldDraft.textGlitch.subtitle}
-                          onGlitchChange={(config) =>
-                            setWorldDraft((current) =>
-                              updateWorldDraftGlitchPath(current, "subtitle", config),
-                            )
-                          }
-                          glitchBindings={bindWorldGlitchField("subtitle")}
-                          placeholder="세계관을 짧게 설명해주세요."
-                          className={glitchFieldClass("subtitle", activeWorldGlitchFieldPath, "")}
-                          minHeightClass="min-h-10"
-                        />
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        기록 열람 비밀번호
-                        <input
-                          value={worldDraft.password}
-                          onChange={(event) =>
-                            setWorldDraft((current) => ({
-                              ...current,
-                              password: event.target.value,
-                            }))
-                          }
-                          placeholder="비워두면 공개 / 입력하면 기록 잠금"
-                          className="auth-input"
-                        />
-                        <span className="text-xs leading-5 text-emerald-100/45">
-                          본 페이지에서는 세계관 목록과 소개만 보이고, 참가 자캐 기록은 이
-                          비밀번호를 입력해야 열립니다.
-                        </span>
-                      </label>
-                      <label className="grid gap-2 text-sm text-emerald-100/75">
-                        상세 설명
-                        <AdminInlineGlitchEditor
-                          value={worldDraft.description}
-                          onChange={(value) =>
-                            setWorldDraft((current) =>
-                              updateWorldDraftFieldValue(current, "description", value),
-                            )
-                          }
-                          glitch={worldDraft.textGlitch.description}
-                          onGlitchChange={(config) =>
-                            setWorldDraft((current) =>
-                              updateWorldDraftGlitchPath(current, "description", config),
-                            )
-                          }
-                          glitchBindings={bindWorldGlitchField("description")}
-                          placeholder="룰, 시대, 분위기, 캠페인 설명 등"
-                          className={glitchFieldClass(
-                            "description",
-                            activeWorldGlitchFieldPath,
-                            "",
-                          )}
-                          minHeightClass="min-h-40"
-                        />
-                      </label>
-
-                      <div id="admin-world-glitch-tool">
-                        <TextScrambleTool
-                          fieldPickerGroups={
-                            worldGlitchFieldPickerOptions.length > 0
-                              ? [
-                                  {
-                                    id: "world",
-                                    label: "세계관 필드",
-                                    options: worldGlitchFieldPickerOptions,
-                                  },
-                                ]
-                              : []
-                          }
-                          onFieldSelect={selectWorldGlitchField}
-                          activeFieldPath={activeWorldGlitchFieldPath}
-                          fieldValue={
-                            activeWorldGlitchFieldPath
-                              ? getWorldDraftFieldValue(worldDraft, activeWorldGlitchFieldPath)
-                              : ""
-                          }
-                          externalSelection={worldGlitchFieldSelection}
-                          onExternalSelectionClear={() => setWorldGlitchFieldSelection(null)}
-                          onFieldValueChange={(value) => {
-                            if (!activeWorldGlitchFieldPath) {
-                              return;
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          기록 열람 비밀번호
+                          <input
+                            value={worldDraft.password}
+                            onChange={(event) =>
+                              setWorldDraft((current) => ({
+                                ...current,
+                                password: event.target.value,
+                              }))
                             }
-
-                            setWorldDraft((current) =>
-                              updateWorldDraftFieldValue(
-                                current,
-                                activeWorldGlitchFieldPath,
-                                value,
-                              ),
-                            );
-                          }}
-                          glitchConfig={
-                            activeWorldGlitchFieldPath
-                              ? worldDraft.textGlitch[activeWorldGlitchFieldPath]
-                              : undefined
-                          }
-                          onGlitchChange={(config) => {
-                            if (!activeWorldGlitchFieldPath) {
-                              return;
+                            placeholder="비워두면 공개 / 입력하면 기록 잠금"
+                            className="auth-input"
+                          />
+                          <span className="text-xs leading-5 text-emerald-100/45">
+                            본 페이지에서는 세계관 목록과 소개만 보이고, 참가 자캐 기록은 이
+                            비밀번호를 입력해야 열립니다.
+                          </span>
+                        </label>
+                        <label className="grid gap-2 text-sm text-emerald-100/75">
+                          상세 설명
+                          <AdminInlineGlitchEditor
+                            value={worldDraft.description}
+                            onChange={(value) =>
+                              setWorldDraft((current) =>
+                                updateWorldDraftFieldValue(current, "description", value),
+                              )
                             }
+                            glitch={worldDraft.textGlitch.description}
+                            onGlitchChange={(config) =>
+                              setWorldDraft((current) =>
+                                updateWorldDraftGlitchPath(current, "description", config),
+                              )
+                            }
+                            glitchBindings={bindWorldGlitchField("description")}
+                            placeholder="룰, 시대, 분위기, 캠페인 설명 등"
+                            className={glitchFieldClass(
+                              "description",
+                              activeWorldGlitchFieldPath,
+                              "",
+                            )}
+                            minHeightClass="min-h-40"
+                          />
+                        </label>
 
-                            setWorldDraft((current) =>
-                              updateWorldDraftGlitchPath(
-                                current,
-                                activeWorldGlitchFieldPath,
-                                config,
-                              ),
-                            );
-                          }}
-                          onNotice={setNotice}
-                          allCharacters={characters}
-                        />
-                      </div>
-                    </section>
-                  )}
+                        <div id="admin-world-glitch-tool">
+                          <TextScrambleTool
+                            fieldPickerGroups={
+                              worldGlitchFieldPickerOptions.length > 0
+                                ? [
+                                    {
+                                      id: "world",
+                                      label: "세계관 필드",
+                                      options: worldGlitchFieldPickerOptions,
+                                    },
+                                  ]
+                                : []
+                            }
+                            onFieldSelect={selectWorldGlitchField}
+                            activeFieldPath={activeWorldGlitchFieldPath}
+                            fieldValue={
+                              activeWorldGlitchFieldPath
+                                ? getWorldDraftFieldValue(worldDraft, activeWorldGlitchFieldPath)
+                                : ""
+                            }
+                            externalSelection={worldGlitchFieldSelection}
+                            onExternalSelectionClear={() => setWorldGlitchFieldSelection(null)}
+                            onFieldValueChange={(value) => {
+                              if (!activeWorldGlitchFieldPath) {
+                                return;
+                              }
 
-                  {activeCategory !== "guestbook" && (
-                    <button
-                      disabled={isSaving}
-                      className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60"
-                    >
-                      {activeCategory === "diary"
-                        ? "일기 저장"
-                        : activeCategory === "extract"
-                          ? "배너 저장"
-                          : activeCategory === "bgm"
-                            ? "BGM 저장"
-                            : activeCategory === "worlds"
-                              ? "세계관 저장"
-                              : "카테고리 저장"}
-                    </button>
-                  )}
-                </form>
-              )}
+                              setWorldDraft((current) =>
+                                updateWorldDraftFieldValue(
+                                  current,
+                                  activeWorldGlitchFieldPath,
+                                  value,
+                                ),
+                              );
+                            }}
+                            glitchConfig={
+                              activeWorldGlitchFieldPath
+                                ? worldDraft.textGlitch[activeWorldGlitchFieldPath]
+                                : undefined
+                            }
+                            onGlitchChange={(config) => {
+                              if (!activeWorldGlitchFieldPath) {
+                                return;
+                              }
+
+                              setWorldDraft((current) =>
+                                updateWorldDraftGlitchPath(
+                                  current,
+                                  activeWorldGlitchFieldPath,
+                                  config,
+                                ),
+                              );
+                            }}
+                            onNotice={setNotice}
+                            allCharacters={characters}
+                          />
+                        </div>
+                      </section>
+                    )}
+
+                    {activeCategory !== "guestbook" && (
+                      <button
+                        disabled={isSaving}
+                        className="justify-self-end bg-emerald-200 px-5 py-3 text-sm font-semibold text-emerald-950 disabled:opacity-60"
+                      >
+                        {activeCategory === "diary"
+                          ? "일기 저장"
+                          : activeCategory === "extract"
+                            ? "배너 저장"
+                            : activeCategory === "bgm"
+                              ? "BGM 저장"
+                              : activeCategory === "worlds"
+                                ? "세계관 저장"
+                                : "카테고리 저장"}
+                      </button>
+                    )}
+                  </form>
+                )}
 
               {adminPanel === "characters" && (
                 <>
