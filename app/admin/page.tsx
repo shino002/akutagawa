@@ -5,9 +5,7 @@ import {
   FormEvent,
   KeyboardEvent,
   MouseEvent,
-  PointerEvent,
   SyntheticEvent,
-  WheelEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -25,6 +23,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useAdminUploads } from "@/hooks/useAdminUploads";
 import {
   bgmTrackDraftFromTrack,
   createBlankBgmTrackDraft,
@@ -38,7 +37,6 @@ import { extractCharacterPaletteFromImage } from "@/lib/character-palette";
 import { PaletteEditor } from "@/components/admin/PaletteEditor";
 import { compactCaseFileDetailTheme, normalizeCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { CaseFileThemeEditor } from "@/components/admin/CaseFileThemeEditor";
-import { clamp } from "@/lib/image-helpers";
 import { ThumbnailImage } from "@/components/ThumbnailImage";
 import {
   ProfileFieldsEditor,
@@ -176,25 +174,6 @@ import {
   recoverCharacterFromLegacyPairMember,
 } from "@/lib/legacy-pair-member-recovery";
 
-// 관리자 페이지에서만 쓰는 업로드 대기/폼 입력 타입입니다.
-type PendingUpload = {
-  displayName: string;
-  id: string;
-  file: File;
-  previewUrl: string;
-  thumbX: number;
-  thumbY: number;
-  thumbScale: number;
-};
-
-type ThumbnailDragState = {
-  id: string;
-  startPointerX: number;
-  startPointerY: number;
-  startThumbX: number;
-  startThumbY: number;
-};
-
 // 사이트 기본 문구와 자캐 카드 색상 선택지를 정의합니다.
 
 /**
@@ -226,17 +205,36 @@ export default function AdminPage() {
     body: "",
   });
   const [workDraft, setWorkDraft] = useState({ title: "", kind: "새 연성", date: "", body: "" });
-  const [worldWorkImageFiles, setWorldWorkImageFiles] = useState<File[]>([]);
-  const [workImageFiles, setWorkImageFiles] = useState<File[]>([]);
-  const [imageUploadCategory, setImageUploadCategory] = useState<"illustration" | "standing">(
-    "illustration",
-  );
-  const [imageUploadWorldId, setImageUploadWorldId] = useState("");
   const [notice, setNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [pendingUploads, setPendingUploads] = useState<PendingUpload[]>([]);
-  const [thumbnailDrag, setThumbnailDrag] = useState<ThumbnailDragState | null>(null);
+  const {
+    worldWorkImageFiles,
+    setWorldWorkImageFiles,
+    workImageFiles,
+    setWorkImageFiles,
+    imageUploadCategory,
+    setImageUploadCategory,
+    imageUploadWorldId,
+    setImageUploadWorldId,
+    isUploading,
+    pendingUploads,
+    clearPendingUploads,
+    selectPendingImages,
+    updatePendingUpload,
+    startThumbnailDrag,
+    moveThumbnailDrag,
+    stopThumbnailDrag,
+    zoomThumbnail,
+    removePendingUpload,
+    uploadWorkImages,
+    uploadPendingImages,
+  } = useAdminUploads({
+    isAdmin,
+    onNotice: setNotice,
+    onPaletteExtracted: (palette) => {
+      setDraft((current) => ({ ...current, palette }));
+    },
+  });
   const [homeContent, setHomeContent] = useState<HomeContent>(emptyHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
   const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
@@ -476,18 +474,7 @@ export default function AdminPage() {
     applyState: applyAdminHistoryState,
   });
 
-  // Auth, 썸네일 드래그, Firestore 컬렉션 구독을 담당하는 효과들입니다.
-  useEffect(() => {
-    if (!thumbnailDrag) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [thumbnailDrag]);
-
+  // 썸네일 드래그, Firestore 컬렉션 구독을 담당하는 효과들입니다.
   useEffect(() => {
     glitchFieldAnchorRef.current = glitchFieldAnchorElement;
   }, [glitchFieldAnchorElement]);
@@ -1046,7 +1033,11 @@ export default function AdminPage() {
 
     try {
       setIsSaving(true);
-      const uploadedImages = await uploadWorkImages(worldWorkImageFiles, activeCharacterWorldId);
+      const uploadedImages = await uploadWorkImages(
+        activeCharacter.id,
+        worldWorkImageFiles,
+        activeCharacterWorldId,
+      );
       const nextEntry: CharacterWorldEntry = {
         ...(activeCharacterWorldEntry ?? createBlankWorldEntry(activeCharacterWorldId)),
         works: [
@@ -1446,10 +1437,7 @@ export default function AdminPage() {
     setCharacterEditSection("basics");
     setDraft(createBlankDraft(kind));
     setWorkDraft({ title: "", kind: "새 연성", date: "", body: "" });
-    setPendingUploads((current) => {
-      current.forEach((upload) => URL.revokeObjectURL(upload.previewUrl));
-      return [];
-    });
+    clearPendingUploads();
     setNotice(`새 ${CHARACTER_KIND_ADMIN_LABELS[kind]} 정보를 입력해주세요.`);
   }
 
@@ -2047,219 +2035,19 @@ export default function AdminPage() {
     }
   }
 
-  async function selectPendingImages(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    if (!files.length || !activeCharacterId || !activeCharacter) {
-      if (!activeCharacterId) {
-        setNotice("사진을 추가하려면 먼저 기본 · 레코드 탭에서 「본 페이지에 저장」을 눌러주세요.");
-      }
-      return;
-    }
-
-    if (!isAdmin) {
-      setNotice("관리자만 사진을 선택할 수 있어요.");
-      event.target.value = "";
-      return;
-    }
-
-    const allowedFiles = files.filter((file) => file.size <= MAX_UPLOAD_SIZE);
-    const blockedFiles = files.filter((file) => file.size > MAX_UPLOAD_SIZE);
-
-    if (blockedFiles.length > 0) {
-      setNotice(
-        `${blockedFiles.map((file) => `${file.name} (${formatBytes(file.size)})`).join(", ")} 파일은 10MB를 넘어 제외했어요.`,
-      );
-    }
-
-    if (!allowedFiles.length) {
-      event.target.value = "";
-      return;
-    }
-
-    const extractedPalette = await extractCharacterPaletteFromImage(allowedFiles[0]);
-    if (extractedPalette) {
-      setDraft((current) => ({ ...current, palette: extractedPalette }));
-    }
-
-    setPendingUploads((current) => [
-      ...current,
-      ...allowedFiles.map((file, index) => ({
-        id: `${file.name}-${file.lastModified}-${index}-${crypto.randomUUID()}`,
-        displayName: "",
-        file,
-        previewUrl: URL.createObjectURL(file),
-        thumbX: 50,
-        thumbY: 50,
-        thumbScale: 1,
-      })),
-    ]);
-    setNotice("썸네일 위치와 크기를 조절한 뒤 저장해주세요.");
-    event.target.value = "";
-  }
-
-  function updatePendingUpload(
-    id: string,
-    updates: Partial<Pick<PendingUpload, "displayName" | "thumbX" | "thumbY" | "thumbScale">>,
-  ) {
-    setPendingUploads((current) =>
-      current.map((upload) => (upload.id === id ? { ...upload, ...updates } : upload)),
-    );
-  }
-
-  function startThumbnailDrag(upload: PendingUpload, event: PointerEvent<HTMLDivElement>) {
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setThumbnailDrag({
-      id: upload.id,
-      startPointerX: event.clientX,
-      startPointerY: event.clientY,
-      startThumbX: upload.thumbX,
-      startThumbY: upload.thumbY,
-    });
-  }
-
-  function moveThumbnailDrag(uploadId: string, event: PointerEvent<HTMLDivElement>) {
-    if (!thumbnailDrag || thumbnailDrag.id !== uploadId) return;
-    event.preventDefault();
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    const nextX =
-      thumbnailDrag.startThumbX -
-      ((event.clientX - thumbnailDrag.startPointerX) / rect.width) * 100;
-    const nextY =
-      thumbnailDrag.startThumbY -
-      ((event.clientY - thumbnailDrag.startPointerY) / rect.height) * 100;
-
-    updatePendingUpload(uploadId, {
-      thumbX: Math.round(clamp(nextX, 0, 100)),
-      thumbY: Math.round(clamp(nextY, 0, 100)),
-    });
-  }
-
-  function stopThumbnailDrag() {
-    setThumbnailDrag(null);
-  }
-
-  function zoomThumbnail(upload: PendingUpload, event: WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
-    const nextScale = upload.thumbScale + (event.deltaY < 0 ? 0.08 : -0.08);
-    updatePendingUpload(upload.id, { thumbScale: Number(clamp(nextScale, 1, 2.5).toFixed(2)) });
-  }
-
-  function removePendingUpload(id: string) {
-    setPendingUploads((current) => {
-      const removed = current.find((upload) => upload.id === id);
-      if (removed) {
-        URL.revokeObjectURL(removed.previewUrl);
-      }
-      return current.filter((upload) => upload.id !== id);
-    });
-  }
-
-  async function uploadWorkImages(files: File[], worldId?: string) {
-    if (!activeCharacter || files.length === 0) return [];
-
-    for (const file of files) {
-      if (file.size > MAX_UPLOAD_SIZE) {
-        throw new Error(`${file.name}은 10MB를 넘어서 업로드할 수 없어요.`);
-      }
-    }
-
-    return Promise.all(
-      files.map(async (file) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("characterId", activeCharacter.id);
-        formData.append("displayName", "");
-        if (worldId) {
-          formData.append("worldId", worldId);
-        }
-
-        const response = await fetch("/api/r2-upload", {
-          method: "POST",
-          body: formData,
-        });
-        const result = (await response.json()) as {
-          error?: string;
-          key?: string;
-          name?: string;
-          size?: number;
-          url?: string | null;
-        };
-
-        if (!response.ok || !result.url) {
-          throw new Error(result.error ?? "로그 첨부 이미지 업로드에 실패했어요.");
-        }
-
-        return {
-          id: result.key ?? `${file.name}-${file.lastModified}`,
-          category: "illustration" as const,
-          name: result.name ?? "",
-          url: result.url,
-          size: result.size ?? file.size,
-        };
-      }),
-    );
-  }
-
-  // 이미지 업로드, 썸네일 위치 조정, 이미지 정보 수정/삭제를 처리합니다.
+  // 이미지 업로드 후 Firestore 반영. R2/대기열은 useAdminUploads가 담당합니다.
   async function uploadImages() {
-    if (!activeCharacterId || !activeCharacter) {
+    if (!activeCharacter) {
       setNotice("사진을 저장하려면 먼저 기본 · 레코드 탭에서 「본 페이지에 저장」을 눌러주세요.");
       return;
     }
 
-    if (!pendingUploads.length) {
-      setNotice("먼저 사진을 선택해주세요.");
-      return;
-    }
-
-    try {
-      setIsUploading(true);
-      const uploaded = await Promise.all(
-        pendingUploads.map(async (upload) => {
-          const formData = new FormData();
-          formData.append("file", upload.file);
-          formData.append("characterId", activeCharacter.id);
-          formData.append("displayName", upload.displayName.trim());
-          if (imageUploadWorldId) {
-            formData.append("worldId", imageUploadWorldId);
-          }
-
-          const response = await fetch("/api/r2-upload", {
-            method: "POST",
-            body: formData,
-          });
-          const result = (await response.json()) as {
-            error?: string;
-            key?: string;
-            name?: string;
-            size?: number;
-            url?: string | null;
-          };
-
-          if (!response.ok || !result.url) {
-            throw new Error(result.error ?? "R2 업로드에 실패했어요.");
-          }
-
-          return {
-            id: result.key ?? `${upload.file.name}-${upload.file.lastModified}`,
-            category: imageUploadCategory,
-            name: result.name ?? "",
-            url: result.url,
-            size: result.size ?? upload.file.size,
-            thumbX: upload.thumbX,
-            thumbY: upload.thumbY,
-            thumbScale: upload.thumbScale,
-          };
-        }),
-      );
-
-      if (imageUploadWorldId) {
+    await uploadPendingImages(activeCharacter.id, async (uploaded, worldId) => {
+      if (worldId) {
         const targetEntry =
           normalizeWorldEntries(activeCharacter.worldEntries).find(
-            (entry) => entry.worldId === imageUploadWorldId,
-          ) ?? createBlankWorldEntry(imageUploadWorldId);
+            (entry) => entry.worldId === worldId,
+          ) ?? createBlankWorldEntry(worldId);
         const nextEntry = {
           ...targetEntry,
           images: [...targetEntry.images, ...uploaded],
@@ -2273,25 +2061,18 @@ export default function AdminPage() {
           }),
           { merge: true },
         );
-        setNotice("세계관별 이미지를 저장했어요.");
-      } else {
-        await setDoc(
-          doc(getFirebaseDb(), "characters", activeCharacter.id),
-          characterFirestorePayload(activeCharacter, {
-            images: [...(activeCharacter.images ?? []), ...uploaded],
-            updatedAt: serverTimestamp(),
-          }),
-          { merge: true },
-        );
-        setNotice("이미지를 저장했어요. 본 페이지 카드와 상세에 반영됩니다.");
+        return;
       }
-      pendingUploads.forEach((upload) => URL.revokeObjectURL(upload.previewUrl));
-      setPendingUploads([]);
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "R2 업로드에 실패했어요.");
-    } finally {
-      setIsUploading(false);
-    }
+
+      await setDoc(
+        doc(getFirebaseDb(), "characters", activeCharacter.id),
+        characterFirestorePayload(activeCharacter, {
+          images: [...(activeCharacter.images ?? []), ...uploaded],
+          updatedAt: serverTimestamp(),
+        }),
+        { merge: true },
+      );
+    });
   }
 
   async function deleteImage(imageId: string) {
@@ -2459,7 +2240,7 @@ export default function AdminPage() {
 
     try {
       setIsSaving(true);
-      const uploadedImages = await uploadWorkImages(workImageFiles);
+      const uploadedImages = await uploadWorkImages(activeCharacter.id, workImageFiles);
       const newWork: Work = {
         title: workDraft.title.trim(),
         kind: workDraft.kind.trim() || "연성",
@@ -4456,7 +4237,9 @@ export default function AdminPage() {
                                 multiple
                                 disabled={isUploading}
                                 className="sr-only"
-                                onChange={selectPendingImages}
+                                onChange={(event) => {
+                                  void selectPendingImages(event, activeCharacterId);
+                                }}
                               />
                             </label>
                           </div>
