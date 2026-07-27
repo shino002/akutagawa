@@ -24,14 +24,14 @@ import {
 } from "firebase/firestore";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import { useAdminUploads } from "@/hooks/useAdminUploads";
+import { useBgmTrackAdmin } from "@/hooks/useBgmTrackAdmin";
 import { useDiaryAdmin } from "@/hooks/useDiaryAdmin";
+import { useExtractBannerAdmin } from "@/hooks/useExtractBannerAdmin";
 import { useGlitchFieldEditing } from "@/hooks/useGlitchFieldEditing";
 import {
   bgmTrackDraftFromTrack,
-  createBlankBgmTrackDraft,
   normalizeBgmTracks,
   resolveCharacterBgmUrl,
-  type BgmTrackDraft,
 } from "@/lib/bgm-catalog";
 import { getFirebaseDb } from "@/lib/firebase";
 import { extractCharacterPaletteFromImage } from "@/lib/character-palette";
@@ -51,7 +51,7 @@ import { useBgmCatalog } from "@/hooks/useBgmCatalog";
 import { createAdminHistoryState } from "@/lib/admin-history";
 import type { AdminCategory, AdminHistoryState, AdminPanel } from "@/types/admin.types";
 import { defaultArchiveContent } from "@/constants/home";
-import { MAX_AUDIO_UPLOAD_SIZE, MAX_UPLOAD_SIZE } from "@/constants/upload";
+import { MAX_UPLOAD_SIZE } from "@/constants/upload";
 import { formatBytes } from "@/utils/formatBytes";
 import { glitchFieldClass } from "@/utils/glitchFieldClass";
 import { linesToList } from "@/utils/linesToList";
@@ -64,20 +64,13 @@ import {
   relationshipEntryLabelGlitchPath,
   relationshipEntryNameGlitchPath,
 } from "@/lib/relationship-entries";
-import {
-  createBlankExtractBannerDraft,
-  extractBannerDraftFromBanner,
-  isAllowedBannerLinkUrl,
-  normalizePersonalHomeBanners,
-  type ExtractBannerDraft,
-} from "@/lib/personal-home-banners";
+import { extractBannerDraftFromBanner } from "@/lib/personal-home-banners";
 import { deleteR2Images } from "@/lib/r2-upload-client";
 import { createBlankWorldEntry, upsertWorldEntry } from "@/lib/world-entries";
 import type {
   Character,
   CharacterKind,
   CharacterWorldEntry,
-  ExtractContent,
   GuestbookEntry,
   HomeContent,
   BgmTrack,
@@ -227,6 +220,7 @@ export default function AdminPage() {
     zoomThumbnail,
     removePendingUpload,
     uploadWorkImages,
+    uploadSingleImage,
     uploadPendingImages,
   } = useAdminUploads({
     isAdmin,
@@ -251,22 +245,48 @@ export default function AdminPage() {
     onNotice: setNotice,
     setIsSaving,
   });
+  const {
+    extractBanners,
+    extractBannersRef,
+    activeExtractBannerId,
+    setActiveExtractBannerId,
+    extractBannerDraft,
+    setExtractBannerDraft,
+    extractBannerImageFile,
+    startNewExtractBanner,
+    selectExtractBanner,
+    handleExtractBannerImageChange,
+    saveExtractBanner,
+    deleteExtractBanner,
+  } = useExtractBannerAdmin({
+    isAdmin,
+    onNotice: setNotice,
+    setIsSaving,
+    uploadSingleImage,
+  });
+  const {
+    bgmTracks,
+    bgmTracksRef,
+    activeBgmTrackId,
+    setActiveBgmTrackId,
+    bgmTrackDraft,
+    setBgmTrackDraft,
+    bgmAudioFile,
+    startNewBgmTrack,
+    selectBgmTrack,
+    saveBgmTrack,
+    deleteBgmTrack,
+    handleBgmAudioChange,
+    quickAddCharacterBgm,
+  } = useBgmTrackAdmin({
+    isAdmin,
+    onNotice: setNotice,
+    setIsSaving,
+  });
   const [homeContent, setHomeContent] = useState<HomeContent>(emptyHomeContent);
   const [archiveContent, setArchiveContent] = useState<HomeContent>(defaultArchiveContent);
   const [guestbookEntries, setGuestbookEntries] = useState<GuestbookEntry[]>([]);
   const [guestbookReplyDrafts, setGuestbookReplyDrafts] = useState<Record<string, string>>({});
-  const [extractBanners, setExtractBanners] = useState<PersonalHomeBanner[]>([]);
-  const [activeExtractBannerId, setActiveExtractBannerId] = useState("");
-  const [extractBannerDraft, setExtractBannerDraft] = useState<ExtractBannerDraft>(() =>
-    createBlankExtractBannerDraft(),
-  );
-  const [extractBannerImageFile, setExtractBannerImageFile] = useState<File | null>(null);
-  const [bgmTracks, setBgmTracks] = useState<BgmTrack[]>([]);
-  const [activeBgmTrackId, setActiveBgmTrackId] = useState("");
-  const [bgmTrackDraft, setBgmTrackDraft] = useState<BgmTrackDraft>(() =>
-    createBlankBgmTrackDraft(),
-  );
-  const [bgmAudioFile, setBgmAudioFile] = useState<File | null>(null);
   const [adminPanel, setAdminPanel] = useState<AdminPanel>("categories");
   const [characterEditSection, setCharacterEditSection] = useState<CharacterEditSection>("basics");
   const [activeCharacterKind, setActiveCharacterKind] = useState<CharacterKind>("oc");
@@ -301,10 +321,6 @@ export default function AdminPage() {
   const { characterOptions: bgmCharacterOptions } = useBgmCatalog();
   const charactersRef = useRef(characters);
   charactersRef.current = characters;
-  const extractBannersRef = useRef(extractBanners);
-  extractBannersRef.current = extractBanners;
-  const bgmTracksRef = useRef(bgmTracks);
-  bgmTracksRef.current = bgmTracks;
   const worldsRef = useRef(worlds);
   worldsRef.current = worlds;
 
@@ -876,48 +892,6 @@ export default function AdminPage() {
   useEffect(() => {
     const db = getFirebaseDb();
     return onSnapshot(
-      doc(db, "site", "extract"),
-      (snapshot) => {
-        const data = snapshot.data() as Partial<ExtractContent> | undefined;
-        const nextBanners = normalizePersonalHomeBanners(data?.banners);
-        setExtractBanners(nextBanners);
-        setActiveExtractBannerId((current) => {
-          if (current) return current;
-          const firstBanner = nextBanners[0];
-          if (firstBanner) {
-            setExtractBannerDraft(extractBannerDraftFromBanner(firstBanner));
-          }
-          return firstBanner?.id || "";
-        });
-      },
-      (error) => setNotice(`갠홈 배너 불러오기 실패: ${error.message}`),
-    );
-  }, []);
-
-  useEffect(() => {
-    const db = getFirebaseDb();
-    return onSnapshot(
-      doc(db, "site", "bgm"),
-      (snapshot) => {
-        const data = snapshot.data() as Partial<{ tracks: BgmTrack[] }> | undefined;
-        const nextTracks = normalizeBgmTracks(data?.tracks);
-        setBgmTracks(nextTracks);
-        setActiveBgmTrackId((current) => {
-          if (current) return current;
-          const firstTrack = nextTracks[0];
-          if (firstTrack) {
-            setBgmTrackDraft(bgmTrackDraftFromTrack(firstTrack));
-          }
-          return firstTrack?.id || "";
-        });
-      },
-      (error) => setNotice(`BGM 목록 불러오기 실패: ${error.message}`),
-    );
-  }, []);
-
-  useEffect(() => {
-    const db = getFirebaseDb();
-    return onSnapshot(
       collection(db, "guestbook"),
       (snapshot) => {
         const nextEntries = snapshot.docs
@@ -1441,329 +1415,6 @@ export default function AdminPage() {
     } finally {
       setIsSaving(false);
     }
-  }
-
-  function startNewExtractBanner() {
-    setActiveExtractBannerId("");
-    setExtractBannerDraft(createBlankExtractBannerDraft());
-    setExtractBannerImageFile(null);
-    setNotice("새 갠홈 배너를 추가해주세요.");
-  }
-
-  async function uploadExtractBannerImage(file: File) {
-    if (file.size > MAX_UPLOAD_SIZE) {
-      throw new Error(`${file.name}은 10MB를 넘어서 업로드할 수 없어요.`);
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("characterId", "site-extract");
-    formData.append("displayName", "");
-
-    const response = await fetch("/api/r2-upload", {
-      method: "POST",
-      body: formData,
-    });
-    const result = (await response.json()) as {
-      error?: string;
-      key?: string;
-      name?: string;
-      size?: number;
-      url?: string | null;
-    };
-
-    if (!response.ok || !result.url) {
-      throw new Error(result.error ?? "배너 이미지 업로드에 실패했어요.");
-    }
-
-    return {
-      id: result.key ?? `${file.name}-${file.lastModified}`,
-      name: result.name ?? "",
-      url: result.url,
-      size: result.size ?? file.size,
-    } satisfies UploadedImage;
-  }
-
-  async function persistExtractBanners(nextBanners: PersonalHomeBanner[]) {
-    await setDoc(
-      doc(getFirebaseDb(), "site", "extract"),
-      {
-        banners: nextBanners,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
-    setExtractBanners(nextBanners);
-  }
-
-  async function saveExtractBanner(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!isAdmin) {
-      setNotice("관리자만 갠홈 배너를 저장할 수 있어요.");
-      return;
-    }
-
-    const label = extractBannerDraft.label.trim();
-    const linkUrl = extractBannerDraft.linkUrl.trim();
-
-    if (!isAllowedBannerLinkUrl(linkUrl)) {
-      setNotice(
-        "http:// 또는 https:// 로 시작하는 링크, 또는 / 로 시작하는 내부 경로를 입력해주세요.",
-      );
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      let image = extractBannerDraft.image;
-      if (extractBannerImageFile) {
-        image = await uploadExtractBannerImage(extractBannerImageFile);
-      }
-
-      if (!image) {
-        setNotice("배너 이미지를 업로드해주세요.");
-        return;
-      }
-
-      const id = slugifyId(extractBannerDraft.id || label || image.id) || crypto.randomUUID();
-      const nextBanner: PersonalHomeBanner = {
-        id,
-        label,
-        linkUrl,
-        image,
-      };
-      const nextBanners = extractBanners.some((banner) => banner.id === id)
-        ? extractBanners.map((banner) => (banner.id === id ? nextBanner : banner))
-        : [...extractBanners, nextBanner];
-
-      await persistExtractBanners(nextBanners);
-      setActiveExtractBannerId(id);
-      setExtractBannerDraft(extractBannerDraftFromBanner(nextBanner));
-      setExtractBannerImageFile(null);
-      setNotice("갠홈 배너를 저장했어요.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "갠홈 배너 저장에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function deleteExtractBanner(banner: PersonalHomeBanner) {
-    if (!isAdmin) {
-      setNotice("관리자만 갠홈 배너를 삭제할 수 있어요.");
-      return;
-    }
-
-    if (!banner.id) {
-      setNotice("삭제할 배너를 찾지 못했어요.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      await deleteR2Images([banner.image]);
-      const nextBanners = extractBanners.filter((entry) => entry.id !== banner.id);
-      await persistExtractBanners(nextBanners);
-      setActiveExtractBannerId("");
-      setExtractBannerDraft(createBlankExtractBannerDraft());
-      setExtractBannerImageFile(null);
-      setNotice("갠홈 배너를 삭제했어요.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "갠홈 배너 삭제에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function startNewBgmTrack() {
-    setActiveBgmTrackId("");
-    setBgmTrackDraft(createBlankBgmTrackDraft());
-    setBgmAudioFile(null);
-    setNotice("새 BGM을 추가해주세요.");
-  }
-
-  async function uploadBgmAudio(file: File, displayName = "") {
-    if (file.size > MAX_AUDIO_UPLOAD_SIZE) {
-      throw new Error(`${file.name}은 15MB를 넘어서 업로드할 수 없어요.`);
-    }
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("displayName", displayName);
-
-    const response = await fetch("/api/r2-upload-audio", {
-      method: "POST",
-      body: formData,
-    });
-    const result = (await response.json()) as {
-      error?: string;
-      url?: string | null;
-    };
-
-    if (!response.ok || !result.url) {
-      throw new Error(result.error ?? "BGM 업로드에 실패했어요.");
-    }
-
-    return result.url;
-  }
-
-  async function persistBgmTracks(nextTracks: BgmTrack[]) {
-    await setDoc(
-      doc(getFirebaseDb(), "site", "bgm"),
-      {
-        tracks: nextTracks,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
-    setBgmTracks(nextTracks);
-  }
-
-  async function saveBgmTrack(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    if (!isAdmin) {
-      setNotice("관리자만 BGM을 저장할 수 있어요.");
-      return;
-    }
-
-    const label = bgmTrackDraft.label.trim();
-
-    if (!label) {
-      setNotice("BGM 이름을 입력해주세요.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      let url = bgmTrackDraft.url.trim();
-
-      if (bgmAudioFile) {
-        url = await uploadBgmAudio(bgmAudioFile, label);
-      }
-
-      if (!url) {
-        setNotice("BGM 파일을 업로드해주세요.");
-        return;
-      }
-
-      const id = slugifyId(bgmTrackDraft.id || label) || crypto.randomUUID();
-      const nextTrack: BgmTrack = {
-        id,
-        label,
-        url,
-        scope: bgmTrackDraft.scope,
-      };
-      const nextTracks = bgmTracks.some((track) => track.id === id)
-        ? bgmTracks.map((track) => (track.id === id ? nextTrack : track))
-        : [...bgmTracks, nextTrack];
-
-      await persistBgmTracks(nextTracks);
-      setActiveBgmTrackId(id);
-      setBgmTrackDraft(bgmTrackDraftFromTrack(nextTrack));
-      setBgmAudioFile(null);
-      setNotice("BGM을 저장했어요.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "BGM 저장에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function deleteBgmTrack(track: BgmTrack) {
-    if (!isAdmin) {
-      setNotice("관리자만 BGM을 삭제할 수 있어요.");
-      return;
-    }
-
-    if (!track.id) {
-      setNotice("삭제할 BGM을 찾지 못했어요.");
-      return;
-    }
-
-    try {
-      setIsSaving(true);
-      if (track.url.startsWith("http")) {
-        const response = await fetch("/api/r2-delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ images: [{ url: track.url }] }),
-        });
-        const result = (await response.json()) as { error?: string };
-        if (!response.ok) {
-          throw new Error(result.error ?? "Cloudflare R2 삭제에 실패했어요.");
-        }
-      }
-
-      const nextTracks = bgmTracks.filter((entry) => entry.id !== track.id);
-      await persistBgmTracks(nextTracks);
-      setActiveBgmTrackId("");
-      setBgmTrackDraft(createBlankBgmTrackDraft());
-      setBgmAudioFile(null);
-      setNotice("BGM을 삭제했어요.");
-    } catch (error) {
-      setNotice(error instanceof Error ? error.message : "BGM 삭제에 실패했어요.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function handleBgmAudioChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) {
-      return;
-    }
-
-    if (!/\.(mp3|mpeg|ogg|wav|m4a|aac)$/i.test(file.name) && !file.type.startsWith("audio/")) {
-      setNotice("mp3, ogg, wav, m4a, aac 오디오만 업로드할 수 있어요.");
-      return;
-    }
-
-    setBgmAudioFile(file);
-    if (!bgmTrackDraft.label.trim()) {
-      setBgmTrackDraft((current) => ({
-        ...current,
-        label: file.name.replace(/\.[^/.]+$/, ""),
-      }));
-    }
-  }
-
-  async function quickAddCharacterBgm(file: File) {
-    const label = file.name.replace(/\.[^/.]+$/, "");
-    const url = await uploadBgmAudio(file, label);
-    const id = slugifyId(label) || crypto.randomUUID();
-    const nextTrack: BgmTrack = {
-      id,
-      label,
-      url,
-      scope: "character-only",
-    };
-    const nextTracks = bgmTracks.some((track) => track.url === url)
-      ? bgmTracks
-      : bgmTracks.some((track) => track.id === id)
-        ? bgmTracks.map((track) => (track.id === id ? nextTrack : track))
-        : [...bgmTracks, nextTrack];
-
-    await persistBgmTracks(nextTracks);
-    setNotice(`「${label}」을(를) 캐릭터 BGM으로 추가했어요.`);
-    return url;
-  }
-
-  function handleExtractBannerImageChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) {
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      setNotice("이미지 파일만 업로드할 수 있어요.");
-      return;
-    }
-
-    setExtractBannerImageFile(file);
   }
 
   async function saveGuestbookReply(entry: GuestbookEntry) {
@@ -2407,9 +2058,7 @@ export default function AdminPage() {
                             key={banner.id}
                             type="button"
                             onClick={() => {
-                              setActiveExtractBannerId(banner.id);
-                              setExtractBannerDraft(extractBannerDraftFromBanner(banner));
-                              setExtractBannerImageFile(null);
+                              selectExtractBanner(banner);
                             }}
                             className={`border p-3 text-left text-sm ${
                               activeExtractBannerId === banner.id
@@ -2451,9 +2100,7 @@ export default function AdminPage() {
                             key={track.id}
                             type="button"
                             onClick={() => {
-                              setActiveBgmTrackId(track.id);
-                              setBgmTrackDraft(bgmTrackDraftFromTrack(track));
-                              setBgmAudioFile(null);
+                              selectBgmTrack(track);
                             }}
                             className={`border p-3 text-left text-sm ${
                               activeBgmTrackId === track.id

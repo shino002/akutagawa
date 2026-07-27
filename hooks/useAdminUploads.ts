@@ -207,6 +207,13 @@ export const useAdminUploads = ({
   };
 
   /**
+   * 사이트 배너 등 단일 이미지를 R2에 올립니다.
+   */
+  const uploadSingleImage = async (file: File, characterId: string): Promise<UploadedImage> => {
+    return uploadImageToR2(file, characterId);
+  };
+
+  /**
    * 대기열 이미지를 R2에 올린 뒤 persist로 Firestore 반영을 맡깁니다.
    */
   const uploadPendingImages = async (
@@ -276,6 +283,7 @@ export const useAdminUploads = ({
     zoomThumbnail,
     removePendingUpload,
     uploadWorkImages,
+    uploadSingleImage,
     uploadPendingImages,
   };
 };
