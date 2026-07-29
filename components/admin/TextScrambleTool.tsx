@@ -337,6 +337,7 @@ export function TextScrambleTool({
   const [workSelection, setWorkSelection] = useState<GlitchTextSelection | null>(null);
   const [pinnedSelection, setPinnedSelection] = useState<GlitchTextSelection | null>(null);
   const [toolNotice, setToolNotice] = useState("");
+  const [previewScope, setPreviewScope] = useState<"field" | "zone">("field");
   const [zoneStyle, setZoneStyle] = useState<GlitchZoneStyle>(
     glitchConfig?.defaultStyle ?? defaults.zoneStyle,
   );
@@ -347,7 +348,6 @@ export function TextScrambleTool({
   const lastLoadedSelectionKeyRef = useRef<string | null>(null);
   const pendingZoneDraftRef = useRef(pendingZoneDraft);
   const errorMessageTouchedRef = useRef(false);
-  pendingZoneDraftRef.current = pendingZoneDraft;
 
   const legacyConfig = useMemo(
     () => ({
@@ -445,6 +445,13 @@ export function TextScrambleTool({
       toolMountedRef.current = false;
     };
   }, []);
+
+  /* 최신 초안을 담아 두는 상자. 예전에는 렌더 도중에 대입했는데, 버려진 렌더의
+     값이 그대로 남을 수 있습니다. 이 값은 선택 이벤트에서만 읽으므로
+     커밋된 뒤에 채워도 늦지 않습니다. */
+  useEffect(() => {
+    pendingZoneDraftRef.current = pendingZoneDraft;
+  }, [pendingZoneDraft]);
 
   useEffect(() => {
     setWorkSelection(null);
@@ -796,6 +803,11 @@ export function TextScrambleTool({
     ? findMatchingGlitchZone(zones, activeSelection, fieldValue)?.id
     : undefined;
 
+  /* 미리보기 한 칸이 「전체」 와 「선택 구간」 을 번갈아 보여 줍니다.
+     구간을 안 골랐으면 볼 게 전체뿐이라 스위치를 감춥니다. */
+  const canPreviewZone = Boolean(activeSelection && selectionPreviewConfig);
+  const showZonePreview = canPreviewZone && previewScope === "zone";
+
   return (
     <section
       className="admin-glitch-tool max-w-full min-w-0 border border-emerald-100/15 bg-black/30 p-4 pb-6"
@@ -803,48 +815,66 @@ export function TextScrambleTool({
       data-text-scramble-tool
       onMouseDownCapture={preserveAdminGlitchToolPointerDown}
     >
-      <div>
-        <h3 className="text-sm font-semibold text-emerald-50">텍스트 오류</h3>
-        <p className="mt-1 text-[11px] leading-5 text-emerald-100/50">
-          필드 고르기 → 텍스트 드래그 → 서식·오류 설정 → 적용. 다른 탭에서는 드래그 툴바로 서식만
-          빠르게 넣을 수 있어요.
-        </p>
-      </div>
+      <header className="glitch-tool-head">
+        <h3 className="glitch-tool-title">텍스트 오류</h3>
+        {/* 안내는 한 줄씩 흩뿌리지 않고 접어 둡니다 — 늘 펼쳐 두면 본 작업이 묻힙니다 */}
+        <details className="glitch-help">
+          <summary>쓰는 법</summary>
+          <div>
+            <p>
+              <b>①</b> 필드를 고르고 → <b>②</b> 텍스트에서 구간을 드래그 → <b>③</b> 서식·오류를
+              정하고 적용합니다.
+            </p>
+            <p>
+              <b>고정 서식</b>은 글자를 그대로 두고 색·크기·굵기·밑줄만 바꿉니다. <b>오류 설정</b>을
+              켜면 참조 단어·전환 속도·원문↔오류 방식을 이 구간만 따로 조절합니다.
+            </p>
+            <p>다른 탭에서는 텍스트를 드래그하면 뜨는 툴바로 서식만 빠르게 넣을 수 있어요.</p>
+          </div>
+        </details>
+      </header>
 
-      {fieldPickerGroups && fieldPickerGroups.length > 0 && onFieldSelect ? (
-        <div className="mt-4">
+      {/* ① 필드 */}
+      <section className="glitch-step">
+        <p className="glitch-step-head">
+          <span className="glitch-step-no">1</span>
+          <span className="glitch-step-title">필드</span>
+          {activeFieldPath ? (
+            <span className="glitch-step-state">
+              {activeFieldLabel}
+              {zones.length > 0 ? <span className="adm-count">{zones.length}</span> : null}
+            </span>
+          ) : (
+            <span className="glitch-step-state is-empty">고르지 않음</span>
+          )}
+        </p>
+
+        {fieldPickerGroups && fieldPickerGroups.length > 0 && onFieldSelect ? (
           <GlitchFieldPicker
             groups={fieldPickerGroups}
             activePath={activeFieldPath}
             onSelect={onFieldSelect}
           />
-        </div>
-      ) : null}
+        ) : null}
+      </section>
 
-      <p className="mt-3 border border-emerald-100/10 bg-black/25 px-3 py-2 text-xs text-emerald-100/75">
-        {!activeFieldPath ? (
-          "필드를 고르세요."
-        ) : (
-          <>
-            <span className="font-semibold text-emerald-50">{activeFieldLabel}</span>
-            {activeSelection ? (
-              <span>
-                {" "}
-                · {activeSelection.start + 1}~{activeSelection.end}번째 「{activeSelection.text}」
-              </span>
-            ) : (
-              <span className="text-emerald-100/50"> · 아래 텍스트에서 구간을 선택하세요</span>
-            )}
-            {zones.length > 0 ? (
-              <span className="text-emerald-100/50"> · 적용 {zones.length}구간</span>
-            ) : null}
-          </>
-        )}
-      </p>
-
-      <label className="mt-3 grid gap-2 text-xs text-emerald-100/70">
-        <span>② 텍스트 · 구간 선택</span>
+      {/* ② 텍스트 · 구간 선택 */}
+      <section className="glitch-step">
+        <p className="glitch-step-head">
+          <span className="glitch-step-no">2</span>
+          <span className="glitch-step-title">텍스트 · 구간 선택</span>
+          {activeSelection ? (
+            <span className="glitch-step-state">
+              {activeSelection.start + 1}~{activeSelection.end}번째 「{activeSelection.text}」
+            </span>
+          ) : (
+            <span className="glitch-step-state is-empty">
+              {activeFieldPath ? "드래그해서 구간을 고르세요" : "먼저 필드를 고르세요"}
+            </span>
+          )}
+        </p>
         <textarea
+          aria-label="오류를 넣을 텍스트"
           ref={workTextareaRef}
           value={fieldValue}
           data-glitch-work-textarea
@@ -862,37 +892,39 @@ export function TextScrambleTool({
           className="auth-input min-h-36 disabled:cursor-not-allowed disabled:opacity-50"
           data-text-corruptor-ignore
         />
-      </label>
 
-      {activeFieldPath && fieldValue && !activeSelection ? (
-        <div className="mt-3 border border-emerald-200/25 bg-emerald-950/30 p-3">
-          <p className="mb-2 text-[10px] font-medium text-emerald-100/55">실시간 미리보기</p>
-          <p className="mb-2 text-[10px] leading-5 text-emerald-100/45">
-            {hasScramble ? "원문과 오류 글자가 번갈아 보입니다." : "적용된 서식·연결이 반영됩니다."}
-          </p>
-          <p className="text-sm leading-7 break-words whitespace-pre-wrap text-emerald-50/90">
-            {livePreviewConfig ? (
-              <GlitchedText
-                key={livePreviewKey}
-                text={fieldValue}
-                glitch={livePreviewConfig}
-                preserveWhitespace
-                animate
-              />
-            ) : (
-              fieldValue
-            )}
-          </p>
-        </div>
-      ) : null}
+        {/* 이미 걸어 둔 구간 — 텍스트 바로 밑에서 눌러 고칩니다.
+            예전에는 화면 맨 아래 목록까지 내려가야 기존 구간을 다시 잡을 수 있었습니다. */}
+        {zones.length > 0 ? (
+          <div className="glitch-zone-chips">
+            <span className="glitch-zone-chips-label">걸린 구간</span>
+            {zones.map((zone, index) => (
+              <button
+                key={zone.id}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectZoneForEditing(zone)}
+                className="glitch-zone-chip"
+                data-state={zone.id === activeEditingZoneId ? "active" : "plain"}
+                title={`${index + 1}번째 구간 · ${zone.original}`}
+              >
+                <span className="glitch-zone-chip-no">{index + 1}</span>
+                <span className="glitch-zone-chip-text">{zone.original}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
-      <GlitchZoneRangePicker
-        fieldValue={fieldValue}
-        disabled={!activeFieldPath}
-        onSelect={applySelection}
-        onApply={(selection) => handleAddZone(selection)}
-        onNotice={notify}
-      />
+        {/* 구간을 고르는 또 하나의 길이라 ② 안에 둡니다 — 예전에는 미리보기 뒤로 밀려
+            텍스트와 떨어져 있었습니다 */}
+        <GlitchZoneRangePicker
+          fieldValue={fieldValue}
+          disabled={!activeFieldPath}
+          onSelect={applySelection}
+          onApply={(selection) => handleAddZone(selection)}
+          onNotice={notify}
+        />
+      </section>
 
       {activeSelection && pendingZonePreview ? (
         <div
@@ -900,20 +932,14 @@ export function TextScrambleTool({
           data-glitch-selection-panel
           onMouseDown={keepAdminTextSelection}
         >
-          <p className="text-xs font-medium text-amber-100">③ 선택 구간 설정</p>
-          <div className="mt-2 grid gap-1 border border-emerald-100/10 bg-black/25 px-3 py-2 text-[10px] leading-5 text-emerald-100/55">
-            <p>
-              <span className="font-medium text-emerald-100/80">고정 서식</span> — 글자는 그대로,
-              색·글씨 크기·굵게·밑줄
-            </p>
-            <p>
-              <span className="font-medium text-emerald-100/80">오류 설정</span> — 켜면 참조 단어·
-              전환 속도·원문↔오류 방식을 이 구간만 따로 조절
-            </p>
-          </div>
-          <p className="mt-2 text-sm leading-7 break-all text-emerald-50/90">
+          <p className="glitch-step-head">
+            <span className="glitch-step-no">3</span>
+            <span className="glitch-step-title">선택 구간 설정</span>
+          </p>
+          {/* 고정 서식/오류 설정 설명 상자가 있던 자리 — 「쓰는 법」 으로 합쳤습니다 */}
+          <p className="glitch-context">
             {fieldValue.slice(Math.max(0, activeSelection.start - 20), activeSelection.start)}
-            <mark className="bg-amber-300/35 px-1 text-amber-50">{activeSelection.text}</mark>
+            <mark>{activeSelection.text}</mark>
             {fieldValue.slice(activeSelection.end, activeSelection.end + 20)}
           </p>
           <GlitchStyleEditor
@@ -941,49 +967,9 @@ export function TextScrambleTool({
             }}
             onNotice={notify}
           />
-          {selectionPreviewConfig ? (
-            <div className="border border-violet-300/25 bg-violet-950/20 p-3">
-              <p className="mb-2 text-[10px] font-medium text-violet-100/70">선택 구간 미리보기</p>
-              <p className="mb-2 text-[10px] leading-5 text-emerald-100/45">
-                {pendingUsesError
-                  ? "아래 글자에 오류 설정이 적용됩니다."
-                  : "아래 글자에 서식·연결이 적용됩니다."}
-              </p>
-              <p className="text-base leading-8 break-words whitespace-pre-wrap text-emerald-50">
-                <GlitchedText
-                  key={selectionPreviewKey}
-                  text={activeSelection.text}
-                  glitch={selectionPreviewConfig}
-                  preserveWhitespace
-                  animate
-                />
-              </p>
-            </div>
-          ) : null}
-          <div className="border border-emerald-200/25 bg-black/35 p-3">
-            <p className="mb-2 text-[10px] font-medium text-emerald-100/55">전체 필드 미리보기</p>
-            <p className="mb-2 text-[10px] leading-5 text-emerald-100/45">
-              선택 구간 설정이 전체 텍스트에 반영된 모습입니다.
-            </p>
-            <p className="max-h-[min(32vh,240px)] overflow-y-auto text-sm leading-7 break-words whitespace-pre-wrap text-emerald-50/90">
-              {livePreviewConfig ? (
-                <GlitchedText
-                  key={`panel-${livePreviewKey}`}
-                  text={fieldValue}
-                  glitch={livePreviewConfig}
-                  preserveWhitespace
-                  animate
-                />
-              ) : (
-                fieldValue
-              )}
-            </p>
-          </div>
-          <details className="mt-3 border border-emerald-100/10 bg-black/20">
-            <summary className="cursor-pointer px-3 py-2 text-[11px] text-emerald-100/70">
-              페이지 연결 (선택)
-            </summary>
-            <div className="border-t border-emerald-100/10 p-3 pt-2">
+          <details className="glitch-sub">
+            <summary>페이지 연결 (선택)</summary>
+            <div>
               <ZoneLinkEditor
                 target={pendingZoneDraft.linkTarget}
                 allCharacters={allCharacters}
@@ -994,7 +980,9 @@ export function TextScrambleTool({
               />
             </div>
           </details>
-          <div className="mt-3 flex flex-wrap gap-2">
+
+          {/* 적용 단추는 ③ 바닥에 붙여 둡니다 — 설정이 길어져도 손이 닿게 */}
+          <div className="glitch-apply">
             <AdminChoiceButton
               variant="primary"
               onMouseDown={(event) => event.preventDefault()}
@@ -1013,6 +1001,73 @@ export function TextScrambleTool({
             </button>
           </div>
         </div>
+      ) : null}
+
+      {/* 미리보기 — 예전에는 「실시간」·「선택 구간」·「전체 필드」 세 상자가 따로 있었고
+          구간을 고르는 순간 하나가 사라지고 둘이 나타났습니다. 한 칸으로 합치고
+          무엇을 볼지는 위 스위치로 고릅니다. */}
+      {activeFieldPath && fieldValue ? (
+        <section className="glitch-preview">
+          <p className="glitch-preview-head">
+            <span className="glitch-preview-title">미리보기</span>
+            {canPreviewZone ? (
+              <span className="glitch-preview-switch" role="tablist" aria-label="미리보기 범위">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={previewScope === "field"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setPreviewScope("field")}
+                  className={previewScope === "field" ? "is-active" : undefined}
+                >
+                  전체
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={previewScope === "zone"}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => setPreviewScope("zone")}
+                  className={previewScope === "zone" ? "is-active" : undefined}
+                >
+                  선택 구간
+                </button>
+              </span>
+            ) : null}
+          </p>
+
+          <p className="glitch-preview-body">
+            {showZonePreview && selectionPreviewConfig && activeSelection ? (
+              <GlitchedText
+                key={selectionPreviewKey}
+                text={activeSelection.text}
+                glitch={selectionPreviewConfig}
+                preserveWhitespace
+                animate
+              />
+            ) : livePreviewConfig ? (
+              <GlitchedText
+                key={`panel-${livePreviewKey}`}
+                text={fieldValue}
+                glitch={livePreviewConfig}
+                preserveWhitespace
+                animate
+              />
+            ) : (
+              fieldValue
+            )}
+          </p>
+
+          <p className="glitch-preview-note">
+            {showZonePreview
+              ? pendingUsesError
+                ? "고른 구간에 오류 설정이 적용된 모습입니다."
+                : "고른 구간에 서식·연결이 적용된 모습입니다."
+              : hasScramble
+                ? "원문과 오류 글자가 번갈아 보입니다."
+                : "적용된 서식·연결이 전체 텍스트에 반영된 모습입니다."}
+          </p>
+        </section>
       ) : null}
 
       {zones.length > 0 ? (

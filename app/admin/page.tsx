@@ -72,7 +72,9 @@ function AdminWorkspaceInner() {
   });
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+    /* 두 단 전환을 xl(1280) → lg(1024) 로 내립니다. 예전에는 흔한 노트북 폭에서
+       좌측 목록이 화면 전체를 먹고 편집기가 한참 아래로 밀려 있었습니다. */
+    <div className="grid items-start gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]">
       <AdminAsideNav
         adminPanel={adminPanel}
         onPanelChange={setAdminPanel}
@@ -92,7 +94,7 @@ function AdminWorkspaceInner() {
         }}
       />
 
-      <section className="grid min-w-0 gap-6">
+      <section className="grid min-w-0 gap-5">
         {adminPanel === "categories" && activeCategory === "home" && <HomeContentEditor />}
         {adminPanel === "categories" && activeCategory === "archive" && <ArchiveContentEditor />}
         {adminPanel === "categories" && activeCategory === "diary" && <DiaryEditor />}
@@ -114,20 +116,17 @@ export default function AdminPage() {
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[linear-gradient(180deg,#0a0c12_0%,#080a10_78%,#070910_100%)]" />
       <div className="noise-layer" aria-hidden="true" />
 
-      <section className="relative z-10 mx-auto grid w-full max-w-[1500px] gap-6">
-        <header className="glass-card p-6 md:p-8">
-          <p className="text-xs tracking-[0.35em] text-emerald-100/60 uppercase">Admin Edit Page</p>
-          <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="font-serif text-4xl font-bold md:text-6xl">수정 페이지</h1>
-              <p className="mt-3 text-sm text-emerald-100/65">
-                여기서 저장한 내용은 본 페이지 카드와 상세 화면에 바로 반영됩니다.
-              </p>
-            </div>
-            <Link
-              href="/"
-              className="border border-emerald-100/20 px-5 py-3 text-center text-sm text-emerald-50"
-            >
+      <section className="relative z-10 mx-auto grid w-full max-w-[1500px] gap-5">
+        {/* 도구 화면이라 표제는 한 줄 띠로 눌러 둡니다 — 예전 6xl 히어로가 첫 화면의
+            절반을 쓰면서 정작 편집기는 스크롤 아래에 있었습니다 */}
+        <header className="admin-topbar">
+          <div className="min-w-0">
+            <p className="adm-label">Admin Edit Page</p>
+            <h1 className="admin-topbar-title">수정 페이지</h1>
+          </div>
+          <div className="admin-topbar-actions">
+            <p className="admin-topbar-note">저장한 내용은 본 페이지에 바로 반영됩니다.</p>
+            <Link href="/" className="admin-ghost-btn text-sm">
               본 페이지로 돌아가기
             </Link>
           </div>

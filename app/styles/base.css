@@ -8,16 +8,20 @@
 }
 
 :root {
-  --background: #080808;
+  /* 바탕은 진짜 검정입니다. 니어블랙(#080808·#0c0c0c)을 깔면 화면이 검은 게
+     아니라 「어두운 회색」으로 읽혀서, 흰 괘선과 붉은 잉크가 가진 대비가
+     통째로 눌립니다. 면은 전부 #000 으로 두고 층은 테두리가 나눕니다.
+     --surface-raised 만 살짝 들려 있습니다 — 호버 피드백이 사라지면 안 되니까요. */
+  --background: #000000;
   --foreground: #eeeeee;
   --blood: #eeeeee;
-  --blood-dark: #121212;
+  --blood-dark: #0d0d0d;
   --signal-blue: #c8c8c8;
   --signal-yellow-white: #e8e8e8;
-  --surface-base: #080808;
-  --surface-card: #0c0c0c;
-  --surface-raised: #121212;
-  --surface-deep: #050505;
+  --surface-base: #000000;
+  --surface-card: #000000;
+  --surface-raised: #101010;
+  --surface-deep: #000000;
   --character-card-divider: #3a3a3a;
   --archive-ink: #000000;
   --archive-panel: rgba(0, 0, 0, 0.96);
@@ -30,11 +34,11 @@
     "Noto Sans KR", "Noto Sans Symbols 2", "Segoe UI Symbol", "Apple Symbols", "Malgun Gothic",
     "Apple SD Gothic Neo", ui-sans-serif, system-ui, sans-serif;
   --font-emoji-stack: "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  /* 모서리: 한 곳만 바꾸면 전역이 따라옵니다 */
-  --radius-sm: 2px; /* 입력창, 작은 버튼, 태그 */
-  --radius-md: 4px; /* 카드, 패널, 기본값 */
-  --radius-lg: 8px; /* 큰 오버레이, 모달 */
-  --radius-pill: 9999px;
+  /* 모서리: 한 곳만 바꾸면 전역이 따라옵니다 (--app-* 는 :root, --radius-* 는 Tailwind) */
+  --app-radius-sm: 6px; /* 입력창, 작은 버튼, 태그 */
+  --app-radius-md: 12px; /* 카드, 패널, 기본값 */
+  --app-radius-lg: 20px; /* 큰 오버레이, 모달 */
+  --app-radius-pill: 9999px;
 }
 
 @theme inline {
@@ -42,10 +46,10 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --radius-sm: var(--radius-sm);
-  --radius-md: var(--radius-md);
-  --radius-lg: var(--radius-lg);
-  --radius-pill: var(--radius-pill);
+  --radius-sm: var(--app-radius-sm);
+  --radius-md: var(--app-radius-md);
+  --radius-lg: var(--app-radius-lg);
+  --radius-pill: var(--app-radius-pill);
 }
 
 body {

@@ -11,6 +11,9 @@ import { CharacterWorldEditor } from "@/components/admin/sections/CharacterWorld
 import { useCharactersAdmin } from "@/contexts/CharactersAdminContext";
 import { getCharacterDraftFieldValue, getDraftGlitchConfig } from "@/lib/glitch-fields";
 
+/** 저장 바가 폼 밖에서 submit 을 걸기 위한 연결 고리 */
+const CHARACTER_FORM_ID = "character-edit-form";
+
 /**
  * 캐릭터 편집 패널: 섹션 네비 + 폼 셸 + 글리치 플로팅 툴바입니다.
  */
@@ -56,23 +59,37 @@ export function CharactersPanel() {
       />
 
       {showFormShell && (
-        <form
-          onSubmit={saveCharacter}
-          className="glass-card admin-edit-form grid max-w-full min-w-0 gap-3 p-5 pb-28 md:p-6"
-        >
-          {characterEditSection === "basics" && <CharacterBasicsEditor />}
-          {characterEditSection === "members" && isPairDraft && <CharacterMembersEditor />}
-          {characterEditSection === "glitch" && <CharacterGlitchEditor />}
-          {characterEditSection === "subpages" && <CharacterSubPagesEditor />}
-          <div className="pointer-events-none sticky bottom-3 z-10 -mx-1 border border-emerald-200/20 bg-black/85 p-3 backdrop-blur-sm [&_button]:pointer-events-auto">
+        <>
+          <form
+            id={CHARACTER_FORM_ID}
+            onSubmit={saveCharacter}
+            className="glass-card admin-edit-form grid max-w-full min-w-0 gap-3 p-5 md:p-6"
+          >
+            {characterEditSection === "basics" && <CharacterBasicsEditor />}
+            {characterEditSection === "members" && isPairDraft && <CharacterMembersEditor />}
+            {characterEditSection === "glitch" && <CharacterGlitchEditor />}
+            {characterEditSection === "subpages" && <CharacterSubPagesEditor />}
+          </form>
+
+          {/* 저장 바는 폼 「밖」 에 둡니다 — .admin-edit-form 의 overflow-x:clip 이
+              양축 clip 으로 계산돼 그 안에서는 sticky 가 화면에 붙지 못합니다.
+              단추는 form 속성으로 위 폼에 그대로 연결돼 있습니다. */}
+          <div className="admin-savebar">
+            <p className="admin-savebar-note">
+              {isPairDraft
+                ? "페어 카드 · 오류 · 상세 페이지 · 연결 캐릭터 탭이 함께 저장됩니다."
+                : "카드 · 레코드 · 오류 · 상세 페이지 탭이 함께 저장됩니다."}
+            </p>
             <button
+              type="submit"
+              form={CHARACTER_FORM_ID}
               disabled={isSaving}
-              className="admin-action-btn w-full px-5 py-3 text-sm disabled:opacity-60 md:ml-auto md:w-auto"
+              className="admin-action-btn w-full text-sm md:w-auto"
             >
-              {isSaving ? "저장 중..." : "본 페이지에 저장"}
+              {isSaving ? "저장 중…" : "본 페이지에 저장"}
             </button>
           </div>
-        </form>
+        </>
       )}
 
       {characterEditSection === "world" && <CharacterWorldEditor />}

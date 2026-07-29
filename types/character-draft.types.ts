@@ -8,6 +8,7 @@ import type {
   RelationshipEntry,
   SettingSection,
 } from "@/lib/types";
+import type { ClearanceGrade } from "@/lib/clearance";
 
 export type CharacterDraft = {
   id: string;
@@ -27,4 +28,6 @@ export type CharacterDraft = {
   pairMemberIds: string[];
   bgmUrl: string;
   confidential: boolean;
+  /** 문서 열람등급 (X/S/A/B/C) — lib/clearance.ts */
+  clearance: ClearanceGrade;
 };

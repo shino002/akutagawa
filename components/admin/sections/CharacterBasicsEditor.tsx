@@ -14,9 +14,9 @@ import { SettingSectionOrderButtons } from "@/components/admin/SettingSectionOrd
 import { useCharactersAdmin } from "@/contexts/CharactersAdminContext";
 import { extractCharacterPaletteFromImage } from "@/lib/character-palette";
 import { CHARACTER_KINDS, CHARACTER_KIND_ADMIN_LABELS } from "@/lib/character-kind";
+import { CLEARANCE_GRADES, clearancePresetOf, type ClearanceGrade } from "@/lib/clearance";
 import {
   getDraftGlitchConfig,
-  settingSectionExcerptGlitchPath,
   settingSectionGlitchPath,
   settingSectionTitleGlitchPath,
   updateDraftFieldValue,
@@ -53,7 +53,6 @@ export function CharacterBasicsEditor() {
     bgmCharacterOptions,
     quickAddCharacterBgm,
     addSettingSection,
-    updateSettingSection,
     removeSettingSection,
     moveSettingSection,
   } = useCharactersAdmin();
@@ -125,6 +124,28 @@ export function CharacterBasicsEditor() {
               </option>
             ))}
           </select>
+        </label>
+        <label className="grid gap-2 text-sm text-emerald-100/75">
+          열람등급 (도장)
+          <select
+            value={draft.clearance}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                clearance: event.target.value as ClearanceGrade,
+              }))
+            }
+            className="auth-input"
+          >
+            {CLEARANCE_GRADES.map((grade) => (
+              <option key={grade} value={grade}>
+                {clearancePresetOf(grade).adminLabel}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs leading-5 text-emerald-100/55">
+            상세 페이지 우상단 도장 문구와 색, 헤더의 閲覧等級 표기가 등급을 따릅니다.
+          </span>
         </label>
         <label className="flex items-start gap-3 rounded border border-stone-400/20 bg-black/25 px-3 py-3 text-sm text-emerald-100/75 md:col-span-2">
           <input
@@ -387,67 +408,10 @@ export function CharacterBasicsEditor() {
                 )}
                 minHeightClass="min-h-10"
               />
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateSettingSection(section.id, {
-                      kind: "record",
-                      excerpt: "",
-                    })
-                  }
-                  className={`border px-3 py-1.5 text-xs ${
-                    (section.kind ?? "record") === "record"
-                      ? "border-emerald-200/45 text-emerald-50"
-                      : "border-stone-400/25 text-stone-300/70"
-                  }`}
-                >
-                  일반 레코드
-                </button>
-                <button
-                  type="button"
-                  onClick={() => updateSettingSection(section.id, { kind: "story" })}
-                  className={`border px-3 py-1.5 text-xs ${
-                    section.kind === "story"
-                      ? "border-emerald-200/45 text-emerald-50"
-                      : "border-stone-400/25 text-stone-300/70"
-                  }`}
-                >
-                  스토리 창
-                </button>
-              </div>
-              {section.kind === "story" && (
-                <AdminInlineGlitchEditor
-                  value={section.excerpt ?? ""}
-                  onChange={(value) =>
-                    setDraft((current) =>
-                      updateDraftFieldValue(
-                        current,
-                        settingSectionExcerptGlitchPath(section.id),
-                        value,
-                      ),
-                    )
-                  }
-                  glitch={getDraftGlitchConfig(draft, settingSectionExcerptGlitchPath(section.id))}
-                  onGlitchChange={(config) =>
-                    setDraft((current) =>
-                      updateDraftGlitchPath(
-                        current,
-                        settingSectionExcerptGlitchPath(section.id),
-                        config,
-                      ),
-                    )
-                  }
-                  glitchBindings={bindGlitchField(settingSectionExcerptGlitchPath(section.id))}
-                  placeholder="Record Box에 보일 짧은 소개 (비우면 본문 앞부분이 자동으로 사용됩니다)"
-                  className={glitchFieldClass(
-                    settingSectionExcerptGlitchPath(section.id),
-                    activeGlitchFieldPath,
-                    "",
-                  )}
-                  minHeightClass="min-h-16"
-                />
-              )}
+              {/* 「일반 레코드 / 스토리 창」 전환과 「짧은 소개」 칸이 있던 자리.
+                  별지(전문 열람)는 종류가 아니라 분량으로 열리고, 발췌는
+                  lib/record-excerpt.ts 가 본문에서 자동으로 뽑습니다. 둘 다
+                  화면에 아무 영향이 없던 조작이라 걷어냈습니다. */}
               <AdminInlineGlitchEditor
                 value={section.body}
                 onChange={(value) =>
@@ -462,13 +426,13 @@ export function CharacterBasicsEditor() {
                   )
                 }
                 glitchBindings={bindGlitchField(settingSectionGlitchPath(section.id))}
-                placeholder={section.kind === "story" ? "스토리 본문" : "내용 입력"}
+                placeholder="내용 입력"
                 className={glitchFieldClass(
                   settingSectionGlitchPath(section.id),
                   activeGlitchFieldPath,
                   "",
                 )}
-                minHeightClass={section.kind === "story" ? "min-h-40" : "min-h-24"}
+                minHeightClass="min-h-32"
               />
             </article>
           ))}

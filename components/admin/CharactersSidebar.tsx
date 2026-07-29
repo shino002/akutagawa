@@ -5,6 +5,7 @@ import { CHARACTER_KINDS, CHARACTER_KIND_ADMIN_LABELS } from "@/lib/character-ki
 
 /**
  * 사이드바 · 자캐/페어/어나더 목록입니다.
+ * 종류 전환 → 목록 → 새로 만들기 순서로, 카테고리 목록과 같은 어휘를 씁니다.
  */
 export function CharactersSidebar() {
   const {
@@ -16,51 +17,61 @@ export function CharactersSidebar() {
     startNewCharacter,
   } = useCharactersAdmin();
 
+  const kindLabel = CHARACTER_KIND_ADMIN_LABELS[activeCharacterKind];
+
   return (
     <>
-      <div className="mb-4 grid grid-cols-3 gap-2 text-xs">
+      <div className="admin-aside-kinds" role="tablist" aria-label="종류">
         {CHARACTER_KINDS.map((kind) => (
           <button
             key={kind}
             type="button"
+            role="tab"
+            aria-selected={activeCharacterKind === kind}
             onClick={() => handleActiveKindChange(kind)}
-            className={
-              activeCharacterKind === kind
-                ? "bg-emerald-200 px-2 py-2 font-semibold text-emerald-950"
-                : "border border-emerald-100/20 px-2 py-2 text-emerald-100/70"
-            }
+            className={activeCharacterKind === kind ? "is-active" : undefined}
           >
             {CHARACTER_KIND_ADMIN_LABELS[kind]}
           </button>
         ))}
       </div>
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="board-title">{CHARACTER_KIND_ADMIN_LABELS[activeCharacterKind]} 목록</h2>
+
+      <div className="admin-aside-listhead">
+        <p className="adm-label">
+          {kindLabel} 목록
+          <span className="adm-count">{filteredCharacters.length}</span>
+        </p>
         <button
           type="button"
           onClick={() => startNewCharacter()}
-          className="bg-emerald-200 px-3 py-2 text-xs font-semibold text-emerald-950"
+          className="admin-action-btn admin-aside-new"
         >
-          새 {CHARACTER_KIND_ADMIN_LABELS[activeCharacterKind]}
+          + 새 {kindLabel}
         </button>
       </div>
-      <div className="mt-5 grid gap-3">
-        {filteredCharacters.map((character) => (
-          <button
-            key={character.id}
-            type="button"
-            onClick={() => selectCharacterFromList(character)}
-            className={`border p-3 text-left text-sm ${
-              activeCharacter?.id === character.id
-                ? "border-stone-400/35 bg-emerald-100/10"
-                : "border-emerald-100/10 bg-black/30"
-            }`}
-          >
-            <span className="block text-lg font-semibold">{character.name}</span>
-            <span className="mt-1 block text-xs text-emerald-100/50">{character.id}</span>
-          </button>
-        ))}
-      </div>
+
+      <nav className="admin-aside-list" aria-label={`${kindLabel} 목록`}>
+        {filteredCharacters.map((character) => {
+          const isActive = activeCharacter?.id === character.id;
+
+          return (
+            <button
+              key={character.id}
+              type="button"
+              aria-current={isActive ? "true" : undefined}
+              onClick={() => selectCharacterFromList(character)}
+              className={isActive ? "admin-aside-item is-active" : "admin-aside-item"}
+            >
+              <span className="admin-aside-item-title">{character.name || "이름 없음"}</span>
+              <span className="admin-aside-item-sub">{character.id}</span>
+            </button>
+          );
+        })}
+
+        {filteredCharacters.length === 0 && (
+          <p className="adm-hint">등록된 {kindLabel}가 없어요.</p>
+        )}
+      </nav>
     </>
   );
 }

@@ -138,7 +138,7 @@ export type CharactersAdminContextValue = {
   addSettingSection: () => void;
   updateSettingSection: (
     id: string,
-    updates: Partial<Pick<SettingSection, "title" | "body" | "kind" | "excerpt">>,
+    updates: Partial<Pick<SettingSection, "title" | "body">>,
   ) => void;
   removeSettingSection: (id: string) => void;
   moveSettingSection: (id: string, direction: "up" | "down") => void;

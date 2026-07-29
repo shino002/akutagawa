@@ -3,10 +3,10 @@
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.38);
-  border-radius: var(--radius-md);
+  border-radius: var(--app-radius-md);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 22%),
-    linear-gradient(180deg, #101010 0%, #080808 55%, #050505 100%);
+    linear-gradient(180deg, #050505 0%, #000000 55%, #000000 100%);
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.92),
     inset 0 0 0 1px rgba(255, 255, 255, 0.04),
@@ -46,8 +46,8 @@
   pointer-events: none;
 }
 
-main :where(button, a, input, textarea, select) {
-  border-radius: var(--radius-sm) !important;
+main :where(button, a, input, textarea, select):not(:where(.theme-raw, .theme-raw *)) {
+  border-radius: var(--app-radius-sm) !important;
 }
 
 main :where(button, a) {
@@ -61,6 +61,28 @@ main :where(button, a) {
 
 main :where(button:hover, a:hover) {
   filter: contrast(1.06);
+}
+
+/* 패널·카드 공통 모서리 — 값은 base.css 의 --app-radius-* 토큰 한 곳에서 조정합니다.
+   카드 상당수가 실제로는 <button> 이라 위의 컨트롤 규칙(radius-sm !important)에 걸립니다.
+   카드는 컨트롤이 아니라 패널로 취급해야 하므로 !important 로 되찾아옵니다. */
+.archive-panel,
+.auth-panel,
+.home-stage,
+.home-stage-nav-card,
+.dossier-viewer,
+.character-card,
+.archive-character-card,
+.character-index-panel,
+.world-index-panel,
+.world-file-detail,
+.gallery-tile,
+.case-setting-note,
+.case-side-record,
+.case-evidence-preview,
+.case-profile-cell,
+.story-record-card-open {
+  border-radius: var(--app-radius-md) !important;
 }
 
 .archive-panel {
@@ -132,13 +154,16 @@ main :where(button:hover, a:hover) {
   color: rgba(160, 160, 160, 0.45);
 }
 
-main :where(h1, h2, h3, h4, p, span, a, button, label, li, dt, dd, blockquote):not(.auth-input *) {
+main
+  :where(h1, h2, h3, h4, p, span, a, button, label, li, dt, dd, blockquote):not(.auth-input *):not(
+    :where(.theme-raw, .theme-raw *)
+  ) {
   position: relative;
   text-shadow: none;
   animation: none;
 }
 
-main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
+main :where(h1, h2, h3, h4, .board-title):not(.auth-input *):not(:where(.theme-raw, .theme-raw *)) {
   display: inline-block;
   width: fit-content;
   max-width: 100%;
@@ -281,7 +306,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   max-height: calc(100vh - 2.5rem);
   padding: 0.75rem;
   border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: var(--radius-md);
+  border-radius: var(--app-radius-md);
   background: linear-gradient(180deg, #0e0e0e 0%, #070707 100%);
   box-shadow:
     0 18px 48px rgba(0, 0, 0, 0.7),
@@ -299,7 +324,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   max-height: 2.75rem;
   padding: 0;
   border-color: rgba(255, 255, 255, 0.55);
-  background: #080808;
+  background: #000000;
   box-shadow:
     2px 2px 0 #000,
     inset 1px 0 0 rgba(255, 255, 255, 0.35),
@@ -312,7 +337,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   height: 2.75rem;
   place-items: center;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--app-radius-sm);
   background: #0a0a0a;
   color: #ececec;
   font-size: 1.2rem;
@@ -330,7 +355,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   height: 2.45rem;
   margin-bottom: 0;
   border: 1px solid rgba(255, 255, 255, 0.38);
-  border-radius: 0;
+  border-radius: var(--app-radius-sm);
   border-bottom-color: rgba(255, 255, 255, 0.18);
   background: linear-gradient(180deg, #161616 0%, #0a0a0a 100%);
   justify-items: start;
@@ -368,6 +393,28 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   pointer-events: none;
 }
 
+/* BGM 도크: 플레이어를 문서 흐름에서 빼내 우하단에 고정합니다.
+   도크 자체는 클릭을 통과시키고(접힘 상태에서 뒤 본문을 가리지 않도록) 플레이어만 받습니다. */
+.bgm-dock {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 20;
+  width: min(17rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.bgm-dock > * {
+  pointer-events: auto;
+}
+
+@media (min-width: 768px) {
+  .bgm-dock {
+    right: 1.25rem;
+    bottom: 1.25rem;
+  }
+}
+
 /* 오른쪽 BGM 플레이어: LP 판, 접힘 상태, 볼륨/진행바 스타일입니다. */
 .bgm-player {
   overflow: hidden;
@@ -402,7 +449,7 @@ main :where(h1, h2, h3, h4, .board-title):not(.auth-input *) {
   height: 3.25rem;
   padding: 0;
   margin-left: auto;
-  border-radius: 0.85rem;
+  border-radius: var(--app-radius-lg);
   box-shadow: 0 0 18px rgba(0, 0, 0, 0.88);
   cursor: pointer;
 }

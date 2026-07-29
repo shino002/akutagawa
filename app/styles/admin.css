@@ -1,21 +1,45 @@
-/* admin.css — 관리자 페이지·글리치 툴바·인라인 에디터 */
+/* admin.css — 관리자 페이지·글리치 툴바·인라인 에디터
+   ================================================================
+   본 페이지(도시어)와 같은 어휘로 맞춘 관리자 화면입니다.
+   예전에는 TSX 가 Tailwind emerald(민트) 를 쓰고 이 파일이 파랑·크림으로
+   !important 로 덮어써서 두 색 체계가 서로 싸우고 있었습니다.
+   여기서는 (1) 토큰을 한 벌 정의하고 (2) TSX 에 흩어진 색 유틸리티를 그
+   토큰으로 옮겨 앉힌 뒤 (3) 공통 부품을 그 위에 세웁니다.
+   ================================================================ */
+
 .admin-page {
+  /* ── 바탕과 괘선 ── */
+  --adm-bg: #08080a;
+  --adm-surface: rgba(0, 0, 0, 0.55);
+  --adm-surface-2: rgba(255, 255, 255, 0.035);
+  --adm-surface-3: rgba(255, 255, 255, 0.075);
+  --adm-line: rgba(255, 255, 255, 0.14);
+  --adm-line-mid: rgba(255, 255, 255, 0.24);
+  --adm-line-strong: rgba(255, 255, 255, 0.44);
+
+  /* ── 잉크 ── */
+  --adm-ink: rgba(242, 242, 242, 0.96);
+  --adm-ink-2: rgba(208, 208, 208, 0.8);
+  --adm-ink-3: rgba(164, 164, 164, 0.62);
+  --adm-ink-4: rgba(140, 140, 140, 0.45);
+
+  /* ── 강조: 본 페이지의 붉은 잉크 ── */
+  --adm-accent: rgba(232, 96, 96, 0.92);
+  --adm-accent-line: rgba(206, 62, 62, 0.55);
+  --adm-accent-soft: rgba(206, 62, 62, 0.12);
+
+  /* ── 경고(오류 지정 등) ── */
+  --adm-warn: rgba(228, 172, 84, 0.88);
+  --adm-warn-line: rgba(217, 149, 45, 0.42);
+  --adm-warn-soft: rgba(217, 149, 45, 0.1);
+
+  --adm-focus: rgba(255, 255, 255, 0.6);
+
+  /* ── 글꼴 ── */
+  --adm-mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+
   font-family: "Noto Sans KR", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
-}
-
-.admin-page .auth-input {
-  min-height: 2.75rem;
-  padding: 0.7rem 0.85rem;
-}
-
-.admin-page .glass-card {
-  background:
-    radial-gradient(circle at 0% 0%, rgba(0, 0, 0, 0.92), transparent 35%),
-    linear-gradient(180deg, rgba(6, 8, 16, 0.99), rgba(0, 0, 0, 0.99));
-}
-
-.admin-page .glass-card::before {
-  opacity: 0.18;
+  color: var(--adm-ink-2);
 }
 
 .admin-page p,
@@ -25,75 +49,692 @@
   line-height: 1.7;
 }
 
+/* ================================================================
+   1) 색 유틸리티 → 토큰 옮겨 앉히기
+   TSX 44 개에 흩어진 emerald/stone/amber/sky 유틸리티를 여기서 한 번에
+   중성 도시어 톤으로 바꿉니다.
+
+   `html body main.admin-page` 라는 긴 앞머리와 !important 가 필요한 이유:
+   overrides.css 가 `[class*="text-emerald-100"]` 같은 속성 선택자로 emerald
+   전체를 이미 !important 로 중성화하고 있는데, 그 규칙이 /45 부터 /85 까지
+   모든 농도를 회색 하나로 뭉갭니다. TSX 가 의도한 명암 위계가 통째로 사라져
+   화면이 평평해지던 원인이었습니다. 공개 페이지 쪽 규칙은 그대로 두고
+   관리자 안에서만 되찾아옵니다.
+   ================================================================ */
+
+/* 글자 — 민트 계열을 밝기 단계만 남기고 흰 잉크로 */
+html body main.admin-page .text-emerald-50,
+html body main.admin-page .text-emerald-100 {
+  color: var(--adm-ink) !important;
+}
+
+html body main.admin-page .text-emerald-50\/90 {
+  color: rgba(242, 242, 242, 0.9) !important;
+}
+
+html body main.admin-page .text-emerald-100\/85 {
+  color: rgba(226, 226, 226, 0.86) !important;
+}
+
+html body main.admin-page .text-emerald-100\/80 {
+  color: rgba(220, 220, 220, 0.82) !important;
+}
+
+html body main.admin-page .text-emerald-100\/75,
+html body main.admin-page .text-emerald-50\/70 {
+  color: rgba(210, 210, 210, 0.76) !important;
+}
+
+html body main.admin-page .text-emerald-100\/70 {
+  color: rgba(200, 200, 200, 0.72) !important;
+}
+
+html body main.admin-page .text-emerald-100\/65,
+html body main.admin-page .text-emerald-100\/60 {
+  color: rgba(184, 184, 184, 0.64) !important;
+}
+
+html body main.admin-page .text-emerald-100\/55 {
+  color: rgba(170, 170, 170, 0.58) !important;
+}
+
+html body main.admin-page .text-emerald-100\/50 {
+  color: var(--adm-ink-3) !important;
+}
+
+html body main.admin-page .text-emerald-100\/45 {
+  color: var(--adm-ink-4) !important;
+}
+
+html body main.admin-page .text-stone-200 {
+  color: var(--adm-ink-2) !important;
+}
+
+html body main.admin-page .text-stone-300\/70 {
+  color: var(--adm-ink-3) !important;
+}
+
+/* 밝은 알약 위의 글자 — 바탕이 흰색이 되므로 잉크도 뒤집습니다 */
+html body main.admin-page .text-emerald-950 {
+  color: #0a0a0c !important;
+}
+
+/* 괘선 */
+html body main.admin-page .border-emerald-100\/10 {
+  border-color: rgba(255, 255, 255, 0.11) !important;
+}
+
+html body main.admin-page .border-emerald-100\/15 {
+  border-color: rgba(255, 255, 255, 0.16) !important;
+}
+
+html body main.admin-page .border-emerald-100\/20,
+html body main.admin-page .border-emerald-200\/20 {
+  border-color: rgba(255, 255, 255, 0.21) !important;
+}
+
+html body main.admin-page .border-emerald-100\/30,
+html body main.admin-page .border-emerald-200\/25 {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+html body main.admin-page .border-emerald-200\/35,
+html body main.admin-page .border-emerald-200\/45 {
+  border-color: var(--adm-line-strong) !important;
+}
+
+html body main.admin-page .border-stone-400\/15 {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+html body main.admin-page .border-stone-400\/20,
+html body main.admin-page .border-stone-400\/25 {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+html body main.admin-page .border-stone-400\/30,
+html body main.admin-page .border-stone-400\/35 {
+  border-color: var(--adm-line-mid) !important;
+}
+
+/* 바탕 */
+/* overrides 가 background 단축 속성으로 어두운 그라데이션을 깔아 두어서,
+   background-color 만 바꾸면 그 이미지가 위를 덮습니다 — 단축으로 통째로 갈아엎습니다 */
+html body main.admin-page .bg-emerald-200 {
+  background: rgba(244, 244, 244, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  box-shadow: none !important;
+}
+
+html body main.admin-page .bg-emerald-200\/10,
+html body main.admin-page .bg-emerald-100\/10 {
+  background-color: var(--adm-surface-3) !important;
+}
+
+html body main.admin-page .bg-emerald-950\/15,
+html body main.admin-page .bg-emerald-950\/30,
+html body main.admin-page .bg-emerald-950\/35 {
+  background-color: rgba(0, 0, 0, 0.42) !important;
+}
+
+html body main.admin-page .bg-stone-900\/10,
+html body main.admin-page .bg-stone-900\/25 {
+  background-color: rgba(0, 0, 0, 0.34) !important;
+}
+
+/* 경고 — 오류 지정처럼 「지금 이 대상」 을 알리는 자리는 호박색으로 남깁니다 */
+html body main.admin-page .text-amber-50,
+html body main.admin-page .text-amber-100,
+html body main.admin-page .text-amber-100\/90 {
+  color: var(--adm-warn) !important;
+}
+
+html body main.admin-page .text-amber-950 {
+  color: #0a0a0c !important;
+}
+
+html body main.admin-page .border-amber-300\/25,
+html body main.admin-page .border-amber-300\/35,
+html body main.admin-page .border-amber-400\/25 {
+  border-color: var(--adm-warn-line) !important;
+}
+
+html body main.admin-page .bg-amber-950\/15,
+html body main.admin-page .bg-amber-950\/20,
+html body main.admin-page .bg-amber-950\/25 {
+  background-color: var(--adm-warn-soft) !important;
+}
+
+html body main.admin-page .bg-amber-200\/90,
+html body main.admin-page .bg-amber-300\/35 {
+  background-color: rgba(228, 172, 84, 0.85) !important;
+}
+
+/* 안내(sky) — 별도 색을 두지 않고 중성 잉크로 흡수합니다 */
+html body main.admin-page .text-sky-50,
+html body main.admin-page .text-sky-100\/85 {
+  color: rgba(226, 226, 226, 0.86) !important;
+}
+
+html body main.admin-page .text-sky-100\/75,
+html body main.admin-page .text-sky-100\/70 {
+  color: rgba(200, 200, 200, 0.72) !important;
+}
+
+html body main.admin-page .text-sky-100\/55,
+html body main.admin-page .text-sky-100\/45 {
+  color: var(--adm-ink-3) !important;
+}
+
+html body main.admin-page .border-sky-300\/20 {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+
+html body main.admin-page .bg-sky-950\/20 {
+  background-color: rgba(0, 0, 0, 0.38) !important;
+}
+
+/* 체크박스·라디오 표시색 */
+html body main.admin-page .accent-emerald-300 {
+  accent-color: rgba(236, 236, 236, 0.92) !important;
+}
+
+/* ================================================================
+   2) 판(면) — glass-card 를 도시어 종이로
+   ================================================================ */
+
+.admin-page .glass-card {
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), transparent 22%), rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.8),
+    inset 0 0 30px rgba(0, 0, 0, 0.6);
+}
+
+.admin-page .glass-card::before,
+.admin-page .glass-card::after {
+  opacity: 0;
+}
+
+/* ================================================================
+   3) 공통 부품
+   ================================================================ */
+
+/* 칸 이름 — 서식에 인쇄된 라벨 */
+/* 칸 이름. 자간은 0.13em 까지만 — 라틴 문자에는 0.22em 이 어울리지만
+   한글 라벨(「카테고리 목록」)은 글자가 흩어져 읽기 어려워집니다. */
+.adm-label {
+  display: block;
+  margin: 0 0 0.4rem;
+  color: var(--adm-ink-3);
+  font-family: var(--adm-mono);
+  font-size: 0.64rem;
+  font-weight: 500;
+  letter-spacing: 0.13em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+/* 보조 설명 */
+.adm-hint {
+  margin: 0.35rem 0 0;
+  color: var(--adm-ink-4);
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+/* 판 머리 — 제목 + 설명 + 오른쪽 조작부 */
+.adm-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px dashed var(--adm-line-mid);
+}
+
+.adm-head-title {
+  margin: 0;
+  color: var(--adm-ink);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.adm-head-sub {
+  margin: 0.3rem 0 0;
+  color: var(--adm-ink-3);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.adm-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* 셈 표시 */
+.adm-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  padding: 0.16rem 0.36rem;
+  border: 1px solid var(--adm-line-mid);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--adm-ink-2);
+  font-family: var(--adm-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+}
+
+/* ================================================================
+   4) 조작부 — 입력과 단추
+   전역 규칙이 box-shadow 를 걷어가므로 관리자 안에서 되찾아옵니다.
+   예전에는 규칙마다 두 벌(평범한 정의 + html body main 로 !important)로
+   중복돼 있었는데, 여기서는 한 벌만 두고 필요한 곳에만 !important 를 씁니다.
+   ================================================================ */
+
+.admin-page .auth-input {
+  min-height: 2.75rem;
+  padding: 0.7rem 0.85rem;
+}
+
+html body main.admin-page :where(input, textarea, select).auth-input {
+  border: 1px solid var(--adm-line-mid) !important;
+  border-radius: var(--app-radius-sm) !important;
+  background: rgba(0, 0, 0, 0.62) !important;
+  color: var(--adm-ink) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.7) !important;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+html body main.admin-page :where(input, textarea, select).auth-input:focus {
+  border-color: var(--adm-line-strong) !important;
+  outline: none !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.7),
+    0 0 0 2px rgba(255, 255, 255, 0.14) !important;
+}
+
+html body main.admin-page :where(input, textarea).auth-input::placeholder {
+  color: var(--adm-ink-4);
+}
+
+/* 단추 공통 골격 */
+html body main.admin-page :where(.admin-action-btn, .admin-ghost-btn, .admin-choice-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: var(--app-radius-sm) !important;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+/* 주 동작 — 흰 잉크 테두리로 한 단 올립니다 (붉은색은 위험 동작에 남겨 둡니다) */
+html body main.admin-page .admin-action-btn {
+  min-height: 2.5rem;
+  padding: 0.55rem 1.05rem !important;
+  border: 1px solid var(--adm-line-strong) !important;
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: var(--adm-ink) !important;
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07) !important;
+}
+
+html body main.admin-page .admin-action-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #ffffff !important;
+}
+
+html body main.admin-page .admin-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 보조 동작 */
+html body main.admin-page .admin-ghost-btn {
+  min-height: 2.5rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--adm-line-mid) !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  color: var(--adm-ink-2) !important;
+  box-shadow: none !important;
+}
+
+html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
+  border-color: var(--adm-line-strong) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: var(--adm-ink) !important;
+}
+
+/* 위험 동작 — 지우기 계열만 붉은 잉크를 씁니다 */
+html body main.admin-page .admin-danger-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--adm-accent-line) !important;
+  border-radius: var(--app-radius-sm) !important;
+  background: var(--adm-accent-soft) !important;
+  color: var(--adm-accent) !important;
+  cursor: pointer;
+}
+
+html body main.admin-page .admin-danger-btn:hover:not(:disabled) {
+  border-color: rgba(228, 72, 72, 0.8) !important;
+  background: rgba(206, 62, 62, 0.2) !important;
+}
+
+/* 낱개 선택 — 후보 토큰·프리셋 같은 작은 알약 */
+.admin-page .admin-choice-btn {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--adm-line);
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--adm-ink-2);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.admin-page .admin-choice-btn:hover:not(:disabled) {
+  border-color: var(--adm-line-strong);
+  color: var(--adm-ink);
+}
+
+.admin-page .admin-choice-btn-active {
+  border-color: var(--adm-line-strong) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: var(--adm-ink) !important;
+  font-weight: 600;
+}
+
+.admin-page .admin-choice-btn-candidate {
+  max-width: 100%;
+  padding: 0.5rem 0.65rem;
+  line-height: 1.5;
+  text-align: left;
+  white-space: normal;
+  word-break: break-all;
+}
+
+/* 탭 — 편집 구획 전환 */
+.admin-page .admin-tab-btn {
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.5);
+  color: var(--adm-ink-2);
+  text-align: left;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.admin-page .admin-tab-btn:hover {
+  border-color: var(--adm-line-mid);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--adm-ink);
+}
+
+.admin-page .admin-tab-btn-active {
+  border-color: var(--adm-line-strong) !important;
+  background: rgba(255, 255, 255, 0.11) !important;
+  color: var(--adm-ink) !important;
+}
+
+/* ================================================================
+   4-b) 셸 — 상단 띠와 좌측 패널
+   ================================================================ */
+
+.admin-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  padding: 0.95rem 1.15rem 1rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-md);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.admin-topbar-title {
+  margin: 0.15rem 0 0;
+  color: var(--adm-ink);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.admin-topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+}
+
+.admin-topbar-note {
+  margin: 0;
+  color: var(--adm-ink-3);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.admin-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.9rem;
+}
+
+@media (min-width: 1024px) {
+  .admin-aside {
+    position: sticky;
+    top: 1rem;
+    /* 목록이 길어도 패널 안에서만 흐르게 — 화면 밖으로 넘겨 보내지 않습니다 */
+    max-height: calc(100vh - 2rem);
+  }
+}
+
+/* 편집 대상 전환 — 두 칸짜리 세그먼트 */
+.admin-aside-switch {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.admin-aside-switch button {
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: calc(var(--app-radius-sm) - 1px);
+  background: transparent;
+  color: var(--adm-ink-3);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.admin-aside-switch button:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--adm-ink-2);
+}
+
+.admin-aside-switch button.is-active {
+  background: rgba(244, 244, 244, 0.94);
+  color: #0a0a0c;
+}
+
+.admin-aside-body {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  min-width: 0;
+}
+
+@media (min-width: 1024px) {
+  .admin-aside-body {
+    overflow-y: auto;
+    /* 스크롤 막대가 목록 글자를 가리지 않게 */
+    padding-right: 0.2rem;
+  }
+}
+
+.admin-aside-list {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.admin-aside-item {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid transparent;
+  /* 왼쪽 잉크선이 지금 고른 항목을 짚습니다 */
+  border-left: 2px solid var(--adm-line);
+  border-radius: 0 var(--app-radius-sm) var(--app-radius-sm) 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.admin-aside-item:hover:not(.is-active) {
+  border-left-color: var(--adm-line-mid);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.admin-aside-item.is-active {
+  border-color: var(--adm-line-mid);
+  border-left-color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.admin-aside-item-title {
+  color: var(--adm-ink-2);
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.admin-aside-item.is-active .admin-aside-item-title {
+  color: var(--adm-ink);
+}
+
+.admin-aside-item-sub {
+  color: var(--adm-ink-4);
+  font-family: var(--adm-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+}
+
+/* 종류 전환(자캐·페어·어나더) — 세 칸짜리 세그먼트 */
+.admin-aside-kinds {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.admin-aside-kinds button {
+  padding: 0.42rem 0.3rem;
+  border: 0;
+  border-radius: calc(var(--app-radius-sm) - 1px);
+  background: transparent;
+  color: var(--adm-ink-3);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.admin-aside-kinds button:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--adm-ink-2);
+}
+
+.admin-aside-kinds button.is-active {
+  background: rgba(244, 244, 244, 0.94);
+  color: #0a0a0c;
+}
+
+.admin-aside-listhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.6rem;
+}
+
+.admin-aside-listhead .adm-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+html body main.admin-page .admin-aside-new {
+  min-height: 2.1rem;
+  padding: 0.35rem 0.65rem !important;
+  font-size: 0.72rem;
+}
+
+.admin-aside-signout {
+  width: 100%;
+  margin-top: auto;
+  font-size: 0.78rem;
+}
+
+/* ================================================================
+   5) 뼈대 — 흐름 유지용(레이아웃) 규칙
+   ================================================================ */
+
 .admin-page [data-admin-interactive],
 .admin-page [data-admin-interactive] button,
 .admin-page [data-admin-interactive] input,
 .admin-page [data-admin-interactive] select,
 .admin-page [data-admin-interactive] textarea {
   pointer-events: auto;
-}
-
-.admin-page .admin-choice-btn {
-  border: 1px solid rgba(150, 145, 126, 0.24);
-  background: rgba(0, 0, 0, 0.42);
-  color: rgba(214, 208, 188, 0.82);
-  padding: 0.35rem 0.65rem;
-  font-size: 0.6875rem;
-  line-height: 1.35;
-}
-
-.admin-page .admin-choice-btn:hover:not(:disabled) {
-  border-color: rgba(111, 143, 215, 0.42);
-  color: #f4eecf;
-}
-
-.admin-page .admin-choice-btn-active {
-  border-color: rgba(111, 143, 215, 0.52) !important;
-  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
-  color: #f4eecf !important;
-  font-weight: 600;
-}
-
-.admin-page .admin-action-btn {
-  border: 1px solid rgba(111, 143, 215, 0.48) !important;
-  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
-  color: #f4eecf !important;
-  font-weight: 600;
-}
-
-.admin-page .admin-action-btn:hover:not(:disabled) {
-  border-color: rgba(130, 165, 230, 0.62) !important;
-  color: #fff8e8 !important;
-}
-
-.admin-page .admin-ghost-btn {
-  border: 1px solid rgba(150, 145, 126, 0.24);
-  background: rgba(0, 0, 0, 0.35);
-  color: rgba(214, 208, 188, 0.78);
-}
-
-.admin-page .admin-ghost-btn:hover:not(:disabled) {
-  border-color: rgba(150, 145, 126, 0.4);
-  color: #f4eecf;
-}
-
-.admin-page .admin-tab-btn {
-  border: 1px solid rgba(150, 145, 126, 0.22);
-  background: rgba(0, 0, 0, 0.35);
-  color: rgba(214, 208, 188, 0.78);
-  padding: 0.65rem 0.85rem;
-  text-align: left;
-}
-
-.admin-page .admin-tab-btn:hover {
-  border-color: rgba(111, 143, 215, 0.38);
-  color: #f4eecf;
-}
-
-.admin-page .admin-tab-btn-active {
-  border-color: rgba(111, 143, 215, 0.52) !important;
-  background: linear-gradient(180deg, rgba(16, 26, 50, 0.98), rgba(3, 5, 12, 0.98)) !important;
-  color: #f4eecf !important;
 }
 
 .admin-page .admin-section-nav {
@@ -108,12 +749,468 @@
   overflow-x: clip;
 }
 
-.admin-glitch-workspace {
+/* 저장 바 — 폼 바닥에 붙어 항상 손이 닿는 자리 */
+.admin-savebar {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem 0.75rem;
+  margin: 0.5rem -0.25rem 0;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--adm-line-mid);
+  border-radius: var(--app-radius-md);
+  background: rgba(6, 6, 8, 0.92);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.55);
+}
+
+.admin-savebar-note {
+  flex: 1 1 12rem;
+  min-width: 0;
+  margin: 0;
+  color: var(--adm-ink-3);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.admin-glitch-workspace,
+.admin-glitch-field-picker,
+.admin-glitch-tool,
+.admin-glitch-text-field,
+.admin-inline-glitch-editor {
   min-width: 0;
 }
 
-.admin-glitch-field-picker {
+/* ── 오류 탭 — 단계 칸 ────────────────────────────────────────
+   예전에는 필드·텍스트·설정·미리보기 세 벌·구간 목록이 테두리만 다른 상자로
+   줄줄이 이어져 어디가 한 단계인지 읽히지 않았습니다. */
+.admin-glitch-tool {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.glitch-tool-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+}
+
+.glitch-tool-title {
+  margin: 0;
+  color: var(--adm-ink);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* 안내 — 늘 펼쳐 두면 본 작업이 묻히므로 접어 둡니다 */
+.glitch-help > summary {
+  color: var(--adm-ink-3);
+  font-size: 0.72rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.glitch-help > summary::before {
+  content: "? ";
+  font-family: var(--adm-mono);
+}
+
+.glitch-help > summary:hover {
+  color: var(--adm-ink-2);
+}
+
+.glitch-help > div {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--adm-ink-3);
+  font-size: 0.72rem;
+  line-height: 1.65;
+}
+
+.glitch-help b {
+  color: var(--adm-ink-2);
+  font-weight: 600;
+}
+
+.glitch-step {
+  display: grid;
+  gap: 0.55rem;
   min-width: 0;
+  padding: 0.8rem 0.9rem 0.9rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.32);
+}
+
+.glitch-step-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.glitch-step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--adm-ink);
+  font-family: var(--adm-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.glitch-step-title {
+  color: var(--adm-ink);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.glitch-step-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  margin-left: auto;
+  color: var(--adm-ink-2);
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.glitch-step-state.is-empty {
+  color: var(--adm-ink-4);
+}
+
+/* ③ 안에서 고른 구간이 앞뒤 글자와 함께 보이는 자리 */
+.glitch-context {
+  margin: 0;
+  color: var(--adm-ink-2);
+  font-size: 0.82rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.glitch-context mark {
+  padding: 0.05rem 0.28rem;
+  border-radius: 2px;
+  background: rgba(228, 172, 84, 0.32);
+  color: #fdf3e2;
+}
+
+/* ③ 안의 접히는 하위 칸(페이지 연결) */
+.glitch-sub {
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.glitch-sub > summary {
+  padding: 0.5rem 0.7rem;
+  color: var(--adm-ink-3);
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.glitch-sub > summary:hover {
+  color: var(--adm-ink-2);
+}
+
+.glitch-sub > div {
+  padding: 0.2rem 0.7rem 0.7rem;
+  border-top: 1px solid var(--adm-line);
+}
+
+.glitch-apply {
+  position: sticky;
+  bottom: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--adm-line-mid);
+  border-radius: var(--app-radius-sm);
+  background: rgba(8, 8, 10, 0.94);
+  backdrop-filter: blur(6px);
+}
+
+/* 미리보기 한 칸 */
+.glitch-preview {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.8rem 0.9rem 0.9rem;
+  border: 1px solid var(--adm-line-mid);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.glitch-preview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.6rem;
+  margin: 0;
+}
+
+.glitch-preview-title {
+  color: var(--adm-ink-2);
+  font-family: var(--adm-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.glitch-preview-switch {
+  display: inline-flex;
+  gap: 0.2rem;
+  padding: 0.15rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.glitch-preview-switch button {
+  padding: 0.24rem 0.55rem;
+  border: 0;
+  border-radius: calc(var(--app-radius-sm) - 2px);
+  background: transparent;
+  color: var(--adm-ink-3);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.glitch-preview-switch button.is-active {
+  background: rgba(255, 255, 255, 0.14);
+  color: var(--adm-ink);
+}
+
+.glitch-preview-body {
+  max-height: min(32vh, 260px);
+  margin: 0;
+  overflow-y: auto;
+  color: var(--adm-ink);
+  font-size: 0.88rem;
+  line-height: 1.85;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.glitch-preview-note {
+  margin: 0;
+  color: var(--adm-ink-4);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+
+/* ── 필드 고르기 — 서랍 6개 대신 찾기 + 그룹 탭 + 칩 ──────────── */
+.glitch-field-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+}
+
+html body main.admin-page .glitch-field-search {
+  flex: 1 1 11rem;
+  min-width: 0;
+  min-height: 2.1rem !important;
+  padding: 0.35rem 0.6rem !important;
+  font-size: 0.76rem;
+}
+
+.glitch-field-applied {
+  color: var(--adm-ink-4);
+  font-family: var(--adm-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.glitch-field-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-top: 0.55rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--adm-line);
+}
+
+.glitch-field-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--app-radius-sm);
+  background: transparent;
+  color: var(--adm-ink-3);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.3;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.glitch-field-tabs button:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--adm-ink-2);
+}
+
+.glitch-field-tabs button.is-active {
+  border-color: var(--adm-line-mid);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--adm-ink);
+}
+
+/* 그룹에 걸린 게 있으면 점 하나로 알립니다 — 숫자는 칩에 이미 붙습니다 */
+.glitch-field-tab-dot {
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--adm-warn);
+}
+
+.glitch-field-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.55rem;
+}
+
+.glitch-field-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.55rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--adm-ink-2);
+  font-size: 0.74rem;
+  line-height: 1.3;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.glitch-field-chip:hover {
+  border-color: var(--adm-line-mid);
+  color: var(--adm-ink);
+}
+
+/* 이미 오류가 걸린 필드 */
+.glitch-field-chip[data-state="applied"] {
+  border-color: var(--adm-warn-line);
+  color: var(--adm-warn);
+}
+
+/* 지금 보고 있는 필드 */
+.glitch-field-chip[data-state="active"] {
+  border-color: rgba(228, 172, 84, 0.85);
+  background: rgba(228, 172, 84, 0.85);
+  color: #12100b;
+  font-weight: 700;
+}
+
+.glitch-field-chip-count {
+  padding: 0.02rem 0.28rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  font-family: var(--adm-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.glitch-field-chip[data-state="active"] .glitch-field-chip-count {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* ── 걸린 구간 칩 — 텍스트 바로 밑에서 기존 구간을 다시 잡습니다 ── */
+.glitch-zone-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.glitch-zone-chips-label {
+  color: var(--adm-ink-4);
+  font-family: var(--adm-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+}
+
+.glitch-zone-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 14rem;
+  padding: 0.26rem 0.5rem;
+  border: 1px solid var(--adm-line);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--adm-ink-2);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.glitch-zone-chip:hover {
+  border-color: var(--adm-line-mid);
+  color: var(--adm-ink);
+}
+
+.glitch-zone-chip[data-state="active"] {
+  border-color: rgba(228, 172, 84, 0.7);
+  background: rgba(228, 172, 84, 0.16);
+  color: var(--adm-warn);
+}
+
+.glitch-zone-chip-no {
+  flex: 0 0 auto;
+  color: var(--adm-ink-4);
+  font-family: var(--adm-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.glitch-zone-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .admin-glitch-field-btn {
@@ -124,11 +1221,7 @@
 }
 
 .admin-glitch-field-btn.is-active {
-  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.35);
-}
-
-.admin-glitch-tool {
-  min-width: 0;
+  box-shadow: 0 0 0 1px var(--adm-warn-line);
 }
 
 .admin-page [data-text-scramble-tool] {
@@ -142,7 +1235,7 @@
   word-break: break-word;
 }
 
-/* 미리보기: text-emerald-* !important보다 구간 서식이 우선하도록 */
+/* 미리보기: 관리자 잉크 규칙보다 구간 서식이 우선하도록 */
 .admin-page [data-text-scramble-tool] .glitch-zone-mark.glitch-zone-has-custom-color {
   color: var(--glitch-text-color, currentColor) !important;
   --glitch-decoration-color: var(--glitch-text-color, currentColor);
@@ -158,61 +1251,9 @@
   font-family: var(--glitch-font-family) !important;
 }
 
-.admin-page .admin-choice-btn-candidate {
-  max-width: 100%;
-  white-space: normal;
-  word-break: break-all;
-  text-align: left;
-  line-height: 1.5;
-  padding: 0.5rem 0.65rem;
-}
-
-/* 관리자 버튼: 전역 box-shadow 제거 규칙보다 우선해 박스 형태가 보이게 합니다. */
-html body main.admin-page .admin-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.5rem;
-  padding: 0.55rem 1rem !important;
-  border: 1px solid rgba(111, 143, 215, 0.72) !important;
-  background: linear-gradient(180deg, rgba(34, 56, 98, 0.98), rgba(16, 28, 52, 0.98)) !important;
-  color: #f4f0e0 !important;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 0 0 1px rgba(0, 0, 0, 0.72),
-    0 2px 12px rgba(53, 95, 189, 0.22) !important;
-}
-
-html body main.admin-page .admin-action-btn:hover:not(:disabled) {
-  border-color: rgba(150, 180, 240, 0.85) !important;
-  background: linear-gradient(180deg, rgba(42, 68, 118, 0.98), rgba(20, 36, 64, 0.98)) !important;
-  color: #fffaf0 !important;
-}
-
-html body main.admin-page .admin-action-btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-html body main.admin-page .admin-ghost-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.5rem;
-  padding: 0.55rem 1rem;
-  border: 1px solid rgba(150, 145, 126, 0.38) !important;
-  background: rgba(8, 10, 12, 0.92) !important;
-  color: rgba(230, 224, 206, 0.88) !important;
-  cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
-}
-
-html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
-  border-color: rgba(111, 143, 215, 0.48) !important;
-  color: #f4f0e0 !important;
-}
+/* ================================================================
+   6) 글리치 플로팅 툴바
+   ================================================================ */
 
 .glitch-float-toolbar {
   position: fixed;
@@ -221,13 +1262,13 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
   gap: 0.35rem;
   width: max-content;
   max-width: min(92vw, 26rem);
-  border: 1px solid rgba(111, 143, 215, 0.34);
-  border-radius: 0.65rem;
-  background: rgba(8, 10, 14, 0.96);
-  box-shadow:
-    0 14px 36px rgba(0, 0, 0, 0.55),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   padding: 0.45rem 0.5rem 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: var(--app-radius-md);
+  background: rgba(8, 8, 10, 0.97);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   pointer-events: auto;
 }
 
@@ -245,9 +1286,9 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
   min-width: 2rem;
   min-height: 2rem;
   border: 0;
-  border-radius: 0.4rem;
+  border-radius: var(--app-radius-sm);
   background: transparent;
-  color: rgba(230, 224, 206, 0.88);
+  color: rgba(214, 214, 214, 0.86);
   font-size: 0.82rem;
   line-height: 1;
   cursor: pointer;
@@ -257,12 +1298,12 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
 }
 
 .glitch-float-toolbar-btn:hover {
-  background: rgba(111, 143, 215, 0.16);
-  color: #f4f0e0;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
 }
 
 .glitch-float-toolbar-btn.is-active {
-  background: rgba(111, 143, 215, 0.28);
+  background: rgba(255, 255, 255, 0.18);
   color: #ffffff;
 }
 
@@ -270,13 +1311,14 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
   width: 1px;
   height: 1.35rem;
   margin-inline: 0.15rem;
-  background: rgba(150, 145, 126, 0.35);
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .glitch-float-toolbar-meta {
   margin: 0;
   padding-inline: 0.25rem;
-  color: rgba(167, 243, 208, 0.55);
+  color: rgba(160, 160, 160, 0.6);
+  font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
   font-size: 0.64rem;
   letter-spacing: 0.06em;
 }
@@ -313,7 +1355,7 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
 .glitch-float-toolbar-color-swatch {
   width: 1.35rem;
   height: 1.35rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 999px;
   background: var(--swatch-color);
   cursor: pointer;
@@ -328,8 +1370,8 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
 
 .glitch-float-toolbar-color-swatch.is-active {
   box-shadow:
-    0 0 0 2px rgba(8, 10, 14, 0.95),
-    0 0 0 3px rgba(111, 143, 215, 0.75);
+    0 0 0 2px rgba(8, 8, 10, 0.95),
+    0 0 0 3px rgba(255, 255, 255, 0.75);
 }
 
 .glitch-float-toolbar-color-picker {
@@ -339,17 +1381,17 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
   justify-content: center;
   width: 1.35rem;
   height: 1.35rem;
-  border: 1px dashed rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+  border: 1px dashed rgba(255, 255, 255, 0.24);
   border-radius: 999px;
   cursor: pointer;
-  overflow: hidden;
 }
 
 .glitch-float-toolbar-color-picker.is-active {
   border-style: solid;
   box-shadow:
-    0 0 0 2px rgba(8, 10, 14, 0.95),
-    0 0 0 3px rgba(111, 143, 215, 0.75);
+    0 0 0 2px rgba(8, 8, 10, 0.95),
+    0 0 0 3px rgba(255, 255, 255, 0.75);
 }
 
 .glitch-float-toolbar-color-picker-preview {
@@ -366,30 +1408,34 @@ html body main.admin-page .admin-ghost-btn:hover:not(:disabled) {
   cursor: pointer;
 }
 
-html body main.admin-page .admin-choice-btn {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
+.glitch-float-toolbar.is-just-applied {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5),
+    0 12px 28px rgba(0, 0, 0, 0.5);
 }
 
-.admin-glitch-text-field {
-  min-width: 0;
-}
+/* ================================================================
+   7) 인라인 글리치 에디터
+   ================================================================ */
 
 .admin-glitch-live-preview {
-  border: 1px solid rgba(111, 143, 215, 0.28);
-  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--adm-line-mid);
+  border-radius: var(--app-radius-sm);
+  background: rgba(0, 0, 0, 0.5);
   padding: 0.75rem 0.85rem;
 }
 
 .admin-glitch-live-preview-label {
   margin: 0 0 0.5rem;
-  color: rgba(167, 243, 208, 0.55);
-  font-size: 0.64rem;
-  letter-spacing: 0.18em;
+  color: var(--adm-ink-3);
+  font-family: var(--adm-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
 }
 
 .admin-glitch-live-preview-body {
-  color: rgba(236, 253, 245, 0.88);
+  color: var(--adm-ink);
   font-size: 0.92rem;
   line-height: 1.85;
   white-space: pre-wrap;
@@ -397,7 +1443,6 @@ html body main.admin-page .admin-choice-btn {
 
 .admin-inline-glitch-editor {
   position: relative;
-  min-width: 0;
 }
 
 .admin-inline-glitch-editor-body {
@@ -409,27 +1454,31 @@ html body main.admin-page .admin-choice-btn {
   overflow-wrap: anywhere;
   outline: none;
   line-height: 1.85;
-  border: 1px solid rgba(111, 143, 215, 0.38) !important;
-  background: rgba(5, 6, 11, 0.92) !important;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72) !important;
-  color: rgba(236, 240, 245, 0.9) !important;
   transition:
     border-color 160ms ease,
     box-shadow 0.35s ease,
     background 160ms ease;
 }
 
-.admin-inline-glitch-editor-body:focus {
-  border-color: rgba(111, 143, 215, 0.58) !important;
+html body main.admin-page .admin-inline-glitch-editor-body.auth-input {
+  border: 1px solid var(--adm-line-mid) !important;
+  background: rgba(0, 0, 0, 0.66) !important;
+  color: var(--adm-ink) !important;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72) !important;
+}
+
+html body main.admin-page .admin-inline-glitch-editor-body.auth-input:focus {
+  border-color: var(--adm-line-strong) !important;
+  outline: none !important;
   box-shadow:
-    inset 0 0 0 1px rgba(111, 143, 215, 0.32),
-    0 0 0 2px rgba(111, 143, 215, 0.14) !important;
+    inset 0 0 0 1px rgba(0, 0, 0, 0.72),
+    0 0 0 2px rgba(255, 255, 255, 0.14) !important;
 }
 
 .admin-inline-glitch-editor-body.is-applied-flash {
   box-shadow:
-    inset 0 0 0 1px rgba(111, 143, 215, 0.55),
-    0 0 0 2px rgba(111, 143, 215, 0.2) !important;
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    0 0 0 2px rgba(255, 255, 255, 0.18) !important;
 }
 
 .admin-inline-glitch-editor-body .admin-inline-zone {
@@ -490,12 +1539,12 @@ html body main.admin-page .admin-choice-btn {
 }
 
 .admin-inline-glitch-editor-body .story-inline-quote {
-  border-left: 2px solid rgba(111, 143, 215, 0.45);
+  border-left: 2px solid var(--adm-line-mid);
   padding-left: 0.65rem;
 }
 
 .admin-inline-glitch-editor-body .admin-inline-zone-error:not(.glitch-zone-has-custom-color) {
-  color: rgba(130, 165, 230, 0.95);
+  color: var(--adm-accent);
 }
 
 .admin-inline-glitch-editor-placeholder {
@@ -504,44 +1553,7 @@ html body main.admin-page .admin-choice-btn {
   left: 0.75rem;
   margin: 0;
   pointer-events: none;
-  color: rgba(167, 243, 208, 0.35);
+  color: var(--adm-ink-4);
   font-size: 0.92rem;
   line-height: 1.85;
-}
-
-.glitch-float-toolbar.is-just-applied {
-  box-shadow:
-    0 0 0 1px rgba(52, 211, 153, 0.45),
-    0 12px 28px rgba(0, 0, 0, 0.45);
-}
-
-html body main.admin-page .admin-inline-glitch-editor-body.auth-input {
-  border: 1px solid rgba(111, 143, 215, 0.38) !important;
-  background: rgba(5, 6, 11, 0.92) !important;
-  color: rgba(236, 240, 245, 0.9) !important;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.72) !important;
-}
-
-html body main.admin-page .admin-inline-glitch-editor-body.auth-input:focus {
-  border-color: rgba(111, 143, 215, 0.58) !important;
-  outline: none !important;
-  box-shadow:
-    inset 0 0 0 1px rgba(111, 143, 215, 0.32),
-    0 0 0 2px rgba(111, 143, 215, 0.14) !important;
-}
-
-html body main.admin-page .admin-choice-btn-active {
-  box-shadow:
-    inset 0 0 0 1px rgba(111, 143, 215, 0.2),
-    0 1px 8px rgba(53, 95, 189, 0.12) !important;
-}
-
-html body main.admin-page .admin-tab-btn {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03) !important;
-}
-
-html body main.admin-page .admin-tab-btn-active {
-  box-shadow:
-    inset 0 0 0 1px rgba(111, 143, 215, 0.2),
-    0 1px 8px rgba(53, 95, 189, 0.12) !important;
 }

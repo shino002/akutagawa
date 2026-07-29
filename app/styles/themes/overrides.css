@@ -20,7 +20,7 @@
 }
 
 [class*="bg-emerald-200"] {
-  background: linear-gradient(180deg, #1a1a1a, #080808) !important;
+  background: linear-gradient(180deg, #0d0d0d, #000000) !important;
   border: 1px solid rgba(255, 255, 255, 0.45) !important;
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.55),
@@ -256,10 +256,24 @@
   }
 }
 
-/* Performance mode: 자료가 많아져도 스크롤/탭 전환이 버벅이지 않게 무거운 효과를 정적 질감으로 낮춥니다. */
+/* ══════════════════════════════════════════════════════════════════════
+   .theme-raw — 테마 일괄 규칙 탈출구
+
+   이 테마에는 main 아래 모든 텍스트/컨트롤을 한꺼번에 덮는 규칙이 몇 개 있습니다
+   (아래 performance mode, text cleanup, 그리고 components/shell.css 의
+   position/display/border-radius 일괄 규칙). 이것들은 특정도가 높아서
+   새 컴포넌트에서 position·display·background·animation 이 안 먹는 원인이 됩니다.
+
+   해결: 요소나 조상에 class="theme-raw" 를 주면 그 6개 규칙에서 전부 빠집니다.
+   예외는 :not(:where(...)) 로 달아 두어 특정도가 0 이므로,
+   기존 화면의 캐스케이드는 바뀌지 않습니다.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Performance mode: 자료가 많아져도 스크롤/탭 전환이 버벅이지 않게 무거운 효과를 정적 질감으로 낮춥니다.
+   단 .page-sheet 는 제외 — 페이지 넘김 전환은 여기서 죽으면 통째로 사라졌다 나타나 보입니다. */
 .noise-layer,
 .noise-layer::after,
-main *,
+main *:not(.page-sheet):not(:where(.theme-raw, .theme-raw *)),
 main *::before,
 main *::after {
   animation-duration: 0.001ms !important;
@@ -288,7 +302,7 @@ main *::after {
 
 .archive-character-card-image img,
 .gallery-tile img,
-.case-file-hero-image,
+.case-file-plate-image,
 .case-evidence-preview img,
 .world-profile-card img {
   filter: none !important;
@@ -362,7 +376,9 @@ main select:focus,
   box-shadow: none !important;
 }
 
-/* Text cleanup: 본문 텍스트 노드에만 박스 배경을 붙이지 않습니다. */
+/* Text cleanup: 본문 텍스트 노드에만 박스 배경을 붙이지 않습니다.
+   글자가 아니라 잉크로 그린 괘선·눈금·바코드는 `.paper-ink` 로 빠져나갑니다 —
+   이 규칙이 !important 라 그 표시가 없으면 배경이 통째로 지워집니다. */
 main
   :where(p, span, strong, em, small, b, i, dt, dd, li, h1, h2, h3, h4, h5, h6):not(
     .image-credit-label
@@ -372,7 +388,9 @@ main
     .case-side-record
   ):not(.case-evidence-preview):not(.plain-empty-note):not(.case-profile-chip):not(
     .story-record-card-badge
-  ):not(.case-file-intro-text):not(.character-index-blue-text) {
+  ):not(.case-file-intro-text):not(.character-index-blue-text):not(.paper-ink):not(
+    :where(.theme-raw, .theme-raw *)
+  ) {
   background: transparent !important;
 }
 
@@ -446,9 +464,9 @@ main :where(*) {
   --tw-ring-color: rgba(255, 255, 255, 0.32) !important;
   --tw-ring-offset-color: #020202 !important;
   --tw-shadow-color: rgba(0, 0, 0, 0.92) !important;
-  --tw-gradient-from: #080808 !important;
-  --tw-gradient-via: #1a1a1a !important;
-  --tw-gradient-to: #050505 !important;
+  --tw-gradient-from: #000000 !important;
+  --tw-gradient-via: #0d0d0d !important;
+  --tw-gradient-to: #000000 !important;
   accent-color: #eeeeee !important;
 }
 
@@ -464,9 +482,9 @@ main :where(*) {
 [class*="to-red"],
 [class*="to-rose"],
 [class*="to-pink"] {
-  --tw-gradient-from: #080808 !important;
-  --tw-gradient-via: #1a1a1a !important;
-  --tw-gradient-to: #050505 !important;
+  --tw-gradient-from: #000000 !important;
+  --tw-gradient-via: #0d0d0d !important;
+  --tw-gradient-to: #000000 !important;
   border-color: rgba(255, 255, 255, 0.28) !important;
   color: rgba(214, 208, 188, 0.82) !important;
   background-color: #070708 !important;
@@ -528,7 +546,7 @@ main select:focus,
 
 main img,
 main video,
-.case-file-hero-image,
+.case-file-plate-image,
 .archive-character-card-image img,
 .gallery-tile img,
 .case-evidence-preview img,
@@ -536,69 +554,27 @@ main video,
   filter: none !important;
 }
 
-/* Border/pseudo guards + hero mark (배경은 Surface pass가 담당) */
+/* Border/pseudo guards (배경은 Surface pass가 담당) */
 
 .glass-card::before,
 .glass-card::after,
 .archive-row::before,
 .archive-character-card::before,
-.case-file-hero-grid,
-.case-file-hero::before,
-.case-file-hero::after,
 .noise-layer,
 .noise-layer::before,
 .noise-layer::after {
   border-color: rgba(255, 255, 255, 0.16) !important;
   background-image: none !important;
   box-shadow: none !important;
-}
-
-.glass-card::before,
-.glass-card::after,
-.archive-row::before,
-.archive-character-card::before,
-.case-file-hero-grid,
-.noise-layer,
-.noise-layer::before,
-.noise-layer::after {
   opacity: 0 !important;
 }
 
-.case-file-hero::before {
-  opacity: 1 !important;
-  background: linear-gradient(
-    90deg,
-    rgba(0, 0, 0, 0.97) 0%,
-    rgba(0, 0, 0, 0.9) 34%,
-    rgba(0, 0, 0, 0.62) 50%,
-    rgba(0, 0, 0, 0.24) 58%,
-    transparent 64%
-  ) !important;
-}
-
-.case-file-hero::after {
-  content: none !important;
-  display: none !important;
-}
-
-.case-file-hero-mark {
-  position: absolute !important;
-  left: auto !important;
-  right: 0.85rem !important;
-  bottom: -0.75rem !important;
-  top: auto !important;
-  z-index: 3 !important;
-  display: block !important;
-  box-sizing: border-box !important;
-  max-width: calc(100% - 1.7rem) !important;
-  padding-right: 0.9rem !important;
-  font-size: clamp(3.8rem, 10vw, 8rem) !important;
-  color: rgba(255, 255, 255, 0.18) !important;
+/* 사진 아래 서명 — 표지가 2단이 되면서, 히어로 전체를 덮던 워터마크를 대신합니다.
+   위치·크기는 character.css 가 잡고 여기서는 잉크만 고정합니다. */
+.case-file-plate-sign {
+  color: rgba(255, 255, 255, 0.2) !important;
   background: transparent !important;
   opacity: 1 !important;
-  letter-spacing: 0.02em !important;
-  line-height: 1 !important;
-  text-align: right !important;
   animation: current-heading-glitch 2.4s steps(1, end) infinite;
 }
 
@@ -648,66 +624,35 @@ html body main .character-palette-surface {
   background-image: var(--character-palette-background) !important;
 }
 
-html body main .static-record-panel,
-html body main .static-record-panel:hover {
+/* 열람대는 자기 프레임을 스스로 그립니다 — 테마가 배경을 덮어쓰지 못하게만 잡아 둡니다 */
+/* 열람대는 이제 종이(.case-tab-panel) 위에 인쇄된 내용입니다 —
+   자기 상자를 또 그리면 종이 안에 상자, 그 사이에 빈 띠가 생깁니다. */
+html body main .record-console,
+html body main .record-console:hover {
   align-self: start;
-  display: block;
   min-width: 0;
   max-width: 100%;
   overflow-x: clip;
-  border-style: solid !important;
-  border-width: 1px !important;
-  border-color: rgba(255, 255, 255, 0.32) !important;
-  background: #070708 !important;
-  background-color: #070708 !important;
+  border: none !important;
+  background: transparent !important;
   background-image: none !important;
-  outline-color: rgba(255, 255, 255, 0.24) !important;
-  padding: 1rem;
+  box-shadow: none !important;
   transform: none !important;
 }
 
-/* RECORD BOX / 비주얼: 펼침 시 옆 일러가 따라 커지지 않게 고정 */
+/* 열람대 / 비주얼: 항을 갈아 끼워도 옆 일러가 따라 늘어나지 않게 고정 */
+html body main .record-settings-pair {
+  min-height: 0 !important;
+}
+
 @media (min-width: 900px) {
   html body main .record-settings-pair {
-    min-height: 28rem !important;
     align-items: start !important;
   }
-
-  html body main .record-settings-pair > .record-box.static-record-panel,
-  html body main .record-settings-pair > .record-box.static-record-panel:hover {
-    align-self: stretch;
-    display: flex !important;
-    height: auto !important;
-    min-height: 28rem !important;
-  }
-
-  html body main .record-settings-pair > .record-visual-preview {
-    align-self: start !important;
-    width: 100% !important;
-    min-height: 28rem !important;
-    height: 28rem !important;
-    max-height: 28rem !important;
-  }
 }
 
-@media (max-width: 899px) {
-  html body main .record-settings-pair {
-    min-height: 0 !important;
-  }
-
-  html body main .record-settings-pair > .record-box.static-record-panel,
-  html body main .record-settings-pair > .record-box.static-record-panel:hover {
-    min-height: 0 !important;
-  }
-
-  html body main .record-settings-pair > .record-visual-preview {
-    min-height: 16rem !important;
-    height: auto !important;
-    max-height: 22rem !important;
-  }
-}
-
-html body main .record-row-body img {
+/* 본문에 삽입된 이미지는 원본 비율로 눕혀 담습니다 */
+html body main .record-sheet-body img {
   max-width: 100% !important;
   max-height: 16rem !important;
   width: auto !important;
@@ -715,19 +660,18 @@ html body main .record-row-body img {
   object-fit: contain !important;
 }
 
-html body main .static-record-panel :where(p, dd, span, .glitch-zone-mark) {
+/* 다만 身上 항의 인물 사진은 사진칸을 꽉 채워야 하므로 위 규칙에서 뺍니다 */
+html body main .dossier-identity .dossier-figure-frame img {
+  max-width: none !important;
+  max-height: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+html body main .record-console :where(p, dd, span, .glitch-zone-mark) {
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-.story-record-card {
-  display: grid;
-  gap: 0.65rem;
-  align-content: start;
-}
-
-html body main .story-record-card.static-record-panel {
-  display: grid !important;
 }
 
 .story-record-card-head {
@@ -947,7 +891,7 @@ html body main .world-archive-section .archive-submit-button:active {
 html body main .character-index-panel .archive-character-card:hover {
   transform: none !important;
   border-color: rgba(255, 255, 255, 0.55) !important;
-  background: #080808 !important;
+  background: #000000 !important;
 }
 
 html body main .world-index-panel .world-file-card:hover {
@@ -1338,47 +1282,73 @@ html body main .case-file-detail .case-profile-chip-value {
   line-height: 1.3 !important;
 }
 
-/* Dossier meta strip */
+/* 헤더는 한 장의 서식 — 테두리와 행 괘선은 서식이 갖습니다 */
+html body main .case-file-detail .dossier-header {
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: rgba(0, 0, 0, 0.34) !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .dossier-header > * + * {
+  border-top: 1px solid rgba(255, 255, 255, 0.15) !important;
+}
+
+/* 기재란 — 칸끼리 세로 괘선으로만 끊습니다 */
 html body main .case-file-detail .dossier-meta-strip {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border: none !important;
   background: transparent !important;
   box-shadow: none !important;
 }
 
-html body main .case-file-detail .dossier-meta-item,
-html body main .case-file-detail .dossier-profile-inline-value,
-html body main .case-file-detail .dossier-voice-text {
-  color: rgba(220, 220, 220, 0.9) !important;
-}
-
-html body main .case-file-detail .record-box {
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  background: rgba(0, 0, 0, 0.5) !important;
+html body main .case-file-detail .dossier-meta-item {
+  border: none !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.13) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.13) !important;
+  background: transparent !important;
   box-shadow: none !important;
 }
 
-html body main .case-file-detail .record-row-title {
-  color: rgba(245, 245, 245, 0.96) !important;
+html body main .case-file-detail .dossier-meta-item:last-child {
+  border-right: none !important;
 }
 
-html body main .case-file-detail .record-row-hint {
-  color: rgba(150, 150, 150, 0.72) !important;
+html body main .case-file-detail .dossier-meta-quiet {
+  border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: rgba(168, 168, 168, 0.72) !important;
 }
 
-html body main .case-file-detail .record-row-index,
-html body main .case-file-detail .record-row-action {
-  color: rgba(150, 150, 150, 0.7) !important;
+/* 발언란 — 기재란과 같은 「항목명 칸 | 기입칸」이라 자기 상자는 두르지 않습니다 */
+html body main .case-file-detail .dossier-voice {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
-html body main .case-file-detail .case-tab-strip {
-  display: flex !important;
-  flex-wrap: wrap !important;
-  align-items: stretch !important;
-  gap: 0 !important;
-  margin-top: 0.25rem !important;
-  padding: 0 !important;
-  grid-template-columns: unset !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2) !important;
+html body main .case-file-detail .dossier-voice-label,
+html body main .case-file-detail .dossier-clearance-caption {
+  border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+}
+
+html body main .case-file-detail .dossier-clearance {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body main .case-file-detail .dossier-meta-value,
+html body main .case-file-detail .dossier-table td,
+html body main .case-file-detail .dossier-voice-text {
+  color: rgba(230, 230, 230, 0.93) !important;
+}
+
+html body main .case-file-detail .record-sheet-title-name {
+  color: rgba(248, 248, 248, 0.96) !important;
+}
+
+html body main .case-file-detail .record-sheet-title-num {
+  color: rgba(200, 200, 200, 0.82) !important;
 }
 
 html body main .case-file-detail .case-tab-button {
@@ -1387,7 +1357,7 @@ html body main .case-file-detail .case-tab-button {
   min-width: 5.5rem !important;
   margin-bottom: 0 !important;
   border: none !important;
-  border-radius: 0 !important;
+  border-radius: var(--app-radius-sm) !important;
   background: transparent !important;
   background-image: none !important;
   color: rgba(170, 170, 170, 0.7) !important;
@@ -1425,19 +1395,24 @@ html body main .case-file-detail .case-tab-button:hover:not(.is-active) {
   color: rgba(230, 230, 230, 0.9) !important;
 }
 
+/* 견출지가 물릴 종이 그 자체 — 탭이 무엇을 열든 뒤에는 같은 한 장이 있어야
+   합니다. 내용이 적은 탭에서 종이가 사라지면 견출지가 다시 허공에 뜹니다. */
 html body main .case-file-detail .case-tab-panel {
   margin-top: 0 !important;
-  padding: 1.1rem 0 0.35rem !important;
-  border: none !important;
-  background: transparent !important;
+  padding: 1.2rem 1.3rem 1.5rem !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: #000000 !important;
   background-image: none !important;
+  min-height: 18rem;
 }
 
 @media (min-width: 768px) {
   html body main .case-file-detail .case-tab-panel {
-    padding: 1.15rem 0 0.5rem !important;
+    padding: 1.4rem 1.6rem 1.7rem !important;
   }
 }
+
+/* 견출지 자체는 .file-tab 이 character.css 에서 스스로 그립니다 */
 
 html body main .case-file-detail .case-file-intro-label,
 html body main .world-file-detail .case-file-intro-label {
@@ -1550,19 +1525,8 @@ html body main .character-palette-scope .dossier-body {
   background-image: none !important;
 }
 
-html body main .character-palette-scope .case-file-hero::before {
-  background: linear-gradient(
-    90deg,
-    rgba(0, 0, 0, 0.97) 0%,
-    rgba(0, 0, 0, 0.9) 34%,
-    rgba(0, 0, 0, 0.62) 50%,
-    rgba(0, 0, 0, 0.24) 58%,
-    transparent 64%
-  ) !important;
-}
-
 html body main .character-palette-scope .archive-character-card-image .character-palette-backdrop {
-  border-radius: 0;
+  border-radius: var(--app-radius-md);
 }
 
 html body main .character-palette-scope .archive-character-card-image {
@@ -1571,13 +1535,13 @@ html body main .character-palette-scope .archive-character-card-image {
 }
 
 html body main .character-palette-scope .archive-character-card-body {
-  background: #080808 !important;
+  background: #000000 !important;
   background-image: none !important;
 }
 
 html body main .character-palette-scope.archive-character-card,
 html body main .character-palette-scope.archive-character-card:hover {
-  background: #080808 !important;
+  background: #000000 !important;
   background-image: none !important;
   box-shadow: none !important;
 }
@@ -1682,18 +1646,18 @@ html
   main
   :where(p, span, h1, h2, h3, h4, h5, h6, button, label, li, dt, dd, a):not(
     .story-inline-quote
-  ):not(.glitch-zone-mark):not(.image-credit-label) {
+  ):not(.glitch-zone-mark):not(.image-credit-label):not(:where(.theme-raw, .theme-raw *)) {
   text-shadow: none !important;
   filter: none !important;
 }
 
 /* Surface tone pass: 순수 니어블랙 (슬레이트/남색 제거) */
 body {
-  background: #080808 !important;
+  background: #000000 !important;
 }
 
 main > .fixed.inset-0 {
-  background: #080808 !important;
+  background: #000000 !important;
 }
 
 html body main::after {
@@ -1722,7 +1686,7 @@ html body main .story-record-card-open,
 html body main .story-record-card-open:hover,
 html body main .story-record-card-open:focus-visible,
 html body main .story-record-card-open:active {
-  background: #0c0c0c !important;
+  background: #000000 !important;
   background-image: none !important;
   border: 1px solid rgba(255, 255, 255, 0.22) !important;
   box-shadow: none !important;
@@ -1730,7 +1694,7 @@ html body main .story-record-card-open:active {
 
 html body main .side-menu,
 html body main .side-menu-content {
-  background: #050505 !important;
+  background: #000000 !important;
   background-image: none !important;
   border-color: rgba(255, 255, 255, 0.18) !important;
   box-shadow: none !important;
@@ -1740,7 +1704,7 @@ html body main .side-menu button,
 html body main .side-menu a,
 html body main .archive-row,
 html body main .archive-row:hover {
-  background: #050505 !important;
+  background: #000000 !important;
   background-image: none !important;
   border-color: rgba(255, 255, 255, 0.16) !important;
   box-shadow: none !important;
@@ -1765,7 +1729,7 @@ html body main .story-record-card-open:focus-visible {
 
 /* OC 카드: 호버는 보더만 — surface-raised/scale 없음 */
 html body main .archive-character-card:hover {
-  background: #080808 !important;
+  background: #000000 !important;
   background-image: none !important;
   border-color: rgba(255, 255, 255, 0.55) !important;
   transform: none !important;
@@ -1790,7 +1754,7 @@ html body main .case-file-detail .case-tab-button:hover:not(.is-active) {
 }
 
 html body main .case-file-detail .case-tab-panel {
-  background: transparent !important;
+  background: #000000 !important;
 }
 
 /* Character card divider: 이미지/본문 경계선은 반투명 border-color 덮어쓰기 없이 단색으로 고정 */
@@ -1810,7 +1774,7 @@ html body main .archive-character-card .archive-character-card-body {
   padding: 0.7rem 0.75rem !important;
   border-top: 0 !important;
   box-shadow: none !important;
-  background: #080808 !important;
+  background: #000000 !important;
 }
 
 html body main .archive-character-card .archive-character-card-id {
@@ -1864,7 +1828,7 @@ html body main .world-file-card-tab {
   line-height: 1 !important;
   white-space: nowrap !important;
   transform: translateY(-100%) !important;
-  border-radius: 0.28rem 0.28rem 0 0 !important;
+  border-radius: var(--app-radius-md) var(--app-radius-md) 0 0 !important;
   box-shadow: none !important;
 }
 
@@ -1872,7 +1836,7 @@ html body main .world-file-card-tab {
 html body main .world-file-doc {
   background:
     linear-gradient(90deg, rgba(18, 18, 18, 0.75), transparent 60%),
-    linear-gradient(180deg, #101010 0%, #050505 100%) !important;
+    linear-gradient(180deg, #050505 0%, #000000 100%) !important;
   border-bottom-color: rgba(255, 255, 255, 0.28) !important;
 }
 
@@ -1985,7 +1949,7 @@ html body main .home-stage {
   border-color: rgba(255, 255, 255, 0.22) !important;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 28%),
-    linear-gradient(180deg, #101010 0%, #080808 55%, #050505 100%) !important;
+    linear-gradient(180deg, #050505 0%, #000000 55%, #000000 100%) !important;
   box-shadow: none !important;
 }
 

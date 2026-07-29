@@ -1,6 +1,11 @@
 /* components/forms.css — auth-input, game-menu-button, Tailwind shape 보정 */
 [class*="rounded-"] {
-  border-radius: 2px !important;
+  border-radius: var(--app-radius-md) !important;
+}
+
+/* 원형/알약은 위 보정에서 제외 — 토글 버튼, 아바타가 사각형이 되지 않도록 */
+[class*="rounded-full"] {
+  border-radius: var(--app-radius-pill) !important;
 }
 
 [class*="font-serif"],
@@ -22,7 +27,7 @@ label {
 input,
 textarea,
 select {
-  border-radius: var(--radius-sm) !important;
+  border-radius: var(--app-radius-sm) !important;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
@@ -82,6 +87,6 @@ select {
 
 .game-menu-button:active {
   transform: none;
-  background: #080808;
+  background: #000000;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }

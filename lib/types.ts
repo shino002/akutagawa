@@ -33,16 +33,13 @@ export type CharacterWorldEntry = {
   works: Work[];
 };
 
-export type SettingSectionKind = "record" | "story";
-
+/* 예전에는 record / story 두 종류였습니다. 별지(전문 열람)가 종류가 아니라 「분량」 으로
+   열리도록 바뀌면서 story 모드가 하는 일이 색인의 두 글자(叙述)밖에 남지 않아 걷어냈습니다.
+   저장된 kind·excerpt 는 그대로 두고 읽을 때 무시합니다. */
 export type SettingSection = {
   id: string;
   title: string;
   body: string;
-  /** record: Record Box에 전체 표시 · story: 미리보기 + 스토리 창 */
-  kind?: SettingSectionKind;
-  /** story일 때 Record Box에 보일 짧은 소개 (비우면 본문에서 자동 생성) */
-  excerpt?: string;
 };
 
 /** 상세 카드 상단 메타 (상태·분류 등 사용자 정의 라벨) */
@@ -229,6 +226,11 @@ export type Character = {
    * 공개 홈에서 상세 진입 전 기밀 열람 확인을 띄울지 여부.
    */
   confidential?: boolean;
+  /**
+   * 문서 열람등급 (S/A/B/C). 도장 문구·색과 헤더 등급 표기가 여기서 나옵니다.
+   * 비어 있으면 confidential 로 판단합니다 — lib/clearance.ts 참고.
+   */
+  clearance?: string;
 };
 
 export type HomeContent = {

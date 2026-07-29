@@ -16,6 +16,7 @@ type UseSectionTransitionOptions = {
 
 type ParsedTransitionKey = {
   section: string;
+  archiveSub: string;
   characterId: string;
   subPageId: string;
 };
@@ -28,49 +29,41 @@ type SectionTransitionState = {
 };
 
 /**
- * page-turn.css 의 --turn-* 와 맞춰야 합니다.
+ * out 과 in 을 이어 붙인 한 구간의 길이 — page-turn.css 의 --turn-*-phase 와 맞춰야 합니다.
+ * (총 전환 시간은 이 값의 2배이며, --turn-full/soft/slide 와 같습니다)
  */
-const OUT_MS: Record<SectionTransitionVariant, number> = {
-  full: 600,
-  soft: 340,
-  slide: 300,
-};
-
-const IN_MS: Record<SectionTransitionVariant, number> = {
-  full: 600,
-  soft: 340,
-  slide: 300,
+const PHASE_MS: Record<SectionTransitionVariant, number> = {
+  full: 210,
+  soft: 160,
+  slide: 120,
 };
 
 const parseTransitionKey = (key: string): ParsedTransitionKey => {
-  const [section = "", characterId = "", subPageId = ""] = key.split("|");
-  return { section, characterId, subPageId };
+  const [section = "", archiveSub = "", characterId = "", subPageId = ""] = key.split("|");
+  return { section, archiveSub, characterId, subPageId };
 };
 
 /**
  * 이전 key → 새 key 비교로 전환 강도를 고릅니다.
  * 1) subPageId 만 변경 → full
  * 2) 캐릭터 상세 진입(빈 id → 값) → full
- * 3) section 변경 → soft
+ * 3) section 또는 archive 하위섹션 변경 → soft
  * 4) 그 외 → slide
  */
 const resolveVariant = (previousKey: string, nextKey: string): SectionTransitionVariant => {
   const prev = parseTransitionKey(previousKey);
   const next = parseTransitionKey(nextKey);
+  const sameScope = prev.section === next.section && prev.archiveSub === next.archiveSub;
 
-  if (
-    prev.section === next.section &&
-    prev.characterId === next.characterId &&
-    prev.subPageId !== next.subPageId
-  ) {
+  if (sameScope && prev.characterId === next.characterId && prev.subPageId !== next.subPageId) {
     return "full";
   }
 
-  if (prev.section === next.section && prev.characterId === "" && next.characterId !== "") {
+  if (sameScope && prev.characterId === "" && next.characterId !== "") {
     return "full";
   }
 
-  if (prev.section !== next.section) {
+  if (!sameScope) {
     return "soft";
   }
 
@@ -87,6 +80,11 @@ const prefersReducedMotion = (): boolean => {
 const wait = (ms: number) =>
   new Promise<void>((resolve) => {
     window.setTimeout(resolve, ms);
+  });
+
+const nextFrame = () =>
+  new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve());
   });
 
 /**
@@ -148,6 +146,16 @@ export const useSectionTransition = ({ key, isBackRef }: UseSectionTransitionOpt
       const back = isBackRef.current;
       isBackRef.current = false;
 
+      // 연타로 전환이 겹칠 때 같은 클래스가 유지되면 CSS 애니메이션이 재시작되지 않습니다.
+      // 한 프레임 idle 로 되돌려 클래스를 떼었다 붙여야 out 이 처음부터 다시 재생됩니다.
+      if (phaseRef.current !== "idle") {
+        setState((prev) => ({ ...prev, phase: "idle" }));
+        await nextFrame();
+        if (cancelled || targetKeyRef.current !== key) {
+          return;
+        }
+      }
+
       phaseRef.current = "out";
       setState({
         displayedKey: fromKey,
@@ -156,7 +164,7 @@ export const useSectionTransition = ({ key, isBackRef }: UseSectionTransitionOpt
         isBack: back,
       });
 
-      await wait(OUT_MS[variant]);
+      await wait(PHASE_MS[variant]);
       if (cancelled || targetKeyRef.current !== key) {
         return;
       }
@@ -170,7 +178,7 @@ export const useSectionTransition = ({ key, isBackRef }: UseSectionTransitionOpt
         isBack: back,
       });
 
-      await wait(IN_MS[variant]);
+      await wait(PHASE_MS[variant]);
       if (cancelled || targetKeyRef.current !== key) {
         return;
       }
@@ -199,6 +207,7 @@ export const useSectionTransition = ({ key, isBackRef }: UseSectionTransitionOpt
   return {
     displayedKey: state.displayedKey,
     displayedSection: displayed.section,
+    displayedArchiveSub: displayed.archiveSub,
     displayedCharacterId: displayed.characterId,
     displayedSubPageId: displayed.subPageId,
     phase: state.phase,

@@ -6,6 +6,7 @@ import { getFirebaseDb } from "@/lib/firebase";
 import type { Character } from "@/lib/types";
 import { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { normalizeCharacterKind } from "@/lib/character-kind";
+import { isClearanceGrade } from "@/lib/clearance";
 import { normalizeTextGlitch } from "@/lib/normalize-text-glitch";
 import { normalizeProfileFields } from "@/lib/profile-fields";
 import { normalizeRelationshipEntries } from "@/lib/relationship-entries";
@@ -79,6 +80,7 @@ const start = () => {
             ...(resolvedBgmUrl ? { bgmUrl: resolvedBgmUrl } : {}),
             ...(normalizedDetailTheme ? { detailTheme: normalizedDetailTheme } : {}),
             ...(data.confidential ? { confidential: true } : {}),
+            ...(isClearanceGrade(data.clearance) ? { clearance: data.clearance } : {}),
           };
         });
         emit({ data: nextData, error: null });

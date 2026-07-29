@@ -25,6 +25,9 @@ interface AdminAsideNavProps {
 
 /**
  * 관리자 좌측 패널: 카테고리/캐릭터 전환 + 목록 + 로그아웃입니다.
+ *
+ * 두 단 배치에서는 화면에 붙어 따라옵니다 — 편집기가 길어도 목록으로 돌아오려고
+ * 맨 위까지 스크롤을 되감지 않도록.
  */
 export function AdminAsideNav({
   adminPanel,
@@ -36,52 +39,59 @@ export function AdminAsideNav({
   onSignOut,
 }: AdminAsideNavProps) {
   return (
-    <aside className="glass-card p-5">
-      <div className="mb-5 grid grid-cols-2 gap-2 text-xs">
+    <aside className="admin-aside glass-card">
+      {/* 무엇을 편집할지 — 가장 위에서 한 번 고릅니다 */}
+      <div className="admin-aside-switch" role="tablist" aria-label="편집 대상">
         <button
           type="button"
+          role="tab"
+          aria-selected={adminPanel === "categories"}
           onClick={() => onPanelChange("categories")}
-          className={`px-3 py-3 ${adminPanel === "categories" ? "bg-emerald-200 text-emerald-950" : "border border-emerald-100/20 text-emerald-100/70"}`}
+          className={adminPanel === "categories" ? "is-active" : undefined}
         >
-          카테고리 관리
+          카테고리
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={adminPanel === "characters"}
           onClick={() => onPanelChange("characters")}
-          className={`px-3 py-3 ${adminPanel === "characters" ? "bg-emerald-200 text-emerald-950" : "border border-emerald-100/20 text-emerald-100/70"}`}
+          className={adminPanel === "characters" ? "is-active" : undefined}
         >
           자캐 · 페어 · 어나더
         </button>
       </div>
-      {adminPanel === "characters" && charactersSidebar}
-      {adminPanel === "categories" && (
-        <>
-          <h2 className="board-title">카테고리 목록</h2>
-          <div className="mt-5 grid gap-3">
-            {CATEGORIES.map((category) => (
-              <button
-                key={category.id}
-                type="button"
-                onClick={() => onCategoryChange(category.id)}
-                className={`border p-3 text-left text-sm ${
-                  activeCategory === category.id
-                    ? "border-stone-400/35 bg-emerald-100/10"
-                    : "border-emerald-100/10 bg-black/30"
-                }`}
-              >
-                <span className="block text-lg font-semibold">{category.title}</span>
-                <span className="mt-1 block text-xs text-emerald-100/50">{category.subtitle}</span>
-              </button>
-            ))}
-          </div>
-          {categoryExtra}
-        </>
-      )}
-      <button
-        type="button"
-        onClick={onSignOut}
-        className="mt-5 w-full border border-emerald-100/20 px-4 py-3 text-sm text-emerald-50"
-      >
+
+      <div className="admin-aside-body">
+        {adminPanel === "characters" && charactersSidebar}
+
+        {adminPanel === "categories" && (
+          <>
+            <p className="adm-label">카테고리 목록</p>
+            <nav className="admin-aside-list" aria-label="카테고리">
+              {CATEGORIES.map((category) => {
+                const isActive = activeCategory === category.id;
+
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    aria-current={isActive ? "true" : undefined}
+                    onClick={() => onCategoryChange(category.id)}
+                    className={isActive ? "admin-aside-item is-active" : "admin-aside-item"}
+                  >
+                    <span className="admin-aside-item-title">{category.title}</span>
+                    <span className="admin-aside-item-sub">{category.subtitle}</span>
+                  </button>
+                );
+              })}
+            </nav>
+            {categoryExtra}
+          </>
+        )}
+      </div>
+
+      <button type="button" onClick={onSignOut} className="admin-ghost-btn admin-aside-signout">
         로그아웃
       </button>
     </aside>

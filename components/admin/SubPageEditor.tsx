@@ -1,7 +1,10 @@
 "use client";
 
 import { MetaFieldsEditor } from "@/components/admin/MetaFieldsEditor";
-import { AdminInlineGlitchEditor, type GlitchFieldBindings } from "@/components/admin/AdminInlineGlitchEditor";
+import {
+  AdminInlineGlitchEditor,
+  type GlitchFieldBindings,
+} from "@/components/admin/AdminInlineGlitchEditor";
 import { SettingSectionOrderButtons } from "@/components/admin/SettingSectionOrderButtons";
 import { BgmQuickPicker } from "@/components/admin/BgmQuickPicker";
 import { ProfileFieldsEditor } from "@/components/admin/ProfileFieldsEditor";
@@ -12,7 +15,6 @@ import { PaletteEditor } from "@/components/admin/PaletteEditor";
 import type { BgmOption } from "@/lib/bgm-catalog";
 import type { Character, CharacterSubPage, FieldGlitchConfig, SettingSection } from "@/lib/types";
 import {
-  settingSectionExcerptGlitchPath,
   settingSectionGlitchPath,
   settingSectionTitleGlitchPath,
   subPageFieldGlitchPath,
@@ -250,7 +252,9 @@ export function SubPageEditor({
 
   const importSharedSubPage = (characterId: string, sourceSubPageId: string) => {
     const source = { characterId, subPageId: sourceSubPageId };
-    if (characterAlreadyImportsSharedSubPage({ id: parentCharacterId, subPages } as Character, source)) {
+    if (
+      characterAlreadyImportsSharedSubPage({ id: parentCharacterId, subPages } as Character, source)
+    ) {
       return;
     }
 
@@ -322,8 +326,8 @@ export function SubPageEditor({
           <div>
             <p className="text-sm font-semibold text-emerald-50">공용 상세 페이지 불러오기</p>
             <p className="mt-1 text-xs text-emerald-100/55">
-              다른 캐릭터의 하위 전체가 아니라, 원본에서 「공용」으로 켠 상세 페이지 하나만 가져와 쓸
-              수 있어요.
+              다른 캐릭터의 하위 전체가 아니라, 원본에서 「공용」으로 켠 상세 페이지 하나만 가져와
+              쓸 수 있어요.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -351,11 +355,12 @@ export function SubPageEditor({
             <div className="border border-sky-300/20 bg-sky-950/20 p-3 text-sm leading-6 text-sky-100/75">
               <p className="font-semibold text-sky-50">공용 상세 페이지 (불러온 항목)</p>
               <p className="mt-1 text-xs text-sky-100/55">
-                원본: {activeSubPage.sharedFrom?.characterId} / {activeSubPage.sharedFrom?.subPageId}
+                원본: {activeSubPage.sharedFrom?.characterId} /{" "}
+                {activeSubPage.sharedFrom?.subPageId}
               </p>
               <p className="mt-2 text-xs text-sky-100/55">
-                제목·설정·그림·글은 원본 캐릭터의 그 상세 페이지에서만 수정됩니다. 이 항목에서는 연결만
-                유지해요.
+                제목·설정·그림·글은 원본 캐릭터의 그 상세 페이지에서만 수정됩니다. 이 항목에서는
+                연결만 유지해요.
               </p>
               {(() => {
                 const resolved = resolveSubPage(
@@ -598,7 +603,9 @@ export function SubPageEditor({
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-emerald-50">레코드 박스</p>
-                    <p className="mt-1 text-xs text-emerald-100/55">{entryCopy.recordBoxHint} ↑↓로 표시 순서를 바꿀 수 있어요.</p>
+                    <p className="mt-1 text-xs text-emerald-100/55">
+                      {entryCopy.recordBoxHint} ↑↓로 표시 순서를 바꿀 수 있어요.
+                    </p>
                   </div>
                   <button
                     type="button"
@@ -667,65 +674,8 @@ export function SubPageEditor({
                         className={subPageFieldClass(settingSectionTitleGlitchPath(section.id), "")}
                         minHeightClass="min-h-10"
                       />
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() => updateSettingSection(section.id, { kind: "record", excerpt: "" })}
-                          className={`border px-3 py-1.5 text-xs ${
-                            (section.kind ?? "record") === "record"
-                              ? "border-emerald-200/45 text-emerald-50"
-                              : "border-stone-400/25 text-stone-300/70"
-                          }`}
-                        >
-                          일반 레코드
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => updateSettingSection(section.id, { kind: "story" })}
-                          className={`border px-3 py-1.5 text-xs ${
-                            section.kind === "story"
-                              ? "border-emerald-200/45 text-emerald-50"
-                              : "border-stone-400/25 text-stone-300/70"
-                          }`}
-                        >
-                          스토리 창
-                        </button>
-                      </div>
-                      {section.kind === "story" && (
-                        <AdminInlineGlitchEditor
-                          value={section.excerpt ?? ""}
-                          onChange={(value) => {
-                            const excerptPath = settingSectionExcerptGlitchPath(section.id);
-                            if (onGlitchFieldValueChange) {
-                              onGlitchFieldValueChange(
-                                subPageFieldGlitchPath(activeSubPage.id, excerptPath),
-                                value,
-                              );
-                              return;
-                            }
-                            updateSettingSection(section.id, { excerpt: value });
-                          }}
-                          glitch={getFieldGlitch?.(
-                            subPageFieldGlitchPath(
-                              activeSubPage.id,
-                              settingSectionExcerptGlitchPath(section.id),
-                            ),
-                          )}
-                          onGlitchChange={(config) =>
-                            onFieldGlitchChange?.(
-                              subPageFieldGlitchPath(
-                                activeSubPage.id,
-                                settingSectionExcerptGlitchPath(section.id),
-                              ),
-                              config,
-                            )
-                          }
-                          glitchBindings={bindSubPageField(settingSectionExcerptGlitchPath(section.id))}
-                          placeholder="Record Box에 보일 짧은 소개 (비우면 본문 앞부분이 자동으로 사용됩니다)"
-                          className={subPageFieldClass(settingSectionExcerptGlitchPath(section.id), "")}
-                          minHeightClass="min-h-16"
-                        />
-                      )}
+                      {/* 종류 전환·짧은 소개 칸이 있던 자리 — CharacterBasicsEditor 와 같은
+                          이유로 걷어냈습니다. */}
                       <AdminInlineGlitchEditor
                         value={section.body}
                         onChange={(value) => {
@@ -740,18 +690,24 @@ export function SubPageEditor({
                           updateSettingSection(section.id, { body: value });
                         }}
                         glitch={getFieldGlitch?.(
-                          subPageFieldGlitchPath(activeSubPage.id, settingSectionGlitchPath(section.id)),
+                          subPageFieldGlitchPath(
+                            activeSubPage.id,
+                            settingSectionGlitchPath(section.id),
+                          ),
                         )}
                         onGlitchChange={(config) =>
                           onFieldGlitchChange?.(
-                            subPageFieldGlitchPath(activeSubPage.id, settingSectionGlitchPath(section.id)),
+                            subPageFieldGlitchPath(
+                              activeSubPage.id,
+                              settingSectionGlitchPath(section.id),
+                            ),
                             config,
                           )
                         }
                         glitchBindings={bindSubPageField(settingSectionGlitchPath(section.id))}
-                        placeholder={section.kind === "story" ? "스토리 본문" : "이 박스 안에 들어갈 내용을 입력"}
+                        placeholder="이 박스 안에 들어갈 내용을 입력"
                         className={subPageFieldClass(settingSectionGlitchPath(section.id), "")}
-                        minHeightClass={section.kind === "story" ? "min-h-40" : "min-h-24"}
+                        minHeightClass="min-h-32"
                       />
                     </article>
                   ))

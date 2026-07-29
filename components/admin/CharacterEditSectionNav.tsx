@@ -1,6 +1,12 @@
 "use client";
 
-export type CharacterEditSection = "basics" | "glitch" | "subpages" | "members" | "world" | "images";
+export type CharacterEditSection =
+  | "basics"
+  | "glitch"
+  | "subpages"
+  | "members"
+  | "world"
+  | "images";
 
 interface CharacterEditSectionNavProps {
   active: CharacterEditSection;
@@ -36,9 +42,8 @@ export function CharacterEditSectionNav({
   isPair = false,
   activeGlitchLabel,
 }: CharacterEditSectionNavProps) {
-  const visibleSections = (isPair
-    ? BASE_SECTIONS
-    : BASE_SECTIONS.filter((section) => section.id !== "members")
+  const visibleSections = (
+    isPair ? BASE_SECTIONS : BASE_SECTIONS.filter((section) => section.id !== "members")
   ).map((section) =>
     isPair && section.id === "basics"
       ? { ...section, label: "페어 카드", hint: "목록 카드·공통 정보" }
@@ -47,10 +52,10 @@ export function CharacterEditSectionNav({
 
   return (
     <div className="admin-section-nav glass-card grid gap-3 p-4">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-100/45">편집 중</p>
-          <h2 className="mt-1 text-lg font-semibold text-emerald-50">{characterName || newItemLabel}</h2>
+      <div className="adm-head">
+        <div className="min-w-0">
+          <p className="adm-label">편집 중</p>
+          <h2 className="adm-head-title">{characterName || newItemLabel}</h2>
         </div>
         {activeGlitchLabel ? (
           <p className="border border-amber-300/25 bg-amber-950/20 px-3 py-2 text-xs text-amber-100/90">
@@ -73,7 +78,9 @@ export function CharacterEditSectionNav({
               key={section.id}
               type="button"
               onClick={() => onChange(section.id)}
-              className={active === section.id ? "admin-tab-btn admin-tab-btn-active" : "admin-tab-btn"}
+              className={
+                active === section.id ? "admin-tab-btn admin-tab-btn-active" : "admin-tab-btn"
+              }
               title={section.hint}
             >
               <span className="flex items-center gap-2 text-sm font-semibold">
@@ -90,22 +97,9 @@ export function CharacterEditSectionNav({
         })}
       </div>
 
-      {(active === "basics" || active === "glitch" || active === "subpages" || active === "members") && (
-        <p className="text-[11px] leading-5 text-emerald-100/50">
-          {isPair ? (
-            <>
-              페어 카드·오류·상세 페이지·연결 캐릭터 탭은 아래{" "}
-              <span className="text-emerald-100/80">「본 페이지에 저장」</span>으로 함께 저장됩니다.
-            </>
-          ) : (
-            <>
-              기본·레코드·오류·상세 페이지 탭은 아래{" "}
-              <span className="text-emerald-100/80">「본 페이지에 저장」</span>으로 함께 저장됩니다. 레코드 박스는{" "}
-              <span className="text-emerald-100/80">카드 · 레코드</span> 탭 맨 아래에 있습니다.
-            </>
-          )}
-        </p>
-      )}
+      {/* 「저장 버튼은 아래에 있습니다」 안내문이 있던 자리입니다.
+          설명이 필요했던 건 저장 단추가 폼 끝에 묻혀 있었기 때문이라,
+          안내문 대신 항상 떠 있는 저장 바(.admin-savebar)로 바꿨습니다. */}
     </div>
   );
 }

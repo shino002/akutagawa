@@ -29,7 +29,7 @@ export const useSettingSections = ({ setDraft }: UseSettingSectionsParams) => {
 
   const updateSettingSection = (
     id: string,
-    updates: Partial<Pick<SettingSection, "title" | "body" | "kind" | "excerpt">>,
+    updates: Partial<Pick<SettingSection, "title" | "body">>,
   ) => {
     setDraft((current) => ({
       ...current,

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { AdminChoiceButton } from "@/components/admin/AdminChoiceButton";
 import { filterCharactersByKind } from "@/lib/character-kind";
 import { listNavigableSubPages } from "@/lib/sub-pages";
@@ -63,9 +63,19 @@ export function ZoneLinkEditor({
     buildDefaultDraft(target, currentSection, currentCharacterId, allCharacters),
   );
 
-  useEffect(() => {
+  /* 밖에서 들어온 링크가 「값으로」 달라졌을 때만 편집 중인 초안을 다시 맞춥니다.
+     예전에는 allCharacters 같은 배열 참조까지 의존성에 있어서, 파이어스토어가
+     스냅샷을 한 번 흘릴 때마다(내용이 그대로여도 참조가 새로 옵니다) 고르던
+     링크가 처음 값으로 되돌아갔습니다. */
+  const targetKey = target?.characterId
+    ? `${target.section}/${target.characterId}/${target.subPageId ?? ""}`
+    : "";
+  const [syncedKey, setSyncedKey] = useState(targetKey);
+
+  if (targetKey !== syncedKey) {
+    setSyncedKey(targetKey);
     setDraftTarget(buildDefaultDraft(target, currentSection, currentCharacterId, allCharacters));
-  }, [allCharacters, currentCharacterId, currentSection, target]);
+  }
 
   const sectionCharacters = filterCharactersByKind(
     allCharacters,

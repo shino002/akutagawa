@@ -1,6 +1,7 @@
 import { resolveCharacterBgmUrl } from "@/lib/bgm-catalog";
 import { compactCaseFileDetailTheme } from "@/lib/case-file-theme";
 import { normalizeCharacterKind } from "@/lib/character-kind";
+import { resolveClearanceGrade } from "@/lib/clearance";
 import { DEFAULT_CHARACTER_PALETTE, normalizeCharacterPaletteInput } from "@/lib/character-palette";
 import { compactDraftTextGlitch, compactSubPageTextGlitch } from "@/lib/glitch-fields";
 import {
@@ -70,6 +71,7 @@ export const characterToDraft = (character: Character): CharacterDraft => {
     pairMemberIds: resolvePairMemberIds(character),
     bgmUrl: character.bgmUrl ?? "",
     confidential: Boolean(character.confidential),
+    clearance: resolveClearanceGrade(character),
   };
 };
 
@@ -167,6 +169,7 @@ export const createBlankDraft = (kind: CharacterKind = "oc"): CharacterDraft => 
     pairMemberIds: ["", ""],
     bgmUrl: "",
     confidential: false,
+    clearance: "B",
   };
 };
 
@@ -243,6 +246,7 @@ export const draftToCharacter = (
       ...pairCharacter,
       ...(bgmUrl ? { bgmUrl } : {}),
       ...(draft.confidential ? { confidential: true } : {}),
+      ...(draft.clearance ? { clearance: draft.clearance } : {}),
       ...(textGlitch ? { textGlitch } : {}),
       ...(compactCaseFileDetailTheme(draft.detailTheme)
         ? { detailTheme: compactCaseFileDetailTheme(draft.detailTheme) }
@@ -254,6 +258,7 @@ export const draftToCharacter = (
     ...characterBase,
     ...(bgmUrl ? { bgmUrl } : {}),
     ...(draft.confidential ? { confidential: true } : {}),
+    ...(draft.clearance ? { clearance: draft.clearance } : {}),
     ...(textGlitch ? { textGlitch } : {}),
     ...(compactCaseFileDetailTheme(draft.detailTheme)
       ? { detailTheme: compactCaseFileDetailTheme(draft.detailTheme) }
